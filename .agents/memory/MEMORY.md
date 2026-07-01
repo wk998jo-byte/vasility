@@ -1,0 +1,1 @@
+- [Single-port serving](single-port-serving.md) — Express serves both /api and the built React app; dev workflow builds then serves on 5000 (no vite dev/proxy).
