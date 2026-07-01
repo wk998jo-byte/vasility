@@ -1,0 +1,16 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply min-h-screen bg-[#fcfcfc] text-black antialiased dark:bg-[#0a0a0a] dark:text-white;
+  }
+
+  @media print {
+    body {
+      background: white !important;
+      color: black !important;
+    }
+  }
+}

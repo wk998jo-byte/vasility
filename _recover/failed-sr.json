@@ -1,0 +1,62 @@
+[
+  {
+    "line": 267,
+    "oldStart": "function updateNavHighlight(view) {\n  document.querySelectorAll('.nav-btn').forEach(btn => {\n    const active = btn.data"
+  },
+  {
+    "line": 267,
+    "oldStart": "  initFirebase();\n\n  document.querySelector('header')?.addEventListener('click', (e) => {\n    const btn = e.target.close"
+  },
+  {
+    "line": 267,
+    "oldStart": "  animateViewEnter(document.getElementById('view-report'));\n  applyRoomDeepLink();"
+  },
+  {
+    "line": 275,
+    "oldStart": "function updateNavHighlight(view) {\n  document.querySelectorAll('.nav-btn').forEach(btn => {\n    const active = btn.data"
+  },
+  {
+    "line": 275,
+    "oldStart": "  initFirebase();\n\n  document.querySelector('header')?.addEventListener('click', (e) => {\n    const btn = e.target.close"
+  },
+  {
+    "line": 275,
+    "oldStart": "  animateViewEnter(document.getElementById('view-report'));\n  applyRoomDeepLink();"
+  },
+  {
+    "line": 282,
+    "oldStart": "function updateNavHighlight(view) {\n  document.querySelectorAll('.nav-btn').forEach(btn => {\n    const active = btn.data"
+  },
+  {
+    "line": 282,
+    "oldStart": "  initFirebase();\n\n  document.querySelector('header')?.addEventListener('click', (e) => {\n    const btn = e.target.close"
+  },
+  {
+    "line": 282,
+    "oldStart": "  animateViewEnter(document.getElementById('view-report'));\n  applyRoomDeepLink();"
+  },
+  {
+    "line": 293,
+    "oldStart": "function ensureOverlaysClosed() {\n  const overlay = document.getElementById('ticket-overlay');\n  const slideover = docum"
+  },
+  {
+    "line": 293,
+    "oldStart": "function initNavigation() {\n  document.querySelectorAll('.nav-btn[data-view]').forEach(btn => {\n    btn.addEventListener"
+  },
+  {
+    "line": 293,
+    "oldStart": "function switchView(view) {\n  if (view === 'admin' && !adminUnlocked) {\n    showAdminLogin();\n    return;\n  }\n  currentV"
+  },
+  {
+    "line": 295,
+    "oldStart": "  window.sscSwitchView = go;"
+  },
+  {
+    "line": 304,
+    "oldStart": "function initNavigation() {\n  let lastNav = 0;\n  const go = (view) => {\n    const now = Date.now();\n    if (now - lastNa"
+  },
+  {
+    "line": 304,
+    "oldStart": "function initApp() {\n  if (localStorage.getItem('ssc_dark') === 'true') document.documentElement.classList.add('dark');\n"
+  }
+]

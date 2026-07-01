@@ -1,0 +1,1284 @@
+{
+  "inventory": {
+    "4S SUPPORT#1": [
+      "ROUND MEETING TABLE",
+      "CHAIRS WITH HEAD AND ARM REST",
+      "PROJECTOR WITH PROJECTOR SCREEN",
+      "AC GREE 1.5 TON",
+      "DOOR",
+      "WINDOW",
+      "WINDOW CURTAIN",
+      "SMOKE DETECTOR",
+      "CEILING LIGHTS 60x60",
+      "PB BOARD",
+      "DOUBLE SOCKET WITH SWITCH",
+      "SINGLE SWITCH",
+      "INTERNET SOCKET",
+      "FIRE EXTINGUISHER ABC DRY POWDER 20LB"
+    ],
+    "4S R&D ROOM": [
+      "WORKSTATION COMPLETE SET 2 PERSON",
+      "WORKSTATION COMPLETE SET 1 PERSON",
+      "CHAIRS WITH HEAD AND ARM REST",
+      "AC GREE 1.5 TON",
+      "DOOR",
+      "WINDOW",
+      "WINDOW CURTAIN",
+      "SMOKE DETECTOR",
+      "CEILING LIGHTS 60x60",
+      "DOUBLE SOCKET WITH SWITCH",
+      "SINGLE SWITCH",
+      "INTERNET SOCKET",
+      "PC",
+      "FIRE EXTINGUISHER ABC DRY POWDER 20LB",
+      "FILE  CABINET 3 DOOR TYPE",
+      "PB SMALL"
+    ],
+    "4S SUPPORT#2": [
+      "TABLELS COMPLETE SET",
+      "CHAIRS WITH HEAD AND ARM REST",
+      "AC GREE 1.5 TON",
+      "DOOR",
+      "WINDOW",
+      "WINDOW CURTAIN",
+      "SMOKE DETECTOR",
+      "CEILING LIGHTS 60x60",
+      "DOUBLE SOCKET WITH SWITCH",
+      "SINGLE SWITCH",
+      "INTERNET SOCKET",
+      "PC",
+      "IT CABINET",
+      "XEROX MACHINE",
+      "FILE CABINET DOUBLE DOOR"
+    ],
+    "PCC ROOM": [
+      "WORKSTATION 12 SINGLE PERSON",
+      "CHAIRS WITH HEAD AND ARM REST",
+      "SINGLE PERSON SOFA",
+      "TEA TABLE",
+      "AC GREE 1.5 TON",
+      "DOUBLE DOOR SET",
+      "SINGLE DOOR",
+      "LED TUBE LIGHTS",
+      "SPOT CEILING LIGHTS",
+      "PC",
+      "CCTV CAMERA BULLET TYPE",
+      "PRINTER MACHINE",
+      "FACP BRAND SIMPLEX",
+      "HORN",
+      "MCP",
+      "SMOKE DETECTOR",
+      "AED BOX",
+      "FIRE EXTINGUISHER ABC DRY POWDER 20LB",
+      "EXIT LIGHTS",
+      "WINDING MACHINE",
+      "LED BOARDS",
+      "LED SCRENE 2.5X10M",
+      "ANDROID DISPLAY SCREEN SET",
+      "GATE PUNCHING MACHINE"
+    ],
+    "PANTRY/KITCHEN": [
+      "MAGNIFICA COFFE MACHINE",
+      "NESPRESSO COFFE MACHINE",
+      "GEEPAS COFFE MACHINE",
+      "ALSAIF COFFIE MACHINE",
+      "OVEN",
+      "ELECTRICAL  KITTEL",
+      "CHAIRS WITH HEAD AND ARM REST"
+    ],
+    "MANAGERS ROOM": [
+      "WORKSTATION COMPLETE SET 1 PERSON",
+      "CHAIRS WITH HEAD AND ARM REST",
+      "SMALL MEETING TABLE",
+      "VISITOR CHAIR",
+      "REFRIGERATOR",
+      "FILE  CABINET",
+      "AC GREE 1.5 TON",
+      "DOOR",
+      "WINDOW",
+      "SMOKE DETECTOR",
+      "SPOT CEILING LIGHTS",
+      "NESPRESSO COFFE MACHINE",
+      "FIRE EXTINGUISHER 20LB ABC"
+    ],
+    "GENTS TOILET ROOM": [
+      "SPOT LIGHT",
+      "WASH BASIN",
+      "WATER CLOSET",
+      "HEAT DETECTOR",
+      "SOAF DISPENSER",
+      "TISSUE DISPENSER",
+      "TISSUE HOLDER",
+      "EXHAUST FAN CEILING MOULDED"
+    ],
+    "LADIES TOILET ROOM": [
+      "SPOT LIGHT",
+      "WASH BASIN",
+      "WATER CLOSET",
+      "HEAT DETECTOR",
+      "SOAF DISPENSER",
+      "TISSUE DISPENSER",
+      "TISSUE HOLDER",
+      "EXHAUST FAN CEILING MOULDED"
+    ],
+    "SAFETY OFFICE ROOM": [
+      "TABLE WITH COMPLETE SET 1 PERSON",
+      "CHAIRS",
+      "AC GREE 1.5 TON",
+      "DOUBLE DOOR",
+      "SMOKE DETECTOR",
+      "SMALL SPOT CEILING LIGHTS",
+      "PANEL BOARAD",
+      "WATER DISPENSER",
+      "FLY CATCHER",
+      "FIRE EXTINGUISHER 20LB ABC",
+      "FIRE EXTINGUISHER 20LB CO2"
+    ]
+  },
+  "products": [
+    {
+      "id": "SSC-0001",
+      "room": "4S SUPPORT#1",
+      "roomRaw": "4S SUPPORT#1(SMALL CONFERENCE ROOM)",
+      "asset": "ROUND MEETING TABLE",
+      "unit": "SET",
+      "qty": "1",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0002",
+      "room": "4S SUPPORT#1",
+      "roomRaw": "4S SUPPORT#1(SMALL CONFERENCE ROOM)",
+      "asset": "CHAIRS WITH HEAD AND ARM REST",
+      "unit": "PC",
+      "qty": "8",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0003",
+      "room": "4S SUPPORT#1",
+      "roomRaw": "4S SUPPORT#1(SMALL CONFERENCE ROOM)",
+      "asset": "PROJECTOR WITH PROJECTOR SCREEN",
+      "unit": "SET",
+      "qty": "1",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0004",
+      "room": "4S SUPPORT#1",
+      "roomRaw": "4S SUPPORT#1(SMALL CONFERENCE ROOM)",
+      "asset": "AC GREE 1.5 TON",
+      "unit": "PC",
+      "qty": "2",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0005",
+      "room": "4S SUPPORT#1",
+      "roomRaw": "4S SUPPORT#1(SMALL CONFERENCE ROOM)",
+      "asset": "DOOR",
+      "unit": "EA",
+      "qty": "2",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0006",
+      "room": "4S SUPPORT#1",
+      "roomRaw": "4S SUPPORT#1(SMALL CONFERENCE ROOM)",
+      "asset": "WINDOW",
+      "unit": "EA",
+      "qty": "1",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0007",
+      "room": "4S SUPPORT#1",
+      "roomRaw": "4S SUPPORT#1(SMALL CONFERENCE ROOM)",
+      "asset": "WINDOW CURTAIN",
+      "unit": "EA",
+      "qty": "1",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0008",
+      "room": "4S SUPPORT#1",
+      "roomRaw": "4S SUPPORT#1(SMALL CONFERENCE ROOM)",
+      "asset": "SMOKE DETECTOR",
+      "unit": "EA",
+      "qty": "1",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0009",
+      "room": "4S SUPPORT#1",
+      "roomRaw": "4S SUPPORT#1(SMALL CONFERENCE ROOM)",
+      "asset": "CEILING LIGHTS 60x60",
+      "unit": "EA",
+      "qty": "6",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0010",
+      "room": "4S SUPPORT#1",
+      "roomRaw": "4S SUPPORT#1(SMALL CONFERENCE ROOM)",
+      "asset": "PB BOARD",
+      "unit": "EA",
+      "qty": "1",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0011",
+      "room": "4S SUPPORT#1",
+      "roomRaw": "4S SUPPORT#1(SMALL CONFERENCE ROOM)",
+      "asset": "DOUBLE SOCKET WITH SWITCH",
+      "unit": "EA",
+      "qty": "3",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0012",
+      "room": "4S SUPPORT#1",
+      "roomRaw": "4S SUPPORT#1(SMALL CONFERENCE ROOM)",
+      "asset": "SINGLE SWITCH",
+      "unit": "EA",
+      "qty": "3",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0013",
+      "room": "4S SUPPORT#1",
+      "roomRaw": "4S SUPPORT#1(SMALL CONFERENCE ROOM)",
+      "asset": "INTERNET SOCKET",
+      "unit": "EA",
+      "qty": "4",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0014",
+      "room": "4S SUPPORT#1",
+      "roomRaw": "4S SUPPORT#1(SMALL CONFERENCE ROOM)",
+      "asset": "FIRE EXTINGUISHER ABC DRY POWDER 20LB",
+      "unit": "EA",
+      "qty": "1",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0015",
+      "room": "4S R&D ROOM",
+      "roomRaw": "4S R&D ROOM",
+      "asset": "WORKSTATION COMPLETE SET 2 PERSON",
+      "unit": "SET",
+      "qty": "1",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0016",
+      "room": "4S R&D ROOM",
+      "roomRaw": "4S R&D ROOM",
+      "asset": "WORKSTATION COMPLETE SET 1 PERSON",
+      "unit": "SET",
+      "qty": "1",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0017",
+      "room": "4S R&D ROOM",
+      "roomRaw": "4S R&D ROOM",
+      "asset": "CHAIRS WITH HEAD AND ARM REST",
+      "unit": "PC",
+      "qty": "3",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0018",
+      "room": "4S R&D ROOM",
+      "roomRaw": "4S R&D ROOM",
+      "asset": "AC GREE 1.5 TON",
+      "unit": "PC",
+      "qty": "1",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0019",
+      "room": "4S R&D ROOM",
+      "roomRaw": "4S R&D ROOM",
+      "asset": "DOOR",
+      "unit": "EA",
+      "qty": "2",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0020",
+      "room": "4S R&D ROOM",
+      "roomRaw": "4S R&D ROOM",
+      "asset": "WINDOW",
+      "unit": "EA",
+      "qty": "1",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0021",
+      "room": "4S R&D ROOM",
+      "roomRaw": "4S R&D ROOM",
+      "asset": "WINDOW CURTAIN",
+      "unit": "EA",
+      "qty": "1",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0022",
+      "room": "4S R&D ROOM",
+      "roomRaw": "4S R&D ROOM",
+      "asset": "SMOKE DETECTOR",
+      "unit": "EA",
+      "qty": "1",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0023",
+      "room": "4S R&D ROOM",
+      "roomRaw": "4S R&D ROOM",
+      "asset": "CEILING LIGHTS 60x60",
+      "unit": "EA",
+      "qty": "3",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0024",
+      "room": "4S R&D ROOM",
+      "roomRaw": "4S R&D ROOM",
+      "asset": "DOUBLE SOCKET WITH SWITCH",
+      "unit": "EA",
+      "qty": "3",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0025",
+      "room": "4S R&D ROOM",
+      "roomRaw": "4S R&D ROOM",
+      "asset": "SINGLE SWITCH",
+      "unit": "EA",
+      "qty": "3",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0026",
+      "room": "4S R&D ROOM",
+      "roomRaw": "4S R&D ROOM",
+      "asset": "INTERNET SOCKET",
+      "unit": "EA",
+      "qty": "4",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0027",
+      "room": "4S R&D ROOM",
+      "roomRaw": "4S R&D ROOM",
+      "asset": "PC",
+      "unit": "SET",
+      "qty": "3",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0028",
+      "room": "4S R&D ROOM",
+      "roomRaw": "4S R&D ROOM",
+      "asset": "FIRE EXTINGUISHER ABC DRY POWDER 20LB",
+      "unit": "EA",
+      "qty": "1",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0029",
+      "room": "4S R&D ROOM",
+      "roomRaw": "4S R&D ROOM ONE PERSON (INSIDE)",
+      "asset": "WORKSTATION COMPLETE SET 1 PERSON",
+      "unit": "SET",
+      "qty": "1",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0030",
+      "room": "4S R&D ROOM",
+      "roomRaw": "4S R&D ROOM ONE PERSON (INSIDE)",
+      "asset": "CHAIRS WITH HEAD AND ARM REST",
+      "unit": "PC",
+      "qty": "2",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0031",
+      "room": "4S R&D ROOM",
+      "roomRaw": "4S R&D ROOM ONE PERSON (INSIDE)",
+      "asset": "FILE  CABINET 3 DOOR TYPE",
+      "unit": "PC",
+      "qty": "1",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0032",
+      "room": "4S R&D ROOM",
+      "roomRaw": "4S R&D ROOM ONE PERSON (INSIDE)",
+      "asset": "AC GREE 1.5 TON",
+      "unit": "PC",
+      "qty": "1",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0033",
+      "room": "4S R&D ROOM",
+      "roomRaw": "4S R&D ROOM ONE PERSON (INSIDE)",
+      "asset": "DOOR",
+      "unit": "EA",
+      "qty": "1",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0034",
+      "room": "4S R&D ROOM",
+      "roomRaw": "4S R&D ROOM ONE PERSON (INSIDE)",
+      "asset": "WINDOW",
+      "unit": "EA",
+      "qty": "1",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0035",
+      "room": "4S R&D ROOM",
+      "roomRaw": "4S R&D ROOM ONE PERSON (INSIDE)",
+      "asset": "SMOKE DETECTOR",
+      "unit": "EA",
+      "qty": "1",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0036",
+      "room": "4S R&D ROOM",
+      "roomRaw": "4S R&D ROOM ONE PERSON (INSIDE)",
+      "asset": "CEILING LIGHTS 60x60",
+      "unit": "EA",
+      "qty": "4",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0037",
+      "room": "4S R&D ROOM",
+      "roomRaw": "4S R&D ROOM ONE PERSON (INSIDE)",
+      "asset": "DOUBLE SOCKET WITH SWITCH",
+      "unit": "EA",
+      "qty": "2",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0038",
+      "room": "4S R&D ROOM",
+      "roomRaw": "4S R&D ROOM ONE PERSON (INSIDE)",
+      "asset": "SINGLE SWITCH",
+      "unit": "EA",
+      "qty": "2",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0039",
+      "room": "4S R&D ROOM",
+      "roomRaw": "4S R&D ROOM ONE PERSON (INSIDE)",
+      "asset": "INTERNET SOCKET",
+      "unit": "EA",
+      "qty": "2",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0040",
+      "room": "4S R&D ROOM",
+      "roomRaw": "4S R&D ROOM ONE PERSON (INSIDE)",
+      "asset": "PC",
+      "unit": "SET",
+      "qty": "1",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0041",
+      "room": "4S R&D ROOM",
+      "roomRaw": "4S R&D ROOM ONE PERSON (INSIDE)",
+      "asset": "PB SMALL",
+      "unit": "PC",
+      "qty": "1",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0042",
+      "room": "4S SUPPORT#2",
+      "roomRaw": "4S SUPPORT# 2 ROOM",
+      "asset": "TABLELS COMPLETE SET",
+      "unit": "SET",
+      "qty": "3",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0043",
+      "room": "4S SUPPORT#2",
+      "roomRaw": "4S SUPPORT# 2 ROOM",
+      "asset": "CHAIRS WITH HEAD AND ARM REST",
+      "unit": "PC",
+      "qty": "5",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0044",
+      "room": "4S SUPPORT#2",
+      "roomRaw": "4S SUPPORT# 2 ROOM",
+      "asset": "AC GREE 1.5 TON",
+      "unit": "PC",
+      "qty": "2",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0045",
+      "room": "4S SUPPORT#2",
+      "roomRaw": "4S SUPPORT# 2 ROOM",
+      "asset": "DOOR",
+      "unit": "EA",
+      "qty": "1",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0046",
+      "room": "4S SUPPORT#2",
+      "roomRaw": "4S SUPPORT# 2 ROOM",
+      "asset": "WINDOW",
+      "unit": "EA",
+      "qty": "1",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0047",
+      "room": "4S SUPPORT#2",
+      "roomRaw": "4S SUPPORT# 2 ROOM",
+      "asset": "WINDOW CURTAIN",
+      "unit": "EA",
+      "qty": "1",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0048",
+      "room": "4S SUPPORT#2",
+      "roomRaw": "4S SUPPORT# 2 ROOM",
+      "asset": "SMOKE DETECTOR",
+      "unit": "EA",
+      "qty": "1",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0049",
+      "room": "4S SUPPORT#2",
+      "roomRaw": "4S SUPPORT# 2 ROOM",
+      "asset": "CEILING LIGHTS 60x60",
+      "unit": "EA",
+      "qty": "5",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0050",
+      "room": "4S SUPPORT#2",
+      "roomRaw": "4S SUPPORT# 2 ROOM",
+      "asset": "DOUBLE SOCKET WITH SWITCH",
+      "unit": "EA",
+      "qty": "4",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0051",
+      "room": "4S SUPPORT#2",
+      "roomRaw": "4S SUPPORT# 2 ROOM",
+      "asset": "SINGLE SWITCH",
+      "unit": "EA",
+      "qty": "3",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0052",
+      "room": "4S SUPPORT#2",
+      "roomRaw": "4S SUPPORT# 2 ROOM",
+      "asset": "INTERNET SOCKET",
+      "unit": "EA",
+      "qty": "5",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0053",
+      "room": "4S SUPPORT#2",
+      "roomRaw": "4S SUPPORT# 2 ROOM",
+      "asset": "PC",
+      "unit": "SET",
+      "qty": "4",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0054",
+      "room": "4S SUPPORT#2",
+      "roomRaw": "4S SUPPORT# 2 ROOM",
+      "asset": "IT CABINET",
+      "unit": "EA",
+      "qty": "1",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0055",
+      "room": "4S SUPPORT#2",
+      "roomRaw": "4S SUPPORT# 2 ROOM",
+      "asset": "XEROX MACHINE",
+      "unit": "EA",
+      "qty": "1",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0056",
+      "room": "4S SUPPORT#2",
+      "roomRaw": "4S SUPPORT# 2 ROOM",
+      "asset": "FILE CABINET DOUBLE DOOR",
+      "unit": "EA",
+      "qty": "6",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0057",
+      "room": "PCC ROOM",
+      "roomRaw": "PCC ROOM",
+      "asset": "WORKSTATION 12 SINGLE PERSON",
+      "unit": "SET",
+      "qty": "12",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0058",
+      "room": "PCC ROOM",
+      "roomRaw": "PCC ROOM",
+      "asset": "CHAIRS WITH HEAD AND ARM REST",
+      "unit": "PC",
+      "qty": "12",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0059",
+      "room": "PCC ROOM",
+      "roomRaw": "PCC ROOM",
+      "asset": "SINGLE PERSON SOFA",
+      "unit": "PC",
+      "qty": "5",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0060",
+      "room": "PCC ROOM",
+      "roomRaw": "PCC ROOM",
+      "asset": "TEA TABLE",
+      "unit": "PC",
+      "qty": "5",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0061",
+      "room": "PCC ROOM",
+      "roomRaw": "PCC ROOM",
+      "asset": "AC GREE 1.5 TON",
+      "unit": "PC",
+      "qty": "12",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0062",
+      "room": "PCC ROOM",
+      "roomRaw": "PCC ROOM",
+      "asset": "DOUBLE DOOR SET",
+      "unit": "EA",
+      "qty": "2",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0063",
+      "room": "PCC ROOM",
+      "roomRaw": "PCC ROOM",
+      "asset": "SINGLE DOOR",
+      "unit": "EA",
+      "qty": "1",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0064",
+      "room": "PCC ROOM",
+      "roomRaw": "PCC ROOM",
+      "asset": "LED TUBE LIGHTS",
+      "unit": "EA",
+      "qty": "42",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0065",
+      "room": "PCC ROOM",
+      "roomRaw": "PCC ROOM",
+      "asset": "SPOT CEILING LIGHTS",
+      "unit": "EA",
+      "qty": "42",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0066",
+      "room": "PCC ROOM",
+      "roomRaw": "PCC ROOM",
+      "asset": "PC",
+      "unit": "SET",
+      "qty": "12",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0067",
+      "room": "PCC ROOM",
+      "roomRaw": "PCC ROOM",
+      "asset": "CCTV CAMERA BULLET TYPE",
+      "unit": "EA",
+      "qty": "4",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0068",
+      "room": "PCC ROOM",
+      "roomRaw": "PCC ROOM",
+      "asset": "PRINTER MACHINE",
+      "unit": "EA",
+      "qty": "1",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0069",
+      "room": "PCC ROOM",
+      "roomRaw": "PCC ROOM",
+      "asset": "FACP BRAND SIMPLEX",
+      "unit": "SET",
+      "qty": "1",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0070",
+      "room": "PCC ROOM",
+      "roomRaw": "PCC ROOM",
+      "asset": "HORN",
+      "unit": "EA",
+      "qty": "1",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0071",
+      "room": "PCC ROOM",
+      "roomRaw": "PCC ROOM",
+      "asset": "MCP",
+      "unit": "EA",
+      "qty": "1",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0072",
+      "room": "PCC ROOM",
+      "roomRaw": "PCC ROOM",
+      "asset": "SMOKE DETECTOR",
+      "unit": "EA",
+      "qty": "3",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0073",
+      "room": "PCC ROOM",
+      "roomRaw": "PCC ROOM",
+      "asset": "AED BOX",
+      "unit": "EA",
+      "qty": "1",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0074",
+      "room": "PCC ROOM",
+      "roomRaw": "PCC ROOM",
+      "asset": "FIRE EXTINGUISHER ABC DRY POWDER 20LB",
+      "unit": "EA",
+      "qty": "1",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0075",
+      "room": "PCC ROOM",
+      "roomRaw": "PCC ROOM",
+      "asset": "EXIT LIGHTS",
+      "unit": "EA",
+      "qty": "3",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0076",
+      "room": "PCC ROOM",
+      "roomRaw": "PCC ROOM",
+      "asset": "WINDING MACHINE",
+      "unit": "EA",
+      "qty": "1",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0077",
+      "room": "PCC ROOM",
+      "roomRaw": "PCC ROOM",
+      "asset": "LED BOARDS",
+      "unit": "EA",
+      "qty": "4",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0078",
+      "room": "PCC ROOM",
+      "roomRaw": "PCC ROOM",
+      "asset": "LED SCRENE 2.5X10M",
+      "unit": "SET",
+      "qty": "1",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0079",
+      "room": "PCC ROOM",
+      "roomRaw": "PCC ROOM",
+      "asset": "ANDROID DISPLAY SCREEN SET",
+      "unit": "EA",
+      "qty": "2",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0080",
+      "room": "PCC ROOM",
+      "roomRaw": "PCC ROOM",
+      "asset": "GATE PUNCHING MACHINE",
+      "unit": "EA",
+      "qty": "1",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0081",
+      "room": "PANTRY/KITCHEN",
+      "roomRaw": "PANTRY ROOM.",
+      "asset": "MAGNIFICA COFFE MACHINE",
+      "unit": "1",
+      "qty": "",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0082",
+      "room": "PANTRY/KITCHEN",
+      "roomRaw": "PANTRY ROOM.",
+      "asset": "NESPRESSO COFFE MACHINE",
+      "unit": "1",
+      "qty": "",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0083",
+      "room": "PANTRY/KITCHEN",
+      "roomRaw": "PANTRY ROOM.",
+      "asset": "GEEPAS COFFE MACHINE",
+      "unit": "1",
+      "qty": "",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0084",
+      "room": "PANTRY/KITCHEN",
+      "roomRaw": "PANTRY ROOM.",
+      "asset": "ALSAIF COFFIE MACHINE",
+      "unit": "1",
+      "qty": "",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0085",
+      "room": "PANTRY/KITCHEN",
+      "roomRaw": "PANTRY ROOM.",
+      "asset": "OVEN",
+      "unit": "1",
+      "qty": "",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0086",
+      "room": "PANTRY/KITCHEN",
+      "roomRaw": "PANTRY ROOM.",
+      "asset": "ELECTRICAL  KITTEL",
+      "unit": "1",
+      "qty": "",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0087",
+      "room": "PANTRY/KITCHEN",
+      "roomRaw": "PANTRY ROOM.",
+      "asset": "CHAIRS WITH HEAD AND ARM REST",
+      "unit": "1",
+      "qty": "",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0088",
+      "room": "MANAGERS ROOM",
+      "roomRaw": "MANAGERS ROOM",
+      "asset": "WORKSTATION COMPLETE SET 1 PERSON",
+      "unit": "SET",
+      "qty": "1",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0089",
+      "room": "MANAGERS ROOM",
+      "roomRaw": "MANAGERS ROOM",
+      "asset": "CHAIRS WITH HEAD AND ARM REST",
+      "unit": "PC",
+      "qty": "1",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0090",
+      "room": "MANAGERS ROOM",
+      "roomRaw": "MANAGERS ROOM",
+      "asset": "SMALL MEETING TABLE",
+      "unit": "EA",
+      "qty": "1",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0091",
+      "room": "MANAGERS ROOM",
+      "roomRaw": "MANAGERS ROOM",
+      "asset": "VISITOR CHAIR",
+      "unit": "EA",
+      "qty": "5",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0092",
+      "room": "MANAGERS ROOM",
+      "roomRaw": "MANAGERS ROOM",
+      "asset": "REFRIGERATOR",
+      "unit": "EA",
+      "qty": "1",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0093",
+      "room": "MANAGERS ROOM",
+      "roomRaw": "MANAGERS ROOM",
+      "asset": "FILE  CABINET",
+      "unit": "EA",
+      "qty": "1",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0094",
+      "room": "MANAGERS ROOM",
+      "roomRaw": "MANAGERS ROOM",
+      "asset": "AC GREE 1.5 TON",
+      "unit": "EA",
+      "qty": "1",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0095",
+      "room": "MANAGERS ROOM",
+      "roomRaw": "MANAGERS ROOM",
+      "asset": "DOOR",
+      "unit": "EA",
+      "qty": "1",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0096",
+      "room": "MANAGERS ROOM",
+      "roomRaw": "MANAGERS ROOM",
+      "asset": "WINDOW",
+      "unit": "EA",
+      "qty": "2",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0097",
+      "room": "MANAGERS ROOM",
+      "roomRaw": "MANAGERS ROOM",
+      "asset": "SMOKE DETECTOR",
+      "unit": "EA",
+      "qty": "1",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0098",
+      "room": "MANAGERS ROOM",
+      "roomRaw": "MANAGERS ROOM",
+      "asset": "SPOT CEILING LIGHTS",
+      "unit": "EA",
+      "qty": "12",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0099",
+      "room": "MANAGERS ROOM",
+      "roomRaw": "MANAGERS ROOM",
+      "asset": "NESPRESSO COFFE MACHINE",
+      "unit": "EA",
+      "qty": "1",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0100",
+      "room": "MANAGERS ROOM",
+      "roomRaw": "MANAGERS ROOM",
+      "asset": "FIRE EXTINGUISHER 20LB ABC",
+      "unit": "EA",
+      "qty": "1",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0101",
+      "room": "GENTS TOILET ROOM",
+      "roomRaw": "GENETS TOILET ROOM",
+      "asset": "SPOT LIGHT",
+      "unit": "EA",
+      "qty": "6",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0102",
+      "room": "GENTS TOILET ROOM",
+      "roomRaw": "GENETS TOILET ROOM",
+      "asset": "WASH BASIN",
+      "unit": "EA",
+      "qty": "2",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0103",
+      "room": "GENTS TOILET ROOM",
+      "roomRaw": "GENETS TOILET ROOM",
+      "asset": "WATER CLOSET",
+      "unit": "EA",
+      "qty": "2",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0104",
+      "room": "GENTS TOILET ROOM",
+      "roomRaw": "GENETS TOILET ROOM",
+      "asset": "HEAT DETECTOR",
+      "unit": "EA",
+      "qty": "1",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0105",
+      "room": "GENTS TOILET ROOM",
+      "roomRaw": "GENETS TOILET ROOM",
+      "asset": "SOAF DISPENSER",
+      "unit": "EA",
+      "qty": "1",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0106",
+      "room": "GENTS TOILET ROOM",
+      "roomRaw": "GENETS TOILET ROOM",
+      "asset": "TISSUE DISPENSER",
+      "unit": "EA",
+      "qty": "1",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0107",
+      "room": "GENTS TOILET ROOM",
+      "roomRaw": "GENETS TOILET ROOM",
+      "asset": "TISSUE HOLDER",
+      "unit": "EA",
+      "qty": "2",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0108",
+      "room": "GENTS TOILET ROOM",
+      "roomRaw": "GENETS TOILET ROOM",
+      "asset": "EXHAUST FAN CEILING MOULDED",
+      "unit": "EA",
+      "qty": "2",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0109",
+      "room": "LADIES TOILET ROOM",
+      "roomRaw": "LADIES TOILET ROOM",
+      "asset": "SPOT LIGHT",
+      "unit": "EA",
+      "qty": "6",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0110",
+      "room": "LADIES TOILET ROOM",
+      "roomRaw": "LADIES TOILET ROOM",
+      "asset": "WASH BASIN",
+      "unit": "EA",
+      "qty": "2",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0111",
+      "room": "LADIES TOILET ROOM",
+      "roomRaw": "LADIES TOILET ROOM",
+      "asset": "WATER CLOSET",
+      "unit": "EA",
+      "qty": "2",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0112",
+      "room": "LADIES TOILET ROOM",
+      "roomRaw": "LADIES TOILET ROOM",
+      "asset": "HEAT DETECTOR",
+      "unit": "EA",
+      "qty": "1",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0113",
+      "room": "LADIES TOILET ROOM",
+      "roomRaw": "LADIES TOILET ROOM",
+      "asset": "SOAF DISPENSER",
+      "unit": "EA",
+      "qty": "1",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0114",
+      "room": "LADIES TOILET ROOM",
+      "roomRaw": "LADIES TOILET ROOM",
+      "asset": "TISSUE DISPENSER",
+      "unit": "EA",
+      "qty": "1",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0115",
+      "room": "LADIES TOILET ROOM",
+      "roomRaw": "LADIES TOILET ROOM",
+      "asset": "TISSUE HOLDER",
+      "unit": "EA",
+      "qty": "2",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0116",
+      "room": "LADIES TOILET ROOM",
+      "roomRaw": "LADIES TOILET ROOM",
+      "asset": "EXHAUST FAN CEILING MOULDED",
+      "unit": "EA",
+      "qty": "2",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0117",
+      "room": "SAFETY OFFICE ROOM",
+      "roomRaw": "SAFETY OFFICE ROOM",
+      "asset": "TABLE WITH COMPLETE SET 1 PERSON",
+      "unit": "SET",
+      "qty": "12",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0118",
+      "room": "SAFETY OFFICE ROOM",
+      "roomRaw": "SAFETY OFFICE ROOM",
+      "asset": "CHAIRS",
+      "unit": "PC",
+      "qty": "14",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0119",
+      "room": "SAFETY OFFICE ROOM",
+      "roomRaw": "SAFETY OFFICE ROOM",
+      "asset": "AC GREE 1.5 TON",
+      "unit": "EA",
+      "qty": "5",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0120",
+      "room": "SAFETY OFFICE ROOM",
+      "roomRaw": "SAFETY OFFICE ROOM",
+      "asset": "DOUBLE DOOR",
+      "unit": "EA",
+      "qty": "1",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0121",
+      "room": "SAFETY OFFICE ROOM",
+      "roomRaw": "SAFETY OFFICE ROOM",
+      "asset": "SMOKE DETECTOR",
+      "unit": "EA",
+      "qty": "1",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0122",
+      "room": "SAFETY OFFICE ROOM",
+      "roomRaw": "SAFETY OFFICE ROOM",
+      "asset": "SMALL SPOT CEILING LIGHTS",
+      "unit": "EA",
+      "qty": "56",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0123",
+      "room": "SAFETY OFFICE ROOM",
+      "roomRaw": "SAFETY OFFICE ROOM",
+      "asset": "PANEL BOARAD",
+      "unit": "EA",
+      "qty": "1",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0124",
+      "room": "SAFETY OFFICE ROOM",
+      "roomRaw": "SAFETY OFFICE ROOM",
+      "asset": "WATER DISPENSER",
+      "unit": "EA",
+      "qty": "1",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0125",
+      "room": "SAFETY OFFICE ROOM",
+      "roomRaw": "SAFETY OFFICE ROOM",
+      "asset": "FLY CATCHER",
+      "unit": "EA",
+      "qty": "1",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0126",
+      "room": "SAFETY OFFICE ROOM",
+      "roomRaw": "SAFETY OFFICE ROOM",
+      "asset": "FIRE EXTINGUISHER 20LB ABC",
+      "unit": "EA",
+      "qty": "1",
+      "remarks": ""
+    },
+    {
+      "id": "SSC-0127",
+      "room": "SAFETY OFFICE ROOM",
+      "roomRaw": "SAFETY OFFICE ROOM",
+      "asset": "FIRE EXTINGUISHER 20LB CO2",
+      "unit": "EA",
+      "qty": "1",
+      "remarks": ""
+    }
+  ],
+  "generatedAt": "2026-06-28T04:23:44.499Z"
+}

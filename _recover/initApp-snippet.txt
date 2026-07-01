@@ -1,0 +1,11 @@
+function showOfflineBannerIfNeeded() {
+  const banner = document.getElementById('offline-banner');
+  if (!banner) return;
+  const isFile = location.protocol === 'file:';
+  const moduleBlocked = isFile;
+  if (moduleBlocked) banner.classList.add('visible');
+}
+
+function initApp() {
+  showOfflineBannerIfNeeded();
+  loadLocationsStore();

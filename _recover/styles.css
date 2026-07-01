@@ -1,0 +1,556 @@
+/* ═══ SSC Building Portal — Global Styles & Animations ═══ */
+
+:root {
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --duration-fast: 0.2s;
+  --duration-normal: 0.35s;
+  --duration-slow: 0.6s;
+}
+
+body {
+  background: #fcfcfc;
+}
+
+.dark body,
+html.dark body {
+  background: #0a0a0a;
+}
+
+html.dark {
+  color-scheme: dark;
+}
+
+.font-ar {
+  font-family: 'Cairo', 'Inter', system-ui, sans-serif;
+}
+
+/* ─── Scrollbar ─── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #ccc;
+  border-radius: 3px;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #444;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+}
+
+.segmented input:checked + label {
+  background: #000;
+  color: #fff;
+}
+
+.dark .segmented input:checked + label {
+  background: #fff;
+  color: #000;
+}
+
+/* ═══ KEYFRAMES ═══ */
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fadeInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideOutRight {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+}
+
+@keyframes toastIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes toastOut {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@keyframes pulseSla {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(1.2);
+  }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+@keyframes logoGlow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(0, 0, 0, 0); }
+  50% { box-shadow: 0 0 20px 2px rgba(0, 0, 0, 0.08); }
+}
+
+.dark @keyframes logoGlow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); }
+  50% { box-shadow: 0 0 20px 2px rgba(255, 255, 255, 0.08); }
+}
+
+@keyframes countPop {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+
+@keyframes backdropIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes modalIn {
+  from {
+    opacity: 0;
+    transform: scale(0.94) translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes scanPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(0, 0, 0, 0.15); }
+  50% { box-shadow: 0 0 0 8px rgba(0, 0, 0, 0); }
+}
+
+@keyframes staggerIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ═══ ANIMATION UTILITIES ═══ */
+
+.animate-fade-in-up {
+  animation: fadeInUp var(--duration-slow) var(--ease-out-expo) both;
+}
+
+.animate-fade-in {
+  animation: fadeIn var(--duration-normal) ease both;
+}
+
+.animate-fade-in-down {
+  animation: fadeInDown var(--duration-normal) var(--ease-out-expo) both;
+}
+
+.animate-scale-in {
+  animation: scaleIn var(--duration-normal) var(--ease-spring) both;
+}
+
+.animate-stagger-in {
+  animation: staggerIn var(--duration-normal) var(--ease-out-expo) both;
+}
+
+.delay-1 { animation-delay: 0.05s; }
+.delay-2 { animation-delay: 0.1s; }
+.delay-3 { animation-delay: 0.15s; }
+.delay-4 { animation-delay: 0.2s; }
+.delay-5 { animation-delay: 0.25s; }
+.delay-6 { animation-delay: 0.3s; }
+.delay-7 { animation-delay: 0.35s; }
+.delay-8 { animation-delay: 0.4s; }
+
+/* Page load */
+.page-enter {
+  animation: fadeInUp 0.7s var(--ease-out-expo) both;
+}
+
+/* Header */
+.header-enter {
+  animation: fadeInDown 0.5s var(--ease-out-expo) both;
+}
+
+.logo-animate {
+  animation: logoGlow 3s ease-in-out infinite;
+  transition: transform var(--duration-fast) var(--ease-spring);
+}
+
+.logo-animate:hover {
+  transform: scale(1.05);
+}
+
+/* Views */
+.view-enter {
+  animation: fadeInUp 0.5s var(--ease-out-expo) both;
+}
+
+.view-exit {
+  animation: fadeIn 0.2s ease reverse both;
+}
+
+/* Cards & panels */
+.card-hover {
+  transition: transform var(--duration-normal) var(--ease-out-expo),
+              box-shadow var(--duration-normal) ease;
+}
+
+.card-hover:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 16px 40px -8px rgba(0, 0, 0, 0.12);
+}
+
+.dark .card-hover:hover {
+  box-shadow: 0 16px 40px -8px rgba(0, 0, 0, 0.4);
+}
+
+.kpi-card {
+  transition: transform var(--duration-normal) var(--ease-spring),
+              box-shadow var(--duration-normal) ease;
+}
+
+.kpi-card:hover {
+  transform: translateY(-4px) scale(1.01);
+}
+
+.kpi-pop {
+  animation: countPop 0.4s var(--ease-spring);
+}
+
+/* Buttons */
+.btn-press {
+  transition: transform var(--duration-fast) ease, opacity var(--duration-fast) ease;
+}
+
+.btn-press:active {
+  transform: scale(0.97);
+}
+
+.btn-lift {
+  transition: transform var(--duration-normal) var(--ease-out-expo),
+              box-shadow var(--duration-normal) ease;
+}
+
+.btn-lift:hover {
+  transform: translateY(-1px);
+}
+
+#scan-qr-btn {
+  transition: transform var(--duration-normal) var(--ease-spring),
+              box-shadow var(--duration-normal) ease;
+}
+
+#scan-qr-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.2);
+}
+
+#scan-qr-btn.scanning {
+  animation: scanPulse 2s ease infinite;
+}
+
+/* Inputs */
+.input-focus-ring {
+  transition: box-shadow var(--duration-fast) ease, transform var(--duration-fast) ease;
+}
+
+.input-focus-ring:focus {
+  transform: translateY(-1px);
+}
+
+/* SLA pulse */
+.pulse-sla {
+  animation: pulseSla 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Slide-over */
+.slide-over {
+  transform: translateX(100%);
+  transition: transform 0.4s var(--ease-out-expo);
+}
+
+.slide-over.open {
+  transform: translateX(0);
+  animation: slideInRight 0.4s var(--ease-out-expo) both;
+}
+
+.slide-over.closing {
+  animation: slideOutRight 0.3s var(--ease-out-expo) both;
+}
+
+#ticket-overlay {
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+#ticket-overlay.visible {
+  opacity: 1;
+  animation: backdropIn 0.3s ease both;
+}
+
+/* Modals */
+.modal-backdrop {
+  animation: backdropIn 0.3s ease both;
+}
+
+.modal-content {
+  animation: modalIn 0.4s var(--ease-spring) both;
+}
+
+.modal-shake {
+  animation: shake 0.4s ease;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-6px); }
+  40%, 80% { transform: translateX(6px); }
+}
+
+/* Toast */
+.toast-enter {
+  animation: toastIn 0.4s var(--ease-spring) forwards;
+}
+
+.toast-exit {
+  animation: toastOut 0.3s ease forwards;
+}
+
+/* Kanban */
+.kanban-card {
+  cursor: grab;
+  transition: transform var(--duration-normal) var(--ease-out-expo),
+              box-shadow var(--duration-normal) ease,
+              opacity var(--duration-fast) ease;
+}
+
+.kanban-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px -4px rgba(0, 0, 0, 0.1);
+}
+
+.kanban-card:active {
+  cursor: grabbing;
+  transform: scale(1.02);
+  opacity: 0.9;
+}
+
+.kanban-col.drag-over {
+  background: rgba(0, 0, 0, 0.04);
+  transition: background 0.2s ease;
+}
+
+.dark .kanban-col.drag-over {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* Table rows */
+.ticket-row {
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.ticket-row:hover {
+  transform: scale(1.005);
+}
+
+.ticket-row-enter {
+  animation: staggerIn 0.35s var(--ease-out-expo) both;
+}
+
+/* Stepper */
+.stepper-line {
+  height: 3px;
+  flex: 1;
+  background: #e5e5e5;
+  transition: background 0.4s ease, transform 0.4s ease;
+}
+
+.dark .stepper-line {
+  background: #333;
+}
+
+.stepper-line.active {
+  background: #000;
+  animation: fadeIn 0.4s ease;
+}
+
+.dark .stepper-line.active {
+  background: #fff;
+}
+
+.stepper-dot {
+  transition: transform 0.3s var(--ease-spring), background 0.3s ease;
+}
+
+.stepper-dot.active {
+  animation: countPop 0.4s var(--ease-spring);
+}
+
+/* Track cards */
+.track-card {
+  animation: staggerIn 0.4s var(--ease-out-expo) both;
+}
+
+/* Tools dropdown */
+#tools-menu {
+  transform-origin: top right;
+  animation: scaleIn 0.2s var(--ease-spring) both;
+}
+
+/* QR reader */
+#qr-reader-wrap {
+  animation: scaleIn 0.35s var(--ease-spring) both;
+}
+
+/* Nav buttons */
+.nav-btn {
+  transition: all 0.25s var(--ease-out-expo);
+}
+
+/* Hidden print targets */
+#rfq-template,
+#qr-print-sheet {
+  display: none;
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ═══ PRINT ═══ */
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+
+  body.print-work-order #ticket-slideover,
+  body.print-work-order #ticket-slideover * {
+    visibility: visible !important;
+  }
+
+  body.print-work-order #ticket-slideover {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    transform: none !important;
+    box-shadow: none !important;
+  }
+
+  body.print-rfq #rfq-template,
+  body.print-rfq #rfq-template * {
+    visibility: visible !important;
+    display: block !important;
+  }
+
+  body.print-rfq #rfq-template {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    padding: 2rem;
+    background: white !important;
+    color: black !important;
+  }
+
+  body.print-qrs #qr-print-sheet,
+  body.print-qrs #qr-print-sheet * {
+    visibility: visible !important;
+    display: block !important;
+  }
+
+  body.print-qrs #qr-print-sheet {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    padding: 1rem;
+    background: white !important;
+  }
+}

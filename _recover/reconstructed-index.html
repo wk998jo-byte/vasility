@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <title>SSC Building Portal</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <script src="scripts/vendor/qrcode-generator.js?v=8"></script>
+  <script src="qr-utils.js?v=4"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="styles.css?v=4">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'Cairo', 'system-ui', 'sans-serif'],
+            arabic: ['Cairo', 'Inter', 'system-ui', 'sans-serif'],
+          },
+          colors: {
+            surface: { DEFAULT: '#fcfcfc', dark: '#0a0a0a' },
+          },
+          boxShadow: {
+            premium: '0 10px 30px -5px rgba(0,0,0,0.08)',
+          },
+        },
+      },
+    };
+  </script>
+</head>
+<body class="text-black dark:text-white dark:bg-[#0a0a0a] min-h-screen antialiased transition-colors duration-300 page-enter">
+<div class="page-bg" aria-hidden="true"></div>
+
+<!-- NAV -->
+<header class="header-enter sticky top-0 z-50 bg-[#fcfcfc]/90 dark:bg-[#0a0a0a]/90 backdrop-blur-xl border-b border-black/5 dark:border-white/10 isolate">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 min-h-[4.5rem] sm:min-h-[6.5rem] py-2 sm:py-3 flex items-center justify-between overflow-hidden pointer-events-none">
+    <div class="flex items-center gap-3 min-w-0 pointer-events-auto">
+      <img src="assets/bin-quraya-logo.png" alt="Bin Quraya" class="brand-logo brand-logo--header logo-animate">
+      <div class="hidden md:block border-l border-black/10 dark:border-white/10 pl-3 min-w-0">
+        <span class="font-semibold text-sm tracking-tight block leading-tight truncate" data-i18n="appName">SSC Building Portal</span>
+      </div>
+    </div>
+    <nav class="hidden sm:flex items-center gap-1 bg-black/5 dark:bg-white/5 rounded-2xl p-1 pointer-events-auto" aria-label="Primary">
+      <button type="button" data-view="report" class="nav-btn px-4 py-2 rounded-xl text-sm font-medium transition-all bg-black text-white dark:bg-white dark:text-black" data-i18n="navReport">Report</button>
+      <button type="button" data-view="track" class="nav-btn px-4 py-2 rounded-xl text-sm font-medium transition-all hover:bg-black/5 dark:hover:bg-white/10" data-i18n="navTrack">Track</button>
+      <button type="button" data-view="admin" class="nav-btn px-4 py-2 rounded-xl text-sm font-medium transition-all hover:bg-black/5 dark:hover:bg-white/10" data-i18n="navAdmin">Admin</button>
+    </nav>
+    <div class="flex items-center gap-2 pointer-events-auto">
+      <button id="lang-toggle" class="px-3 py-2 rounded-xl text-sm font-medium border border-black/10 dark:border-white/15 hover:bg-black/5 dark:hover:bg-white/10 transition-all">AR</button>
+      <button id="dark-toggle" class="p-2 rounded-xl border border-black/10 dark:border-white/15 hover:bg-black/5 dark:hover:bg-white/10 transition-all" aria-label="Toggle dark mode">
+        <i data-lucide="moon" class="w-5 h-5 dark:hidden"></i>
+        <i data-lucide="sun" class="w-5 h-5 hidden dark:block"></i>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-24 sm:pb-8">
+
+<!-- VIEW 1: REPORT -->
+<section id="view-report" class="view max-w-2xl mx-auto view-enter">
+  <div class="hero-eyebrow animate-fade-in-up">
+    <span class="hero-badge"><i data-lucide="building-2"></i><span data-i18n="heroBadge">SSC Facility</span></span>
+    <span class="hero-stats" id="portal-stats"></span>
+  </div>
+  <h1 class="text-4xl sm:text-5xl font-bold tracking-tight mb-2 animate-fade-in-up" data-i18n="reportTitle">Report an Issue.</h1>
+  <p class="text-black/50 dark:text-white/50 mb-8 animate-fade-in-up delay-1" data-i18n="reportSubtitle">Submit a maintenance request for any room in the SSC facility.</p>
+  <form id="report-form" class="space-y-2 bg-white dark:bg-[#141414] rounded-3xl p-6 sm:p-8 shadow-premium border border-black/5 dark:border-white/10 card-hover animate-scale-in delay-2">
+    <div class="form-section">
+      <div class="form-section__head"><i data-lucide="user"></i><span data-i18n="sectionIdentity">Your details</span></div>
+      <div class="grid sm:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-medium mb-2" data-i18n="requesterName">Requester Name</label>
+          <input type="text" id="requester-name" required class="input-focus-ring w-full px-4 py-3.5 rounded-2xl bg-[#fcfcfc] dark:bg-[#0a0a0a] ring-1 ring-black/10 dark:ring-white/15 focus:ring-2 focus:ring-red-600 dark:focus:ring-red-400 transition-all" data-i18n-placeholder="requesterNamePh" placeholder="Full name">
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-2" data-i18n="employeeId">Employee ID <span class="text-red-500">*</span></label>
+          <input type="text" id="employee-id" required class="input-focus-ring w-full px-4 py-3.5 rounded-2xl bg-[#fcfcfc] dark:bg-[#0a0a0a] ring-1 ring-black/10 dark:ring-white/15 focus:ring-2 focus:ring-teal-600 dark:focus:ring-teal-400 transition-all" data-i18n-placeholder="employeeIdPh" placeholder="e.g. EMP-1234">
+        </div>
+      </div>
+    </div>
+    <div class="form-section">
+      <div class="form-section__head"><i data-lucide="scan-line"></i><span data-i18n="sectionScan">Quick scan</span></div>
+      <button type="button" id="scan-qr-btn" class="btn-press btn-lift w-full flex items-center justify-center gap-2 px-4 py-3.5 rounded-2xl font-medium hover:opacity-95 transition-all">
+        <i data-lucide="scan-line" class="w-5 h-5"></i>
+        <span data-i18n="scanQr">Scan QR</span>
+      </button>
+      <div id="qr-reader-wrap" class="hidden mt-4 rounded-2xl overflow-hidden ring-1 ring-black/10 dark:ring-white/15">
+        <div id="qr-reader" class="w-full"></div>
+        <button type="button" id="close-qr" class="w-full py-2 text-sm bg-black/5 dark:bg-white/10" data-i18n="closeScanner">Close Scanner</button>
+      </div>
+      <p class="scan-divider" data-i18n="orManual">or select manually</p>
+    </div>
+    <div class="form-section">
+      <div class="form-section__head"><i data-lucide="map-pin"></i><span data-i18n="sectionLocation">Location &amp; asset</span></div>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium mb-2" data-i18n="room">Room</label>
+          <select id="room-select" required class="select-field w-full px-4 py-3.5 rounded-2xl bg-[#fcfcfc] dark:bg-[#0a0a0a] ring-1 ring-black/10 dark:ring-white/15 focus:ring-2 focus:ring-teal-600 dark:focus:ring-teal-400 transition-all cursor-pointer">
+            <option value="" data-i18n="selectRoom">Select room...</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-2" data-i18n="asset">Asset</label>
+          <select id="asset-select" required disabled class="select-field w-full px-4 py-3.5 rounded-2xl bg-[#fcfcfc] dark:bg-[#0a0a0a] ring-1 ring-black/10 dark:ring-white/15 focus:ring-2 focus:ring-teal-600 dark:focus:ring-teal-400 transition-all cursor-pointer disabled:opacity-40">
+            <option value="" data-i18n="selectAsset">Select asset...</option>
+          </select>
+        </div>
+        <div class="grid sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium mb-2" data-i18n="quantity">Quantity</label>
+            <input type="number" id="report-quantity" min="1" value="1" disabled required class="input-focus-ring w-full px-4 py-3.5 rounded-2xl bg-[#fcfcfc] dark:bg-[#0a0a0a] ring-1 ring-black/10 dark:ring-white/15 focus:ring-2 focus:ring-teal-600 dark:focus:ring-teal-400 transition-all disabled:opacity-40">
+            <p id="quantity-hint" class="text-xs text-black/40 dark:text-white/40 mt-1"></p>
+          </div>
+          <div>
+            <label class="block text-sm font-medium mb-2" data-i18n="unit">Unit</label>
+            <input type="text" id="report-unit" readonly tabindex="-1" class="w-full px-4 py-3.5 rounded-2xl bg-black/[0.03] dark:bg-white/[0.05] ring-1 ring-black/10 dark:ring-white/15 text-black/60 dark:text-white/60 cursor-default">
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="form-section">
+      <div class="form-section__head"><i data-lucide="alert-circle"></i><span data-i18n="sectionIssue">Issue details</span></div>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium mb-2" data-i18n="issue">Observed Issue</label>
+          <select id="issue-select" required disabled class="select-field w-full px-4 py-3.5 rounded-2xl bg-[#fcfcfc] dark:bg-[#0a0a0a] ring-1 ring-black/10 dark:ring-white/15 focus:ring-2 focus:ring-teal-600 dark:focus:ring-teal-400 transition-all cursor-pointer disabled:opacity-40">
+            <option value="" data-i18n="selectIssue">Select issue...</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-3" data-i18n="priority">Priority</label>
+          <div class="segmented segmented--priority flex rounded-2xl ring-1 ring-black/10 dark:ring-white/15 overflow-hidden p-1 gap-1">
+            <input type="radio" name="priority" id="pri-low" value="Low" class="sr-only" checked>
+            <label for="pri-low" class="flex-1 text-center py-3 rounded-xl text-sm font-medium cursor-pointer transition-all" data-i18n="priorityLow">Low</label>
+            <input type="radio" name="priority" id="pri-med" value="Medium" class="sr-only">
+            <label for="pri-med" class="flex-1 text-center py-3 rounded-xl text-sm font-medium cursor-pointer transition-all" data-i18n="priorityMed">Medium</label>
+            <input type="radio" name="priority" id="pri-high" value="High" class="sr-only">
+            <label for="pri-high" class="flex-1 text-center py-3 rounded-xl text-sm font-medium cursor-pointer transition-all" data-i18n="priorityHigh">High</label>
+          </div>
+        </div>
+        <div>
+          <div class="flex justify-between mb-2">
+            <label class="text-sm font-medium" data-i18n="notes">Additional Notes</label>
+            <span id="char-count" class="text-xs text-black/40 dark:text-white/40">0/250</span>
+          </div>
+          <textarea id="notes" maxlength="250" rows="3" class="w-full px-4 py-3.5 rounded-2xl bg-[#fcfcfc] dark:bg-[#0a0a0a] ring-1 ring-black/10 dark:ring-white/15 focus:ring-2 focus:ring-teal-600 dark:focus:ring-teal-400 transition-all resize-none" data-i18n-placeholder="notesPh" placeholder="Describe the issue..."></textarea>
+          <p id="notes-error" class="hidden text-red-500 text-sm mt-1" data-i18n="notesRequired">Notes are required when selecting "Other".</p>
+        </div>
+      </div>
+    </div>
+    <button type="submit" id="submit-btn" class="btn-press btn-lift w-full py-4 rounded-2xl bg-gradient-to-r from-red-600 to-red-800 dark:from-red-500 dark:to-red-600 text-white font-semibold text-lg hover:opacity-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50 mt-2">
+      <i data-lucide="send" class="w-5 h-5"></i>
+      <span id="submit-text" data-i18n="submit">Submit Request</span>
+      <svg id="submit-spinner" class="hidden animate-spin w-5 h-5" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+    </button>
+  </form>
+</section>
+
+<!-- VIEW 2: TRACK -->
+<section id="view-track" class="view hidden max-w-2xl mx-auto">
+  <h1 class="text-4xl font-bold tracking-tight mb-2" data-i18n="trackTitle">Track My Request</h1>
+  <p class="text-black/50 dark:text-white/50 mb-8" data-i18n="trackSubtitle">Enter your Employee ID to view submitted tickets.</p>
+  <div class="track-search-wrap">
+    <i data-lucide="search"></i>
+    <input type="text" id="track-employee-id" class="track-search-input" data-i18n-placeholder="employeeIdPh" placeholder="e.g. EMP-1234" autocomplete="off">
+  </div>
+  <div id="track-results"></div>
+  <div id="track-empty" class="empty-state hidden">
+    <div class="empty-state__icon"><i data-lucide="inbox"></i></div>
+    <p class="empty-state__text" data-i18n="trackEmpty">No tickets found for this Employee ID.</p>
+  </div>
+  </div>
+</section>
+
+<!-- VIEW 3: ADMIN LOGIN -->
+<section id="view-admin-login" class="view hidden portal-view">
+  <div class="admin-login-wrap">
+    <div class="admin-login-card animate-scale-in">
+      <div class="admin-login-heading">
+        <img src="assets/bin-quraya-logo.png" alt="Bin Quraya" class="brand-logo brand-logo--login logo-animate">
+        <h1 class="admin-login-title" data-i18n="loginTitle">Admin Sign In</h1>
+        <p class="admin-login-subtitle" data-i18n="loginSubtitle">Secure access to the Command Center</p>
+      </div>
+      <form id="admin-login-form" class="admin-login-form panel">
+        <div class="login-field">
+          <label for="admin-username" data-i18n="loginUsername">Username</label>
+          <div class="login-input-wrap">
+            <i data-lucide="user" class="w-4 h-4"></i>
+            <input type="text" id="admin-username" autocomplete="username" required class="portal-input input-focus-ring" data-i18n-placeholder="loginUsernamePh" placeholder="admin">
+          </div>
+        </div>
+        <div class="login-field">
+          <label for="admin-password" data-i18n="loginPassword">Password</label>
+          <div class="login-input-wrap login-input-wrap--password">
+            <i data-lucide="lock" class="w-4 h-4"></i>
+            <input type="password" id="admin-password" autocomplete="current-password" required class="portal-input input-focus-ring" data-i18n-placeholder="loginPasswordPh" placeholder="••••••••">
+            <button type="button" id="toggle-password" class="login-toggle-password" aria-label="Toggle password">
+              <i data-lucide="eye" class="w-4 h-4" id="eye-icon"></i>
+            </button>
+          </div>
+        </div>
+        <p id="login-error" class="login-error hidden" data-i18n="loginError">Invalid username or password.</p>
+        <button type="submit" id="login-submit" class="login-submit btn-press btn-lift">
+          <span id="login-submit-text" data-i18n="loginSubmit">Sign In</span>
+          <svg id="login-spinner" class="hidden animate-spin w-5 h-5" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+        </button>
+        <button type="button" id="login-back" class="login-back" data-i18n="loginBack">← Back to Portal</button>
+      </form>
+      <p class="login-secure" data-i18n="loginSecure">Authorized personnel only · SSC Facility Management</p>
+    </div>
+  </div>
+</section>
+
+<!-- VIEW 4: ADMIN DASHBOARD -->
+<section id="view-admin" class="view hidden">
+  <div class="admin-dashboard">
+    <div class="admin-page-header">
+    <div>
+      <h1 class="admin-page-title" data-i18n="adminTitle">Command Center</h1>
+      <p class="admin-page-subtitle"><span data-i18n="adminSubtitle">Real-time facility operations dashboard</span><span id="admin-user-badge" class="admin-user-badge hidden"></span><span id="dashboard-updated" class="dashboard-updated"></span></p>
+    </div>
+    <div class="admin-toolbar">
+      <div class="admin-toolbar__row admin-toolbar__filters">
+        <select id="date-filter" class="admin-toolbar__select" aria-label="Date filter">
+          <option value="all" data-i18n="filterAll">All Time</option>
+          <option value="today" data-i18n="filterToday">Today</option>
+          <option value="7d" data-i18n="filter7d">Last 7 Days</option>
+          <option value="30d" data-i18n="filter30d">Last 30 Days</option>
+        </select>
+        <select id="status-filter" class="admin-toolbar__select" aria-label="Status filter">
+          <option value="all" data-i18n="filterStatusAll">All Statuses</option>
+          <option value="Pending" data-i18n="statusPending">Pending</option>
+          <option value="In Progress" data-i18n="statusProgress">In Progress</option>
+          <option value="Completed" data-i18n="statusCompleted">Completed</option>
+          <option value="Rejected" data-i18n="statusRejected">Rejected</option>
+        </select>
+        <select id="priority-filter" class="admin-toolbar__select" aria-label="Priority filter">
+          <option value="all" data-i18n="filterPriorityAll">All Priorities</option>
+          <option value="High" data-i18n="priorityHigh">High</option>
+          <option value="Medium" data-i18n="priorityMed">Medium</option>
+          <option value="Low" data-i18n="priorityLow">Low</option>
+        </select>
+        <div class="admin-toolbar__search">
+          <i data-lucide="search" class="admin-toolbar__search-icon"></i>
+          <input type="text" id="admin-search" class="admin-toolbar__search-input" data-i18n-placeholder="searchPh" placeholder="Search tickets...">
+        </div>
+      </div>
+      <div class="admin-toolbar__row admin-toolbar__actions">
+        <div class="relative admin-toolbar__action-wrap">
+          <button id="tools-btn" type="button" class="admin-toolbar__btn admin-toolbar__btn--secondary">
+            <i data-lucide="wrench" class="w-4 h-4 shrink-0"></i>
+            <span data-i18n="tools">Tools</span>
+          </button>
+          <div id="tools-menu" class="hidden admin-toolbar__menu">
+            <button type="button" id="print-room-qrs" class="admin-toolbar__menu-item"><i data-lucide="map-pin" class="w-4 h-4"></i><span data-i18n="printQrs">Print Room QRs</span></button>
+            <button type="button" id="backup-db" class="admin-toolbar__menu-item"><i data-lucide="database" class="w-4 h-4"></i><span data-i18n="backupDb">Backup DB (JSON)</span></button>
+            <button type="button" id="export-csv" class="admin-toolbar__menu-item"><i data-lucide="file-spreadsheet" class="w-4 h-4"></i><span data-i18n="exportCsv">Export CSV</span></button>
+            <button type="button" id="deleted-tickets" class="admin-toolbar__menu-item"><i data-lucide="trash-2" class="w-4 h-4"></i><span data-i18n="deletedTickets">Deleted Tickets</span><span id="deleted-tickets-badge" class="toolbar-menu-badge hidden">0</span></button>
+          </div>
+        </div>
+        <button type="button" id="rooms-manager-btn" class="admin-toolbar__btn admin-toolbar__btn--secondary">
+          <i data-lucide="building-2" class="w-4 h-4 shrink-0"></i>
+          <span data-i18n="roomsManager">Rooms</span>
+        </button>
+        <button type="button" id="dashboard-refresh" class="admin-toolbar__btn admin-toolbar__btn--secondary" title="Refresh">
+          <i data-lucide="refresh-cw" class="w-4 h-4 shrink-0"></i>
+          <span data-i18n="refresh">Refresh</span>
+        </button>
+        <button type="button" id="dispatch-btn" class="admin-toolbar__btn admin-toolbar__btn--primary">
+          <i data-lucide="send" class="w-4 h-4 shrink-0"></i>
+          <span data-i18n="dispatch">Dispatch</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- KPI Bento -->
+  <div class="kpi-grid kpi-grid--extended">
+    <button type="button" class="kpi-card kpi-card--total card-hover panel animate-stagger-in delay-1 kpi-card--clickable" data-kpi-filter="all">
+      <div class="kpi-card__icon"><i data-lucide="ticket"></i></div>
+      <p class="kpi-card__label" data-i18n="kpiTotal">Total Tickets</p>
+      <p id="kpi-total" class="kpi-card__value">0</p>
+    </button>
+    <button type="button" class="kpi-card kpi-card--pending card-hover panel animate-stagger-in delay-1 kpi-card--clickable" data-kpi-filter="status:Pending">
+      <div class="kpi-card__icon"><i data-lucide="clock"></i></div>
+      <p class="kpi-card__label" data-i18n="kpiPending">Pending</p>
+      <p id="kpi-pending" class="kpi-card__value">0</p>
+    </button>
+    <button type="button" class="kpi-card kpi-card--progress card-hover panel animate-stagger-in delay-2 kpi-card--clickable" data-kpi-filter="status:In Progress">
+      <div class="kpi-card__icon"><i data-lucide="loader"></i></div>
+      <p class="kpi-card__label" data-i18n="kpiProgress">In Progress</p>
+      <p id="kpi-progress" class="kpi-card__value">0</p>
+    </button>
+    <button type="button" class="kpi-card kpi-card--completed card-hover panel animate-stagger-in delay-2 kpi-card--clickable" data-kpi-filter="status:Completed">
+      <div class="kpi-card__icon"><i data-lucide="check-circle"></i></div>
+      <p class="kpi-card__label" data-i18n="kpiCompleted">Completed</p>
+      <p id="kpi-completed" class="kpi-card__value">0</p>
+    </button>
+    <button type="button" class="kpi-card kpi-card--sla card-hover panel panel--sla animate-stagger-in delay-3 kpi-card--clickable" data-kpi-filter="sla">
+      <div class="kpi-card__icon"><i data-lucide="alert-triangle"></i></div>
+      <p class="kpi-card__label text-red" data-i18n="kpiSla">SLA Breached</p>
+      <p id="kpi-sla" class="kpi-card__value text-red">0</p>
+    </button>
+    <button type="button" class="kpi-card kpi-card--high card-hover panel animate-stagger-in delay-3 kpi-card--clickable" data-kpi-filter="priority:High">
+      <div class="kpi-card__icon"><i data-lucide="flame"></i></div>
+      <p class="kpi-card__label" data-i18n="kpiHigh">High Priority Open</p>
+      <p id="kpi-high" class="kpi-card__value">0</p>
+    </button>
+  </div>
+
+  <!-- Insights -->
+  <div class="insights-grid">
+    <div class="insight-card panel">
+      <div class="insight-card__icon insight-card__icon--green"><i data-lucide="trending-up"></i></div>
+      <div>
+        <p class="insight-card__label" data-i18n="insightResolution">Resolution Rate</p>
+        <p id="insight-resolution" class="insight-card__value">—</p>
+      </div>
+    </div>
+    <div class="insight-card panel">
+      <div class="insight-card__icon insight-card__icon--blue"><i data-lucide="map-pin"></i></div>
+      <div>
+        <p class="insight-card__label" data-i18n="insightBusiest">Busiest Room</p>
+        <p id="insight-busiest" class="insight-card__value insight-card__value--text">—</p>
+      </div>
+    </div>
+    <div class="insight-card panel">
+      <div class="insight-card__icon insight-card__icon--amber"><i data-lucide="timer"></i></div>
+      <div>
+        <p class="insight-card__label" data-i18n="insightAvgTime">Avg. Resolution Time</p>
+        <p id="insight-avgtime" class="insight-card__value">—</p>
+      </div>
+    </div>
+    <div class="insight-card panel">
+      <div class="insight-card__icon insight-card__icon--purple"><i data-lucide="banknote"></i></div>
+      <div>
+        <p class="insight-card__label" data-i18n="kpiSpend">Total Spend (SAR)</p>
+        <p id="kpi-spend" class="insight-card__value">0</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- View Toggle + Charts -->
+  <div class="admin-toolbar-row">
+    <div class="view-toggle" role="tablist">
+      <button type="button" id="view-list-btn" class="view-toggle__btn view-toggle__btn--active" role="tab" aria-selected="true">
+        <i data-lucide="list"></i><span data-i18n="listView">List View</span>
+      </button>
+      <button type="button" id="view-kanban-btn" class="view-toggle__btn" role="tab" aria-selected="false">
+        <i data-lucide="columns-3"></i><span data-i18n="kanbanView">Kanban</span>
+      </button>
+    </div>
+    <div class="charts-grid">
+    <div class="chart-panel chart-panel--bar panel">
+      <div class="chart-panel__head">
+        <i data-lucide="bar-chart-3"></i>
+        <h3 class="chart-panel__title" data-i18n="chartRoom">Issues by Room</h3>
+      </div>
+      <canvas id="chart-room"></canvas>
+      <p id="chart-room-empty" class="chart-empty hidden" data-i18n="chartEmpty">No data for current filters</p>
+    </div>
+    <div class="chart-panel chart-panel--donut panel">
+      <div class="chart-panel__head">
+        <i data-lucide="pie-chart"></i>
+        <h3 class="chart-panel__title" data-i18n="chartStatus">Issue Status Overview</h3>
+      </div>
+      <div class="chart-donut-wrap"><canvas id="chart-status"></canvas></div>
+      <p id="chart-status-empty" class="chart-empty hidden" data-i18n="chartEmpty">No data for current filters</p>
+    </div>
+  </div>
+
+  <div class="charts-grid charts-grid--secondary">
+    <div class="chart-panel panel">
+      <div class="chart-panel__head">
+        <i data-lucide="activity"></i>
+        <h3 class="chart-panel__title" data-i18n="chartTrend">Ticket Volume (7 Days)</h3>
+      </div>
+      <canvas id="chart-trend"></canvas>
+      <p id="chart-trend-empty" class="chart-empty hidden" data-i18n="chartEmpty">No data for current filters</p>
+    </div>
+    <div class="chart-panel panel">
+      <div class="chart-panel__head">
+        <i data-lucide="layers"></i>
+        <h3 class="chart-panel__title" data-i18n="chartPriority">Priority Breakdown</h3>
+      </div>
+      <canvas id="chart-priority"></canvas>
+      <p id="chart-priority-empty" class="chart-empty hidden" data-i18n="chartEmpty">No data for current filters</p>
+    </div>
+  </div>
+
+  <div class="dashboard-panels">
+    <div class="dashboard-panel panel">
+      <div class="dashboard-panel__head">
+        <i data-lucide="radio"></i>
+        <h3 class="dashboard-panel__title" data-i18n="recentActivity">Recent Activity</h3>
+      </div>
+      <ul id="activity-feed" class="activity-feed"></ul>
+    </div>
+    <div class="dashboard-panel panel">
+      <div class="dashboard-panel__head">
+        <i data-lucide="alert-circle"></i>
+        <h3 class="dashboard-panel__title" data-i18n="topIssues">Top Reported Issues</h3>
+      </div>
+      <ul id="top-issues-list" class="top-issues-list"></ul>
+    </div>
+  </div>
+
+  <!-- List View -->
+  <div id="admin-list" class="admin-table-wrap panel">
+    <div class="admin-table-scroll">
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th data-i18n="colId">ID</th>
+            <th data-i18n="colRequester">Requester</th>
+            <th data-i18n="colLocation">Room</th>
+            <th data-i18n="colAssignee">Assignee / Cost</th>
+            <th data-i18n="colPriority">Priority</th>
+            <th data-i18n="colStatus">Status</th>
+          </tr>
+        </thead>
+        <tbody id="admin-table-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Kanban -->
+  <div id="admin-kanban" class="hidden kanban-grid">
+    <div class="kanban-col panel" data-status="Pending">
+      <div class="kanban-col__head">
+        <span class="kanban-col__dot kanban-dot--yellow"></span>
+        <span class="kanban-col__title" data-i18n="statusPending">Pending</span>
+        <span id="kanban-count-pending" class="kanban-col__count">0</span>
+      </div>
+      <div id="kanban-pending" class="kanban-stack"></div>
+    </div>
+    <div class="kanban-col panel" data-status="In Progress">
+      <div class="kanban-col__head">
+        <span class="kanban-col__dot kanban-dot--blue"></span>
+        <span class="kanban-col__title" data-i18n="statusProgress">In Progress</span>
+        <span id="kanban-count-progress" class="kanban-col__count">0</span>
+      </div>
+      <div id="kanban-progress" class="kanban-stack"></div>
+    </div>
+    <div class="kanban-col panel" data-status="Completed">
+      <div class="kanban-col__head">
+        <span class="kanban-col__dot kanban-dot--green"></span>
+        <span class="kanban-col__title" data-i18n="statusCompleted">Completed</span>
+        <span id="kanban-count-completed" class="kanban-col__count">0</span>
+      </div>
+      <div id="kanban-completed" class="kanban-stack"></div>
+    </div>
+    <div class="kanban-col panel" data-status="Rejected">
+      <div class="kanban-col__head">
+        <span class="kanban-col__dot kanban-dot--red"></span>
+        <span class="kanban-col__title" data-i18n="statusRejected">Rejected</span>
+        <span id="kanban-count-rejected" class="kanban-col__count">0</span>
+      </div>
+      <div id="kanban-rejected" class="kanban-stack"></div>
+    </div>
+  </div>
+  </div>
+</section>
+
+<footer class="site-footer">
+  <div class="site-footer__inner">
+    <span class="site-footer__brand"><i data-lucide="building-2"></i><span data-i18n="footerBrand">Bin Quraya · SSC Facility Management</span></span>
+    <span data-i18n="footerText">Maintenance portal for employees and facility administrators</span>
+  </div>
+</footer>
+</main>
+
+<!-- MOBILE BOTTOM TAB BAR -->
+<nav id="mobile-nav" class="mobile-tab-bar" aria-label="Primary">
+  <button type="button" data-view="report" class="nav-btn mobile-tab-btn is-active">
+    <i data-lucide="clipboard-list" class="mobile-tab-icon"></i>
+    <span data-i18n="navReport">Report</span>
+  </button>
+  <button type="button" data-view="track" class="nav-btn mobile-tab-btn">
+    <i data-lucide="search" class="mobile-tab-icon"></i>
+    <span data-i18n="navTrack">Track</span>
+  </button>
+  <button type="button" data-view="admin" class="nav-btn mobile-tab-btn">
+    <i data-lucide="shield" class="mobile-tab-icon"></i>
+    <span data-i18n="navAdmin">Admin</span>
+  </button>
+</nav>
+
+<!-- TOAST -->
+<div id="toast" class="toast hidden">
+  <div class="toast__inner toast-enter">
+    <span class="toast__icon"><i data-lucide="info" class="toast__icon-svg"></i></span>
+    <span class="toast__msg"></span>
+  </div>
+</div>
+
+<!-- DISPATCH MODAL -->
+<div id="dispatch-modal" class="app-modal hidden">
+  <div class="app-modal__backdrop" data-modal-close aria-hidden="true"></div>
+  <div class="modal-panel modal-content bg-white dark:bg-[#141414] rounded-3xl p-8 max-w-lg w-full shadow-premium max-h-[90vh] overflow-y-auto" role="dialog" aria-modal="true">
+    <h2 class="text-xl font-bold mb-6" data-i18n="dispatchTitle">Dispatch Preventative Maintenance</h2>
+    <form id="dispatch-form" class="space-y-4">
+      <div><label class="block text-sm font-medium mb-2" data-i18n="room">Room</label><select id="dispatch-room" required class="w-full px-4 py-3 rounded-2xl bg-[#fcfcfc] dark:bg-[#0a0a0a] ring-1 ring-black/10 dark:ring-white/15"></select></div>
+      <div><label class="block text-sm font-medium mb-2" data-i18n="pmTask">PM Task Description</label><input type="text" id="dispatch-task" required class="w-full px-4 py-3 rounded-2xl bg-[#fcfcfc] dark:bg-[#0a0a0a] ring-1 ring-black/10 dark:ring-white/15" placeholder="Monthly inspection"></div>
+      <div><label class="block text-sm font-medium mb-2" data-i18n="assignee">Assignee</label><select id="dispatch-assignee" class="w-full px-4 py-3 rounded-2xl bg-[#fcfcfc] dark:bg-[#0a0a0a] ring-1 ring-black/10 dark:ring-white/15"></select></div>
+      <div class="flex gap-3 pt-2">
+        <button type="button" id="dispatch-cancel" class="flex-1 py-3 rounded-2xl ring-1 ring-black/10 dark:ring-white/15 font-medium" data-i18n="cancel">Cancel</button>
+        <button type="submit" class="flex-1 py-3 rounded-2xl bg-black dark:bg-white text-white dark:text-black font-medium" data-i18n="dispatchCreate">Create PM Ticket</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ROOMS MANAGER MODAL -->
+<div id="rooms-manager-modal" class="app-modal app-modal--rooms-manager hidden">
+  <div class="app-modal__backdrop" data-modal-close aria-hidden="true"></div>
+  <div class="rooms-manager-sheet" role="dialog" aria-modal="true" aria-labelledby="rooms-manager-title">
+    <div class="rooms-manager-sheet__head">
+      <div>
+        <h2 id="rooms-manager-title" class="rooms-manager-sheet__title" data-i18n="roomsManagerTitle">Manage Rooms</h2>
+        <p class="rooms-manager-sheet__subtitle" data-i18n="roomsManagerSubtitle">Add, rename, or remove custom rooms. Built-in SSC rooms are read-only.</p>
+      </div>
+      <span id="rooms-manager-count" class="rooms-manager-sheet__count"></span>
+    </div>
+    <form id="rooms-manager-add-form" class="rooms-manager-add" onsubmit="return false">
+      <input type="text" id="rooms-manager-add-name" class="rooms-manager-add__input portal-input" maxlength="80" data-i18n-placeholder="roomsManagerAddPh" placeholder="New room name" aria-label="New room name">
+      <button type="button" id="rooms-manager-add-btn" class="rooms-manager-add__btn">
+        <i data-lucide="plus" class="w-4 h-4"></i>
+        <span data-i18n="roomsManagerAdd">Add room</span>
+      </button>
+    </form>
+    <div id="rooms-manager-list" class="rooms-manager-list"></div>
+    <div class="rooms-manager-sheet__footer">
+      <button type="button" id="rooms-manager-close" class="rooms-manager-sheet__close" data-i18n="cancel">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- NEW ROOM MODAL (legacy — opened via rooms manager) -->
+<div id="new-room-modal" class="app-modal hidden">
+  <div class="app-modal__backdrop" data-modal-close aria-hidden="true"></div>
+  <div class="modal-panel modal-content bg-white dark:bg-[#141414] rounded-3xl p-6 sm:p-8 shadow-premium" role="dialog" aria-modal="true" aria-labelledby="new-room-title">
+    <div class="modal-panel__body">
+      <h2 id="new-room-title" class="text-xl font-bold mb-2" data-i18n="newRoomTitle">Add New Room</h2>
+      <p class="text-sm text-black/50 dark:text-white/50 mb-4" data-i18n="newRoomSubtitle">Adds the room to inventory, product list, dispatch, and report forms. Generates a printable room QR sticker.</p>
+      <form id="new-room-form" class="space-y-4" onsubmit="return false">
+        <div>
+          <label class="block text-sm font-medium mb-2" for="new-room-name" data-i18n="newRoomName">Room name</label>
+          <input type="text" id="new-room-name" required maxlength="80" class="w-full px-4 py-3.5 rounded-2xl bg-[#fcfcfc] dark:bg-[#0a0a0a] ring-1 ring-black/10 dark:ring-white/15 focus:ring-2 focus:ring-black dark:focus:ring-white" placeholder="Server Room B">
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-2" for="new-room-assets" data-i18n="newRoomAssets">Initial assets (optional)</label>
+          <textarea id="new-room-assets" rows="2" maxlength="2000" class="w-full px-4 py-3.5 rounded-2xl bg-[#fcfcfc] dark:bg-[#0a0a0a] ring-1 ring-black/10 dark:ring-white/15 focus:ring-2 focus:ring-black dark:focus:ring-white resize-y" placeholder="AC GREE 1.5 TON, DOOR, SMOKE DETECTOR"></textarea>
+          <p class="text-xs text-black/45 dark:text-white/45 mt-2" data-i18n="newRoomAssetsHint">One per line or comma-separated. Each asset is added to inventory with its own product ID and QR.</p>
+        </div>
+      </form>
+    </div>
+  </div>
+  <div class="modal-dock modal-panel__actions">
+    <button type="button" id="new-room-cancel" class="py-3.5 rounded-2xl ring-1 ring-black/10 dark:ring-white/15 font-medium" data-i18n="cancel">Cancel</button>
+    <button type="button" id="new-room-submit" class="py-3.5 rounded-2xl bg-black dark:bg-white text-white dark:text-black font-semibold" data-i18n="newRoomSubmit" onclick="window.__sscSubmitNewRoom && window.__sscSubmitNewRoom(event)">Create & Print Sticker</button>
+  </div>
+</div>
+
+<!-- DELETED TICKETS MODAL -->
+<div id="deleted-tickets-modal" class="app-modal app-modal--ticket-sheet hidden">
+  <div class="app-modal__backdrop" data-modal-close="deleted-tickets-modal" aria-hidden="true"></div>
+  <div class="ticket-sheet" role="dialog" aria-modal="true" aria-labelledby="deleted-tickets-title">
+    <div class="ticket-sheet__head">
+      <div>
+        <h2 id="deleted-tickets-title" class="ticket-sheet__title" data-i18n="deletedTicketsTitle">Deleted Tickets</h2>
+        <p class="ticket-sheet__subtitle" data-i18n="deletedTicketsSubtitle">Restore tickets or remove them permanently.</p>
+      </div>
+      <span id="deleted-tickets-count" class="ticket-sheet__count"></span>
+    </div>
+    <div id="deleted-tickets-list" class="ticket-sheet-list"></div>
+    <div class="ticket-sheet__footer">
+      <button type="button" id="deleted-tickets-close" class="ticket-sheet__close" data-i18n="cancel">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- SPEND BREAKDOWN MODAL -->
+<div id="spend-tickets-modal" class="app-modal app-modal--ticket-sheet hidden">
+  <div class="app-modal__backdrop" data-modal-close="spend-tickets-modal" aria-hidden="true"></div>
+  <div class="ticket-sheet" role="dialog" aria-modal="true" aria-labelledby="spend-tickets-title">
+    <div class="ticket-sheet__head">
+      <div>
+        <h2 id="spend-tickets-title" class="ticket-sheet__title" data-i18n="spendTicketsTitle">Spend Breakdown</h2>
+        <p class="ticket-sheet__subtitle" data-i18n="spendTicketsSubtitle">Tickets with recorded maintenance costs.</p>
+      </div>
+      <span id="spend-tickets-total" class="ticket-sheet__count ticket-sheet__count--spend"></span>
+    </div>
+    <div id="spend-tickets-list" class="ticket-sheet-list"></div>
+    <div class="ticket-sheet__footer">
+      <button type="button" id="spend-tickets-close" class="ticket-sheet__close" data-i18n="cancel">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- QR PRINT SHEET -->
+<div id="qr-print-sheet"></div>
+
+<!-- ROOM STICKER PRINT (single label) -->
+<div id="sticker-print-sheet"></div>
+
+<!-- RFQ TEMPLATE -->
+<div id="rfq-template"></div>
+
+<script src="modals.js?v=47"></script>
+<script src="auth.js?v=47"></script>
+<script src="nav.js?v=47"></script>
+<script src="admin-toolbar.js?v=47"></script>
+<script type="module" src="app.js?v=47"></script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+{
+  "name": "ssc-building-portal",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "npm run build --prefix web",
+    "build:web": "cd web && npm install && npm run build",
+    "lint": "npm run lint --prefix web",
+    "test": "npm run test --prefix web",
+    "start": "node server/index.js",
+    "start:static": "python -m http.server 8080",
+    "db:init": "node server/init-db.js"
+  },
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "cloudinary": "^2.5.1",
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "express-rate-limit": "^8.5.2",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^1.4.5-lts.1",
+    "nodemailer": "^9.0.3",
+    "pg": "^8.13.1"
+  }
+}
