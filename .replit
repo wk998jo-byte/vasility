@@ -1,5 +1,5 @@
 run = "npm run build:web && npm start"
-modules = ["nodejs-20"]
+modules = ["nodejs-20", "postgresql-16"]
 
 [packager]
 ignoredPackages = ["firebase"]
