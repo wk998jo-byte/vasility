@@ -1,1 +1,2 @@
 - [Single-port serving](single-port-serving.md) — Express serves both /api and the built React app; dev workflow builds then serves on 5000 (no vite dev/proxy).
+- [CORS testing blind spot](cors-testing-blind-spot.md) — always test APIs with an Origin header; plain curl bypasses CORS and hid a login-breaking 500 for days.

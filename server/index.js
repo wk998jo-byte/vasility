@@ -33,17 +33,26 @@ const JWT_SECRET = process.env.JWT_SECRET;
 
 const app = express();
 
-const allowedOrigins = [
+const allowedOrigins = new Set([
   process.env.VITE_PUBLIC_BASE_URL,
   'http://localhost:5173',
   'http://localhost:8080',
   'http://127.0.0.1:5173',
   'http://127.0.0.1:8080',
-].filter(Boolean);
+].filter(Boolean));
+
+// This app's own domains, provided by the Replit environment
+// (deployment domains in production, dev preview domain in the workspace).
+for (const domain of (process.env.REPLIT_DOMAINS || '').split(',')) {
+  if (domain.trim()) allowedOrigins.add(`https://${domain.trim()}`);
+}
+if (process.env.REPLIT_DEV_DOMAIN) {
+  allowedOrigins.add(`https://${process.env.REPLIT_DEV_DOMAIN}`);
+}
 
 app.use(cors({
   origin(origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
+    if (!origin || allowedOrigins.has(origin)) {
       callback(null, true);
       return;
     }
@@ -52,7 +61,9 @@ app.use(cors({
       callback(null, true);
       return;
     }
-    callback(new Error('Not allowed by CORS'));
+    // Unknown origin: don't error out (that surfaced as HTTP 500);
+    // simply omit CORS headers so browsers block cross-origin reads.
+    callback(null, false);
   },
 }));
 app.use(express.json({ limit: '2mb' }));
