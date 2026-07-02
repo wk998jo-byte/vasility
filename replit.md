@@ -32,6 +32,9 @@ Set as Replit env vars / secrets (see `.env.example`):
 - `JWT_SECRET` — signing secret for admin/facility auth tokens
 - `ADMIN_USER` / `ADMIN_PASS` — seeded admin login
 - `FACILITY_USER` / `FACILITY_PASS` — seeded facility login
+- **Password policy**: when `ADMIN_PASS` / `FACILITY_PASS` are set, they are the
+  source of truth — on every server start the stored password hashes are synced
+  to match them (changing the secret + restart/republish changes the login).
 - `VITE_PUBLIC_BASE_URL` — build-time base URL for QR codes (falls back to
   `window.location.origin`)
 - Optional: `SMTP_*` / `NOTIFY_EMAIL` (email notifications), `CLOUDINARY_URL`

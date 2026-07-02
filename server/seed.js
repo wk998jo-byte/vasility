@@ -36,18 +36,12 @@ export async function seedUsers(db) {
     return { seeded: true };
   }
 
+  // Keep seeded account passwords in sync with env vars / Secrets.
+  // If ADMIN_PASS or FACILITY_PASS changes, the stored hash is updated on restart.
   const adminUser = process.env.ADMIN_USER;
   const adminPass = process.env.ADMIN_PASS;
   if (adminUser && adminPass) {
-    const { rows: legacy } = await db.query(
-      'SELECT id FROM users WHERE username = $1 AND (password_hash IS NULL OR password_hash = \'\')',
-      [adminUser],
-    );
-    if (legacy.length > 0) {
-      const passwordHash = await bcrypt.hash(adminPass, 12);
-      await db.query('UPDATE users SET password_hash = $1 WHERE id = $2', [passwordHash, legacy[0].id]);
-      console.log(`[seed] Upgraded password hash for "${adminUser}"`);
-    }
+    await syncUserPassword(db, adminUser, adminPass);
   }
 
   const facilityUser = process.env.FACILITY_USER || 'facility_user';
@@ -64,9 +58,25 @@ export async function seedUsers(db) {
       [facilityUser, facilityHash],
     );
     console.log(`[seed] Created facility user "${facilityUser}"`);
+  } else if (process.env.FACILITY_PASS) {
+    await syncUserPassword(db, facilityUser, facilityPass);
   }
 
   return { seeded: false };
+}
+
+async function syncUserPassword(db, username, password) {
+  const { rows } = await db.query(
+    'SELECT id, password_hash FROM users WHERE username = $1',
+    [username],
+  );
+  if (rows.length === 0) return;
+  const { id, password_hash: hash } = rows[0];
+  const matches = hash ? await bcrypt.compare(password, hash) : false;
+  if (matches) return;
+  const newHash = await bcrypt.hash(password, 12);
+  await db.query('UPDATE users SET password_hash = $1 WHERE id = $2', [newHash, id]);
+  console.log(`[seed] Synced password for "${username}" from environment`);
 }
 
 export async function seedDb(db) {
