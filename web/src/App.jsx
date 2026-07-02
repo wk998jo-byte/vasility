@@ -323,7 +323,7 @@ function AdminLogin({ setToken, setRole, dict }) {
         <p className="text-gray-500 text-sm mt-1">{dict.loginSubtitle}</p>
       </div>
       <form onSubmit={handleLogin} className="space-y-4">
-        <input type="text" placeholder={dict.username} required value={user} onChange={(e) => setUser(e.target.value)} className="w-full border border-gray-200 dark:border-zinc-800 rounded-2xl px-5 py-4 bg-transparent focus:border-black dark:focus:border-white outline-none" />
+        <input type="text" placeholder={dict.username} required value={user} onChange={(e) => setUser(e.target.value)} autoCapitalize="none" autoCorrect="off" spellCheck={false} autoComplete="username" className="w-full border border-gray-200 dark:border-zinc-800 rounded-2xl px-5 py-4 bg-transparent focus:border-black dark:focus:border-white outline-none" />
         <input type="password" placeholder={dict.password} required value={pass} onChange={(e) => setPass(e.target.value)} className="w-full border border-gray-200 dark:border-zinc-800 rounded-2xl px-5 py-4 bg-transparent focus:border-black dark:focus:border-white outline-none" />
         <button type="submit" className="w-full bg-black text-white dark:bg-white dark:text-black font-bold py-4 rounded-2xl mt-4 hover:bg-gray-900 dark:hover:bg-gray-100 transition-colors">{dict.loginBtn}</button>
       </form>

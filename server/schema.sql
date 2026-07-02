@@ -56,11 +56,14 @@ CREATE INDEX IF NOT EXISTS idx_room_assets_room ON room_assets (room_id);
 CREATE TABLE IF NOT EXISTS users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   username TEXT UNIQUE NOT NULL,
+  -- see CREATE UNIQUE INDEX users_username_lower_idx below (case-insensitive uniqueness)
   password_hash VARCHAR(255),
   role VARCHAR(50) NOT NULL CHECK (role IN ('admin', 'facility')),
   is_active BOOLEAN NOT NULL DEFAULT true,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS users_username_lower_idx ON users (LOWER(username));
 
 -- ─── Facility issues ─────────────────────────────────────────────────────────
 

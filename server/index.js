@@ -169,17 +169,19 @@ app.post('/api/auth/login', loginLimiter, requireDb, async (req, res) => {
 
   try {
     const { rows } = await req.db.query(
-      'SELECT id, username, password_hash, role FROM users WHERE username = $1 AND is_active = true',
+      'SELECT id, username, password_hash, role FROM users WHERE LOWER(username) = LOWER($1) AND is_active = true',
       [username],
     );
     const user = rows[0];
     if (!user?.password_hash) {
+      console.warn(`[auth] Failed login: unknown or inactive user "${username}"`);
       res.status(401).json({ error: 'Invalid username or password' });
       return;
     }
 
     const valid = await bcrypt.compare(password, user.password_hash);
     if (!valid) {
+      console.warn(`[auth] Failed login: wrong password for "${user.username}"`);
       res.status(401).json({ error: 'Invalid username or password' });
       return;
     }
@@ -213,7 +215,7 @@ app.get('/api/users', requireDb, authenticateToken, async (req, res) => {
 });
 
 app.post('/api/users', requireDb, authenticateToken, requireAdmin, async (req, res) => {
-  const username = typeof req.body?.username === 'string' ? req.body.username.trim() : '';
+  const username = typeof req.body?.username === 'string' ? req.body.username.trim().toLowerCase() : '';
   const password = req.body?.password;
   const role = req.body?.role === 'admin' ? 'admin' : 'facility';
 
