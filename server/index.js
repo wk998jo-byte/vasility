@@ -135,6 +135,18 @@ function requireAdmin(req, res, next) {
   next();
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+async function createNotification(db, {
+  userId = null, role = null, message, ticketNumber = null,
+}) {
+  await db.query(
+    `INSERT INTO notifications (user_id, role, message, ticket_number)
+     VALUES ($1, $2, $3, $4)`,
+    [userId, role, message, ticketNumber],
+  );
+}
+
 function parseIssueFilters(query) {
   return {
     includeDeleted: query.includeDeleted === 'true',
@@ -585,6 +597,11 @@ app.post('/api/issues', issueSubmitLimiter, requireDb, async (req, res) => {
     );
 
     sendNewIssueNotification(issue).catch(() => {});
+    createNotification(req.db, {
+      role: 'admin',
+      message: `New Ticket created: ${ticketNumber}`,
+      ticketNumber,
+    }).catch((err) => console.error('[notifications] insert failed:', err.message));
 
     res.status(201).json({ ok: true, issue });
   } catch {
@@ -938,11 +955,77 @@ app.put('/api/issues/:ticketNumber', requireDb, authenticateToken, async (req, r
 
     await req.db.query('COMMIT');
 
+    if (newAssignee && newAssignee !== current.assignee) {
+      try {
+        const assigneeUser = await req.db.query(
+          'SELECT id FROM users WHERE LOWER(username) = LOWER($1) AND is_active = true',
+          [newAssignee],
+        );
+        if (assigneeUser.rowCount) {
+          await createNotification(req.db, {
+            userId: assigneeUser.rows[0].id,
+            message: `You have been assigned a new ticket: ${ticketNumber}`,
+            ticketNumber,
+          });
+        }
+      } catch (err) {
+        console.error('[notifications] assignment insert failed:', err.message);
+      }
+    }
+
     const issue = await fetchIssueByTicketNumber(req.db, ticketNumber);
     res.status(200).json({ ok: true, issue });
   } catch {
     await req.db.query('ROLLBACK').catch(() => {});
     res.status(500).json({ error: 'Failed to update issue' });
+  }
+});
+
+app.get('/api/notifications', requireDb, authenticateToken, async (req, res) => {
+  try {
+    const { rows } = await req.db.query(
+      `SELECT id, user_id, role, message, ticket_number, is_read, created_at
+       FROM notifications
+       WHERE user_id = $1 OR (user_id IS NULL AND role = $2)
+       ORDER BY created_at DESC
+       LIMIT 100`,
+      [req.user?.sub || null, req.user?.role || ''],
+    );
+    res.status(200).json({
+      notifications: rows.map((row) => ({
+        id: row.id,
+        userId: row.user_id,
+        role: row.role,
+        message: row.message,
+        ticketNumber: row.ticket_number,
+        isRead: row.is_read,
+        createdAt: row.created_at,
+      })),
+    });
+  } catch {
+    res.status(500).json({ error: 'Failed to fetch notifications' });
+  }
+});
+
+app.put('/api/notifications/:id/read', requireDb, authenticateToken, async (req, res) => {
+  const { id } = req.params;
+  if (!UUID_RE.test(id)) {
+    res.status(404).json({ error: 'Notification not found' });
+    return;
+  }
+  try {
+    const { rowCount } = await req.db.query(
+      `UPDATE notifications SET is_read = true
+       WHERE id = $1 AND (user_id = $2 OR (user_id IS NULL AND role = $3))`,
+      [id, req.user?.sub || null, req.user?.role || ''],
+    );
+    if (!rowCount) {
+      res.status(404).json({ error: 'Notification not found' });
+      return;
+    }
+    res.status(200).json({ ok: true });
+  } catch {
+    res.status(500).json({ error: 'Failed to update notification' });
   }
 });
 

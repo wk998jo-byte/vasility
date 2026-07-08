@@ -130,6 +130,22 @@ CREATE TABLE IF NOT EXISTS issue_status_history (
 
 CREATE INDEX IF NOT EXISTS idx_issue_status_history_issue ON issue_status_history (issue_id, created_at DESC);
 
+-- ─── Notifications (per-user or role broadcast) ──────────────────────────────
+
+CREATE TABLE IF NOT EXISTS notifications (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  role VARCHAR(50),
+  message TEXT NOT NULL,
+  ticket_number VARCHAR(50),
+  is_read BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CHECK (user_id IS NOT NULL OR role IS NOT NULL)
+);
+
+CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications (user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_notifications_role ON notifications (role, created_at DESC) WHERE role IS NOT NULL;
+
 -- ─── Sequential ticket numbering ─────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS ticket_counters (
