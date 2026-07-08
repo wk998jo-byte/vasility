@@ -8,6 +8,7 @@ import rateLimit from 'express-rate-limit';
 import { loadEnv } from './env.js';
 import { getPool, initDb, checkDb } from './db.js';
 import { sendNewIssueNotification } from './notify.js';
+import { sendWhatsAppNotification } from './whatsapp.js';
 import { initCloudinaryUpload, getUploadMiddleware, uploadBufferToCloudinary } from './upload.js';
 import {
   generateTicketNumber,
@@ -800,7 +801,7 @@ app.post('/api/issues/:ticketNumber/resolution', requireDb, authenticateToken, (
 
   try {
     const existing = await req.db.query(
-      'SELECT id, status FROM facility_issues WHERE ticket_number = $1 AND is_deleted = false',
+      'SELECT id, status, reporter_phone FROM facility_issues WHERE ticket_number = $1 AND is_deleted = false',
       [ticketNumber],
     );
     if (!existing.rowCount) {
@@ -839,6 +840,11 @@ app.post('/api/issues/:ticketNumber/resolution', requireDb, authenticateToken, (
     }
 
     await req.db.query('COMMIT');
+
+    if (ticket.status !== 'Resolved' && ticket.reporter_phone) {
+      sendWhatsAppNotification(ticket.reporter_phone, ticketNumber, 'Resolved')
+        .catch((err) => console.error('[whatsapp] notify failed:', err?.message || err));
+    }
 
     const issue = await fetchIssueByTicketNumber(req.db, ticketNumber);
     res.status(200).json({ ok: true, resolutionImageUrl: imageUrl, issue });
@@ -995,6 +1001,11 @@ app.put('/api/issues/:ticketNumber', requireDb, authenticateToken, async (req, r
       } catch (err) {
         console.error('[notifications] assignment insert failed:', err.message);
       }
+    }
+
+    if (newStatus !== current.status && (newStatus === 'Resolved' || newStatus === 'Closed') && current.reporter_phone) {
+      sendWhatsAppNotification(current.reporter_phone, ticketNumber, newStatus)
+        .catch((err) => console.error('[whatsapp] notify failed:', err?.message || err));
     }
 
     const issue = await fetchIssueByTicketNumber(req.db, ticketNumber);
