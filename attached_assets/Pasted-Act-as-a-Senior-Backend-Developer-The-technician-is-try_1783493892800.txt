@@ -1,0 +1,40 @@
+Act as a Senior Backend Developer. The technician is trying to upload a resolution photo, but the backend returns: "Photo uploads are not enabled on this deployment." This means the POST /api/issues/:ticketNumber/resolution route is currently stubbed out or missing the actual Cloudinary logic.
+
+Please fix this by implementing the real upload logic:
+
+Install Dependencies:
+Ensure the user runs npm install cloudinary multer streamifier in the backend (root) directory.
+
+Configure Cloudinary & Multer (in server/index.js or server/upload.js):
+
+Import cloudinary (v2), multer, and streamifier.
+
+Configure cloudinary.config() to use process.env.CLOUDINARY_URL.
+
+Set up multer to use multer.memoryStorage() so we can stream the buffer directly to Cloudinary.
+
+Rewrite the Resolution Endpoint:
+
+Locate the POST /api/issues/:ticketNumber/resolution route.
+
+Remove the stub res.send("Photo uploads are not enabled...").
+
+Use the multer middleware (e.g., upload.single('resolution_photo')).
+
+Inside the route controller, check if req.file exists. If so, use cloudinary.uploader.upload_stream combined with streamifier.createReadStream(req.file.buffer) to upload the image to Cloudinary.
+
+Once the image is successfully uploaded to Cloudinary, get the secure_url.
+
+Update the PostgreSQL database: UPDATE facility_issues SET resolution_image_url = $1, status = 'Resolved' WHERE ticket_number = $2.
+
+Return the updated ticket data to the frontend.
+
+Frontend Check (web/src/App.jsx):
+
+Ensure the Tech's "Upload Fix Photo & Resolve" function uses FormData.
+
+Example: const formData = new FormData(); formData.append('resolution_photo', selectedFile);
+
+Ensure the fetch call to /api/issues/:ticketNumber/resolution does NOT set the Content-Type header manually (so the browser can set the multipart boundary automatically). Include the Authorization: Bearer <token> header.
+
+Important Note for User: Remind the user in your response that they MUST set the CLOUDINARY_URL in their .env or Replit Secrets for this to work.
