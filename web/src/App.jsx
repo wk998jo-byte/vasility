@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { countSlaBreached } from './sla';
 import { Scanner } from '@yudiel/react-qr-scanner';
 import {
@@ -35,6 +35,15 @@ function extractTokenFromScan(scannedText) {
     /* raw token string */
   }
   return scannedText.trim();
+}
+
+function decodeJwtPayload(token) {
+  try {
+    const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    return JSON.parse(decodeURIComponent(atob(base64).split('').map((c) => `%${(`00${c.charCodeAt(0).toString(16)}`).slice(-2)}`).join('')));
+  } catch {
+    return null;
+  }
 }
 
 const BrandLogo = ({ className = 'h-10 w-auto object-contain', alt = 'Bin Quraya' }) => (
@@ -102,6 +111,13 @@ const t = {
     roomLocked: 'Room locked via QR scan',
     resolutionNotes: 'Resolution Notes', techSign: 'Technician Sign', adminSign: 'Admin Sign',
     auditTrail: 'Status History', reportedViaQr: 'Reported via QR',
+    submitAssign: 'Submit & Assign', assignedTo: 'Assigned Technician', unassigned: 'Unassigned',
+    myTickets: 'My Tickets', allTickets: 'All Tickets', assignedToYou: 'Assigned to you',
+    discussion: 'Discussion', writeComment: 'Write a comment...', sendComment: 'Send Comment',
+    sending: 'Sending...', noComments: 'No comments yet.', commentFailed: 'Failed to send comment.',
+    uploadFixPhoto: 'Upload Fix Photo & Resolve', resolutionPhoto: 'Resolution Photo',
+    uploading: 'Uploading...', photoRequired: 'Please choose a photo first.',
+    uploadFailed: 'Photo upload failed.',
   },
   ar: {
     request: 'طلب صيانة', track: 'تتبع', admin: 'لوحة القيادة', adminLogin: 'دخول الإدارة',
@@ -161,6 +177,13 @@ const t = {
     roomLocked: 'تم قفل الموقع عبر مسح QR',
     resolutionNotes: 'ملاحظات الإغلاق', techSign: 'توقيع الفني', adminSign: 'توقيع المسؤول',
     auditTrail: 'سجل الحالة', reportedViaQr: 'تم الإبلاغ عبر QR',
+    submitAssign: 'اعتماد وتعيين', assignedTo: 'الفني المعيّن', unassigned: 'غير معيّن',
+    myTickets: 'تذاكري', allTickets: 'كل التذاكر', assignedToYou: 'معيّنة لك',
+    discussion: 'المناقشة', writeComment: 'اكتب تعليقاً...', sendComment: 'إرسال التعليق',
+    sending: 'جاري الإرسال...', noComments: 'لا توجد تعليقات بعد.', commentFailed: 'فشل إرسال التعليق.',
+    uploadFixPhoto: 'رفع صورة الإصلاح وإغلاق البلاغ', resolutionPhoto: 'صورة الإصلاح',
+    uploading: 'جاري الرفع...', photoRequired: 'يرجى اختيار صورة أولاً.',
+    uploadFailed: 'فشل رفع الصورة.',
   },
 };
 
@@ -201,6 +224,9 @@ export default function App() {
   const [adminToken, setAdminToken] = useState(localStorage.getItem('ssc_admin_token') || '');
   const [adminRole, setAdminRole] = useState(localStorage.getItem('ssc_admin_role') || '');
 
+  const tokenPayload = adminToken ? decodeJwtPayload(adminToken) : null;
+  const adminUser = tokenPayload?.user || localStorage.getItem('ssc_admin_user') || '';
+
   const dict = t[lang];
   const fontClass = lang === 'ar' ? 'font-[Cairo]' : 'font-[Inter]';
 
@@ -222,6 +248,7 @@ export default function App() {
   const handleLogout = () => {
     localStorage.removeItem('ssc_admin_token');
     localStorage.removeItem('ssc_admin_role');
+    localStorage.removeItem('ssc_admin_user');
     setAdminToken('');
     setAdminRole('');
     setView('request');
@@ -272,6 +299,7 @@ export default function App() {
                 setTickets={setTickets}
                 adminToken={adminToken}
                 adminRole={adminRole}
+                adminUser={adminUser}
               />
             )
             : <AdminLogin dict={dict} setToken={setAdminToken} setRole={setAdminRole} />
@@ -305,6 +333,7 @@ function AdminLogin({ setToken, setRole, dict }) {
         const data = await res.json();
         localStorage.setItem('ssc_admin_token', data.token);
         localStorage.setItem('ssc_admin_role', data.role || 'admin');
+        localStorage.setItem('ssc_admin_user', decodeJwtPayload(data.token)?.user || '');
         setToken(data.token);
         setRole(data.role || 'admin');
       } else {
@@ -726,10 +755,19 @@ function Step({ label, active, done, rejected }) {
 }
 
 function AdminDashboard({
-  dict, tickets, setTickets, adminToken, adminRole,
+  dict, tickets, setTickets, adminToken, adminRole, adminUser,
 }) {
   const isAdmin = adminRole === 'admin';
   const [selectedTicket, setSelectedTicket] = useState(null);
+  const selectedTicketIdRef = useRef(null);
+  selectedTicketIdRef.current = selectedTicket?.id || null;
+  const [showMineOnly, setShowMineOnly] = useState(!isAdmin);
+  const [pendingAssignee, setPendingAssignee] = useState('');
+  const [comments, setComments] = useState([]);
+  const [commentDraft, setCommentDraft] = useState('');
+  const [sendingComment, setSendingComment] = useState(false);
+  const [resolutionFile, setResolutionFile] = useState(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [showRoomModal, setShowRoomModal] = useState(false);
   const [showTicketTrash, setShowTicketTrash] = useState(false);
   const [showAddRoomForm, setShowAddRoomForm] = useState(false);
@@ -797,14 +835,34 @@ function AdminDashboard({
   useEffect(() => {
     if (!selectedTicket?.id || !adminToken) {
       setTicketHistory([]);
-      return;
+      return undefined;
     }
+    let cancelled = false;
     fetch(`${API_BASE}/issues/${encodeURIComponent(selectedTicket.id)}/history`, {
       headers: { Authorization: `Bearer ${adminToken}` },
     })
       .then((r) => r.json())
-      .then((data) => setTicketHistory(data.history || []))
-      .catch(() => setTicketHistory([]));
+      .then((data) => { if (!cancelled) setTicketHistory(data.history || []); })
+      .catch(() => { if (!cancelled) setTicketHistory([]); });
+    return () => { cancelled = true; };
+  }, [selectedTicket?.id, adminToken]);
+
+  useEffect(() => {
+    setPendingAssignee(selectedTicket?.assignee || '');
+    setCommentDraft('');
+    setResolutionFile(null);
+    if (!selectedTicket?.id || !adminToken) {
+      setComments([]);
+      return undefined;
+    }
+    let cancelled = false;
+    fetch(`${API_BASE}/issues/${encodeURIComponent(selectedTicket.id)}/comments`, {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    })
+      .then((r) => r.json())
+      .then((data) => { if (!cancelled) setComments(data.comments || []); })
+      .catch(() => { if (!cancelled) setComments([]); });
+    return () => { cancelled = true; };
   }, [selectedTicket?.id, adminToken]);
 
   const filterRoomOptions = filters.departmentId
@@ -813,7 +871,11 @@ function AdminDashboard({
 
   const activeTickets = tickets.filter((t) => !t.isDeleted);
   const trashedTickets = tickets.filter((t) => t.isDeleted);
-  const displayTickets = showTicketTrash ? trashedTickets : activeTickets;
+  const isMine = (ticket) => Boolean(adminUser) && (ticket.assignee || '') === adminUser;
+  const myTickets = activeTickets.filter(isMine);
+  const displayTickets = showTicketTrash
+    ? trashedTickets
+    : (!isAdmin && showMineOnly ? myTickets : activeTickets);
 
   const statusNew = activeTickets.filter((t) => t.status === 'New' || t.status === 'Pending').length;
   const inProgress = activeTickets.filter((t) => t.status === 'In Progress').length;
@@ -836,7 +898,7 @@ function AdminDashboard({
     if (!current) return;
 
     const merged = { ...current, ...updates };
-    setTickets(tickets.map((ticket) => (ticket.id === id ? merged : ticket)));
+    setTickets((prev) => prev.map((ticket) => (ticket.id === id ? merged : ticket)));
     if (selectedTicket?.id === id) setSelectedTicket(merged);
 
     const payload = {
@@ -863,24 +925,98 @@ function AdminDashboard({
         const data = await res.json();
         if (data.issue) {
           setTickets((prev) => prev.map((ticket) => (ticket.id === id ? data.issue : ticket)));
-          if (selectedTicket?.id === id) {
+          if (selectedTicketIdRef.current === id) {
             setSelectedTicket(data.issue);
             fetch(`${API_BASE}/issues/${encodeURIComponent(id)}/history`, {
               headers: { Authorization: `Bearer ${adminToken}` },
             })
               .then((r) => r.json())
-              .then((hist) => setTicketHistory(hist.history || []))
+              .then((hist) => { if (selectedTicketIdRef.current === id) setTicketHistory(hist.history || []); })
               .catch(() => {});
           }
         }
       } else {
-        setTickets(tickets.map((ticket) => (ticket.id === id ? current : ticket)));
-        if (selectedTicket?.id === id) setSelectedTicket(current);
+        setTickets((prev) => prev.map((ticket) => (ticket.id === id ? current : ticket)));
+        if (selectedTicketIdRef.current === id) setSelectedTicket(current);
       }
     } catch (err) {
       console.error(err);
-      setTickets(tickets.map((ticket) => (ticket.id === id ? current : ticket)));
-      if (selectedTicket?.id === id) setSelectedTicket(current);
+      setTickets((prev) => prev.map((ticket) => (ticket.id === id ? current : ticket)));
+      if (selectedTicketIdRef.current === id) setSelectedTicket(current);
+    }
+  };
+
+  const handleSubmitAssign = () => {
+    if (!selectedTicket || !pendingAssignee) return;
+    updateTicket(selectedTicket.id, { assignee: pendingAssignee, status: 'In Progress' });
+  };
+
+  const handleSendComment = async () => {
+    const text = commentDraft.trim();
+    if (!selectedTicket || !text || sendingComment) return;
+    const ticketId = selectedTicket.id;
+    setSendingComment(true);
+    try {
+      const res = await fetch(`${API_BASE}/issues/${encodeURIComponent(ticketId)}/comments`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${adminToken}`,
+        },
+        body: JSON.stringify({ commentText: text }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.comment) {
+        if (selectedTicketIdRef.current === ticketId) {
+          setComments((prev) => [...prev, data.comment]);
+          setCommentDraft('');
+        }
+      } else {
+        alert(data.error || dict.commentFailed);
+      }
+    } catch {
+      alert(dict.commentFailed);
+    } finally {
+      setSendingComment(false);
+    }
+  };
+
+  const handleUploadResolution = async () => {
+    if (!selectedTicket || uploadingPhoto) return;
+    if (!resolutionFile) {
+      alert(dict.photoRequired);
+      return;
+    }
+    const ticketId = selectedTicket.id;
+    setUploadingPhoto(true);
+    try {
+      const form = new FormData();
+      form.append('image', resolutionFile);
+      const res = await fetch(`${API_BASE}/issues/${encodeURIComponent(ticketId)}/resolution`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${adminToken}` },
+        body: form,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.issue) {
+        setTickets((prev) => prev.map((ticket) => (ticket.id === data.issue.id ? data.issue : ticket)));
+        if (selectedTicketIdRef.current === ticketId) {
+          setSelectedTicket(data.issue);
+          setResolutionFile(null);
+          fetch(`${API_BASE}/issues/${encodeURIComponent(ticketId)}/history`, {
+            headers: { Authorization: `Bearer ${adminToken}` },
+          })
+            .then((r) => r.json())
+            .then((hist) => { if (selectedTicketIdRef.current === ticketId) setTicketHistory(hist.history || []); })
+            .catch(() => {});
+        }
+      } else {
+        alert(data.error || dict.uploadFailed);
+      }
+    } catch {
+      alert(dict.uploadFailed);
+    } finally {
+      setUploadingPhoto(false);
     }
   };
 
@@ -1127,6 +1263,25 @@ function AdminDashboard({
         </>
       )}
 
+      {!isAdmin && !showTicketTrash && (
+        <div className="flex gap-2 mb-4 print:hidden">
+          <button
+            type="button"
+            onClick={() => setShowMineOnly(true)}
+            className={`px-4 py-2 rounded-xl text-sm font-bold transition-colors ${showMineOnly ? 'bg-black text-white dark:bg-white dark:text-black' : 'bg-gray-100 dark:bg-zinc-900 text-gray-500'}`}
+          >
+            {dict.myTickets} ({myTickets.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowMineOnly(false)}
+            className={`px-4 py-2 rounded-xl text-sm font-bold transition-colors ${!showMineOnly ? 'bg-black text-white dark:bg-white dark:text-black' : 'bg-gray-100 dark:bg-zinc-900 text-gray-500'}`}
+          >
+            {dict.allTickets} ({activeTickets.length})
+          </button>
+        </div>
+      )}
+
       <div className="flex flex-wrap gap-3 mb-4 print:hidden">
         <select value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })} className="border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-2 text-sm font-medium bg-transparent">
           <option value="">{dict.filterStatus}</option>
@@ -1177,7 +1332,14 @@ function AdminDashboard({
           <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
             {displayTickets.map((ticket) => (
               <tr key={ticket.id} onClick={() => !showTicketTrash && setSelectedTicket(ticket)} className={`${showTicketTrash ? '' : 'cursor-pointer'} hover:bg-gray-50 dark:hover:bg-zinc-900/50 transition-colors`}>
-                <td className="px-6 py-4 font-mono font-bold">{ticket.id}</td>
+                <td className="px-6 py-4 font-mono font-bold">
+                  {ticket.id}
+                  {!isAdmin && isMine(ticket) && (
+                    <span className="ms-2 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400 align-middle">
+                      {dict.assignedToYou}
+                    </span>
+                  )}
+                </td>
                 <td className="px-6 py-4 truncate max-w-[200px]">{ticket.room}</td>
                 <td className="px-6 py-4 font-medium">{ticket.issue}</td>
                 <td className="px-6 py-4">
@@ -1234,20 +1396,37 @@ function AdminDashboard({
             </div>
 
             <div className="space-y-6 print:hidden">
-              <div>
-                <label className="text-xs font-bold text-gray-400 block mb-2 uppercase">{dict.assign}</label>
-                <select
-                  value={selectedTicket.assignee || ''}
-                  onChange={(e) => updateTicket(selectedTicket.id, { assignee: e.target.value })}
-                  disabled={!isAdmin}
-                  className="w-full border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-3 bg-transparent outline-none disabled:opacity-50"
-                >
-                  <option value="">{dict.selectPlaceholder}</option>
-                  {facilityUsers.map((user) => (
-                    <option key={user.id} value={user.username}>{user.username}</option>
-                  ))}
-                </select>
-              </div>
+              {isAdmin ? (
+                <div>
+                  <label className="text-xs font-bold text-gray-400 block mb-2 uppercase">{dict.assign}</label>
+                  <select
+                    value={pendingAssignee}
+                    onChange={(e) => setPendingAssignee(e.target.value)}
+                    className="w-full border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-3 bg-transparent outline-none"
+                  >
+                    <option value="">{dict.selectPlaceholder}</option>
+                    {facilityUsers.map((user) => (
+                      <option key={user.id} value={user.username}>{user.username}</option>
+                    ))}
+                  </select>
+                  {pendingAssignee && pendingAssignee !== (selectedTicket.assignee || '') && (
+                    <button
+                      type="button"
+                      onClick={handleSubmitAssign}
+                      className="mt-3 w-full bg-black text-white dark:bg-white dark:text-black py-3 rounded-xl font-bold hover:opacity-90 transition-opacity"
+                    >
+                      {dict.submitAssign}
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div>
+                  <label className="text-xs font-bold text-gray-400 block mb-2 uppercase">{dict.assignedTo}</label>
+                  <p className="w-full border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-3 font-semibold">
+                    {selectedTicket.assignee || dict.unassigned}
+                  </p>
+                </div>
+              )}
 
               {isAdmin && (
               <div className="grid grid-cols-2 gap-4">
@@ -1298,6 +1477,39 @@ function AdminDashboard({
                 )}
               </div>
 
+              {!isAdmin && selectedTicket.status === 'In Progress' && (
+                <div className="border border-gray-200 dark:border-zinc-800 rounded-2xl p-4">
+                  <label className="text-xs font-bold text-gray-400 block mb-3 uppercase">{dict.uploadFixPhoto}</label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => setResolutionFile(e.target.files?.[0] || null)}
+                    className="w-full text-sm mb-3 file:me-3 file:px-4 file:py-2 file:rounded-xl file:border-0 file:bg-gray-100 dark:file:bg-zinc-900 file:font-bold file:text-sm dark:file:text-white"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleUploadResolution}
+                    disabled={uploadingPhoto || !resolutionFile}
+                    className="w-full bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white py-3 rounded-xl font-bold transition-colors flex items-center justify-center gap-2"
+                  >
+                    <Check size={18} /> {uploadingPhoto ? dict.uploading : dict.uploadFixPhoto}
+                  </button>
+                </div>
+              )}
+
+              {selectedTicket.resolutionImageUrl && (
+                <div>
+                  <label className="text-xs font-bold text-gray-400 block mb-2 uppercase">{dict.resolutionPhoto}</label>
+                  <a href={selectedTicket.resolutionImageUrl} target="_blank" rel="noreferrer">
+                    <img
+                      src={selectedTicket.resolutionImageUrl}
+                      alt={dict.resolutionPhoto}
+                      className="w-full rounded-xl border border-gray-200 dark:border-zinc-800 object-cover max-h-64"
+                    />
+                  </a>
+                </div>
+              )}
+
               {isAdmin && (
               <button
                 type="button"
@@ -1307,6 +1519,43 @@ function AdminDashboard({
                 <Trash2 size={18} /> {dict.deleteTicket}
               </button>
               )}
+            </div>
+
+            <div className="mt-8 pt-6 border-t border-gray-200 dark:border-zinc-800 print:hidden">
+              <h3 className="text-xs font-bold text-gray-400 uppercase mb-4">{dict.discussion}</h3>
+              <div className="space-y-3 mb-4 max-h-64 overflow-y-auto">
+                {comments.length === 0 && (
+                  <p className="text-sm text-gray-400">{dict.noComments}</p>
+                )}
+                {comments.map((c) => (
+                  <div key={c.id} className="bg-gray-50 dark:bg-zinc-900/50 rounded-xl px-4 py-3">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-sm font-bold">{c.userName}</span>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${c.role === 'admin' ? 'bg-black text-white dark:bg-white dark:text-black' : 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-400'}`}>
+                        {c.role}
+                      </span>
+                      <span className="text-[11px] text-gray-400 ms-auto">{formatHistoryDate(c.createdAt)}</span>
+                    </div>
+                    <p className="text-sm whitespace-pre-wrap">{c.commentText}</p>
+                  </div>
+                ))}
+              </div>
+              <textarea
+                value={commentDraft}
+                onChange={(e) => setCommentDraft(e.target.value)}
+                placeholder={dict.writeComment}
+                rows={3}
+                maxLength={2000}
+                className="w-full border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-3 bg-transparent outline-none focus:border-black dark:focus:border-white text-sm resize-none"
+              />
+              <button
+                type="button"
+                onClick={handleSendComment}
+                disabled={sendingComment || !commentDraft.trim()}
+                className="mt-2 w-full bg-black text-white dark:bg-white dark:text-black disabled:opacity-50 py-3 rounded-xl font-bold transition-opacity hover:opacity-90"
+              >
+                {sendingComment ? dict.sending : dict.sendComment}
+              </button>
             </div>
 
             {ticketHistory.length > 0 && (

@@ -771,6 +771,10 @@ app.post('/api/issues/:ticketNumber/resolution', requireDb, authenticateToken, (
     }
 
     const ticket = existing.rows[0];
+    if (ticket.status !== 'In Progress' && ticket.status !== 'Resolved') {
+      res.status(409).json({ error: 'Resolution photo can only be uploaded for tickets that are In Progress.' });
+      return;
+    }
     const uploadResult = await uploadBufferToCloudinary(req.file.buffer);
     const imageUrl = uploadResult?.secure_url;
 
