@@ -120,6 +120,7 @@ const t = {
     uploadFailed: 'Photo upload failed.',
     updatesComments: 'Updates & Comments', proofTitle: 'Proof of Resolution / Fix Photo',
     noUpdates: 'No updates yet. Check back soon.',
+    userNotes: 'User Notes / Description', noNotes: 'No description provided.',
   },
   ar: {
     request: 'طلب صيانة', track: 'تتبع', admin: 'لوحة القيادة', adminLogin: 'دخول الإدارة',
@@ -188,6 +189,7 @@ const t = {
     uploadFailed: 'فشل رفع الصورة.',
     updatesComments: 'التحديثات والتعليقات', proofTitle: 'إثبات الإصلاح / صورة الإنجاز',
     noUpdates: 'لا توجد تحديثات بعد. تحقق لاحقاً.',
+    userNotes: 'ملاحظات المستخدم / الوصف', noNotes: 'لم يتم تقديم وصف.',
   },
 };
 
@@ -1456,6 +1458,12 @@ function AdminDashboard({
               <h2 className="text-3xl font-extrabold tracking-tighter">{selectedTicket.id}</h2>
               <p className="mt-4 font-medium">{selectedTicket.room} — {selectedTicket.asset}</p>
               <p className="text-gray-500 mt-1">{selectedTicket.issue}</p>
+              <div className="mt-4 bg-gray-50 dark:bg-zinc-900/50 border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-3">
+                <p className="text-xs font-bold text-gray-400 uppercase mb-1.5">{dict.userNotes}</p>
+                <p className={`text-sm whitespace-pre-wrap ${selectedTicket.notes ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 italic'}`}>
+                  {selectedTicket.notes || dict.noNotes}
+                </p>
+              </div>
               {selectedTicket.status === 'Rejected' && selectedTicket.rejectionReason && (
                 <p className="text-sm text-red-600 dark:text-red-400 mt-2">{selectedTicket.rejectionReason}</p>
               )}
@@ -1508,7 +1516,7 @@ function AdminDashboard({
               )}
 
               <div className="flex flex-wrap gap-2 pt-4">
-                {(selectedTicket.status === 'New' || selectedTicket.status === 'Pending') && (
+                {isAdmin && (selectedTicket.status === 'New' || selectedTicket.status === 'Pending') && (
                   <>
                     <button type="button" onClick={() => updateTicket(selectedTicket.id, { status: 'In Progress' })} className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white py-3 rounded-xl font-bold transition-colors">
                       {dict.accept}
@@ -1519,31 +1527,20 @@ function AdminDashboard({
                   </>
                 )}
 
-                {selectedTicket.status === 'In Progress' && (
-                  <>
-                    <button type="button" onClick={() => updateTicket(selectedTicket.id, { status: 'Resolved' })} className="flex-1 bg-blue-500 hover:bg-blue-600 text-white py-3 rounded-xl font-bold transition-colors flex items-center justify-center gap-2">
-                      <Check size={18} /> {dict.markResolved}
-                    </button>
-                    <button type="button" onClick={() => handleReject(selectedTicket.id)} className="flex-1 bg-red-500 hover:bg-red-600 text-white py-3 rounded-xl font-bold transition-colors">
-                      {dict.reject}
-                    </button>
-                  </>
-                )}
-
-                {selectedTicket.status === 'Resolved' && (
+                {!isAdmin && isMine(selectedTicket) && selectedTicket.status === 'Resolved' && (
                   <button type="button" onClick={() => updateTicket(selectedTicket.id, { status: 'Closed' })} className="flex-1 bg-zinc-700 hover:bg-zinc-800 text-white py-3 rounded-xl font-bold transition-colors">
                     {dict.markClosed}
                   </button>
                 )}
 
-                {selectedTicket.status === 'Rejected' && (
+                {isAdmin && selectedTicket.status === 'Rejected' && (
                   <button type="button" onClick={() => handleReopenTicket(selectedTicket.id)} className="flex-1 bg-amber-500 hover:bg-amber-600 text-white py-3 rounded-xl font-bold transition-colors">
                     {dict.reopenNew}
                   </button>
                 )}
               </div>
 
-              {!isAdmin && selectedTicket.status === 'In Progress' && (
+              {!isAdmin && isMine(selectedTicket) && selectedTicket.status === 'In Progress' && (
                 <div className="border border-gray-200 dark:border-zinc-800 rounded-2xl p-4">
                   <label className="text-xs font-bold text-gray-400 block mb-3 uppercase">{dict.uploadFixPhoto}</label>
                   <input
