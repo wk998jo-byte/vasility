@@ -118,10 +118,11 @@ const t = {
     myTickets: 'My Tickets', allTickets: 'All Tickets', assignedToYou: 'Assigned to you',
     discussion: 'Discussion', writeComment: 'Write a comment...', sendComment: 'Send Comment',
     sending: 'Sending...', noComments: 'No comments yet.', commentFailed: 'Failed to send comment.',
-    uploadFixPhoto: 'Upload Fix Photo & Resolve', resolutionPhoto: 'Resolution Photo',
+    uploadFixPhoto: 'Upload Fix Photo & Resolve',
     uploading: 'Uploading...', photoRequired: 'Please choose a photo first.',
     uploadFailed: 'Photo upload failed.',
-    updatesComments: 'Updates & Comments', proofTitle: 'Proof of Resolution / Fix Photo',
+    updatesComments: 'Updates & Comments',
+    technicianFixPhoto: 'Technician Fix Photo', internalOnly: 'Internal — not visible to the requester.',
     noUpdates: 'No updates yet. Check back soon.',
     userNotes: 'User Notes / Description', noNotes: 'No description provided.',
     notifications: 'Notifications', noNotifications: 'No notifications yet.',
@@ -195,10 +196,11 @@ const t = {
     myTickets: 'تذاكري', allTickets: 'كل التذاكر', assignedToYou: 'معيّنة لك',
     discussion: 'المناقشة', writeComment: 'اكتب تعليقاً...', sendComment: 'إرسال التعليق',
     sending: 'جاري الإرسال...', noComments: 'لا توجد تعليقات بعد.', commentFailed: 'فشل إرسال التعليق.',
-    uploadFixPhoto: 'رفع صورة الإصلاح وإغلاق البلاغ', resolutionPhoto: 'صورة الإصلاح',
+    uploadFixPhoto: 'رفع صورة الإصلاح وإغلاق البلاغ',
     uploading: 'جاري الرفع...', photoRequired: 'يرجى اختيار صورة أولاً.',
     uploadFailed: 'فشل رفع الصورة.',
-    updatesComments: 'التحديثات والتعليقات', proofTitle: 'إثبات الإصلاح / صورة الإنجاز',
+    updatesComments: 'التحديثات والتعليقات',
+    technicianFixPhoto: 'صورة الإصلاح من الفني', internalOnly: 'داخلي — غير مرئي لمقدم الطلب.',
     noUpdates: 'لا توجد تحديثات بعد. تحقق لاحقاً.',
     userNotes: 'ملاحظات المستخدم / الوصف', noNotes: 'لم يتم تقديم وصف.',
     notifications: 'الإشعارات', noNotifications: 'لا توجد إشعارات بعد.',
@@ -887,24 +889,6 @@ function TrackingPortal({ dict }) {
                 <Step label={dict.statusNew} active done={ticket.status !== 'New'} />
                 <Step label={dict.inProgress} active={['In Progress', 'Resolved', 'Completed', 'Closed'].includes(ticket.status)} done={['Resolved', 'Completed', 'Closed'].includes(ticket.status)} />
                 <Step label={dict.resolved} active={['Resolved', 'Completed', 'Closed'].includes(ticket.status)} done={['Completed', 'Closed'].includes(ticket.status)} />
-              </div>
-            )}
-
-            {(ticket.status === 'Resolved' || ticket.status === 'Completed' || ticket.status === 'Closed') && ticket.resolutionImageUrl && (
-              <div className="mt-10 border border-emerald-200 dark:border-emerald-900 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-3xl p-6">
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center">
-                    <Check size={16} strokeWidth={3} />
-                  </div>
-                  <h4 className="font-extrabold tracking-tight">{dict.proofTitle}</h4>
-                </div>
-                <a href={ticket.resolutionImageUrl} target="_blank" rel="noreferrer" className="block">
-                  <img
-                    src={ticket.resolutionImageUrl}
-                    alt={dict.proofTitle}
-                    className="w-full rounded-2xl border border-emerald-200 dark:border-emerald-900 object-cover max-h-80 shadow-sm hover:opacity-95 transition-opacity"
-                  />
-                </a>
               </div>
             )}
 
@@ -1754,15 +1738,21 @@ function AdminDashboard({
               )}
 
               {selectedTicket.resolutionImageUrl && (
-                <div>
-                  <label className="text-xs font-bold text-gray-400 block mb-2 uppercase">{dict.resolutionPhoto}</label>
-                  <a href={selectedTicket.resolutionImageUrl} target="_blank" rel="noreferrer">
+                <div className="border border-emerald-200 dark:border-emerald-900 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-2xl p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-7 h-7 rounded-full bg-emerald-500 text-white flex items-center justify-center">
+                      <Check size={14} strokeWidth={3} />
+                    </div>
+                    <label className="text-xs font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">{dict.technicianFixPhoto}</label>
+                  </div>
+                  <a href={selectedTicket.resolutionImageUrl} target="_blank" rel="noreferrer" className="block">
                     <img
                       src={selectedTicket.resolutionImageUrl}
-                      alt={dict.resolutionPhoto}
-                      className="w-full rounded-xl border border-gray-200 dark:border-zinc-800 object-cover max-h-64"
+                      alt={dict.technicianFixPhoto}
+                      className="w-full rounded-xl border border-emerald-200 dark:border-emerald-900 object-cover max-h-72 hover:opacity-95 transition-opacity"
                     />
                   </a>
+                  <p className="text-[11px] text-gray-400 mt-2">{dict.internalOnly}</p>
                 </div>
               )}
 

@@ -24,6 +24,7 @@ import {
   fetchIssueHistory,
   fetchIssueComments,
   insertIssueComment,
+  toPublicIssue,
 } from './seed.js';
 
 loadEnv();
@@ -617,7 +618,7 @@ app.post('/api/issues', issueSubmitLimiter, requireDb, async (req, res) => {
       ticketNumber,
     }).catch((err) => console.error('[notifications] insert failed:', err.message));
 
-    res.status(201).json({ ok: true, issue });
+    res.status(201).json({ ok: true, issue: toPublicIssue(issue) });
   } catch (err) {
     if (err?.code === '23505' && err?.constraint === 'uniq_facility_issues_active_room_issue') {
       res.status(409).json({ error: 'An active ticket already exists for this issue in this location.' });
@@ -687,7 +688,7 @@ app.post('/api/issues/:ticketNumber/attachments', issueSubmitLimiter, requireDb,
     );
 
     const issue = await fetchIssueByTicketNumber(req.db, ticketNumber);
-    res.status(200).json({ ok: true, imageUrl, issue });
+    res.status(200).json({ ok: true, imageUrl, issue: toPublicIssue(issue) });
   } catch (err) {
     console.error('[upload] Issue photo upload failed:', err?.message || err);
     res.status(500).json({ error: 'Failed to save image' });
@@ -867,7 +868,9 @@ app.get('/api/issues/track', requireDb, async (req, res) => {
       res.status(404).json({ error: 'Ticket not found' });
       return;
     }
-    res.status(200).json({ issue });
+    // Resolution photos are for internal admin/facility review only —
+    // never expose them on the public tracking endpoint.
+    res.status(200).json({ issue: toPublicIssue(issue) });
   } catch {
     res.status(500).json({ error: 'Failed to fetch ticket' });
   }

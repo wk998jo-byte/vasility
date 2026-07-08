@@ -197,6 +197,14 @@ export async function fetchIssueByTicketNumber(db, ticketNumber) {
   return rows[0] ? mapIssueRow(rows[0]) : null;
 }
 
+// Strips internal-only fields (technician resolution photo) from an issue
+// before it is returned on any public / requester-facing endpoint.
+export function toPublicIssue(issue) {
+  if (!issue) return issue;
+  const { resolutionImageUrl, ...publicIssue } = issue;
+  return publicIssue;
+}
+
 export async function fetchIssueForTracking(db, ticketNumber, employeeId) {
   const { rows } = await db.query(
     `SELECT fi.*, r.name AS room_name, d.name_en AS department_name_en
