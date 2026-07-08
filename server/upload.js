@@ -1,14 +1,28 @@
 import multer from 'multer';
-import { v2 as cloudinary } from 'cloudinary';
 
 let uploadMiddleware = null;
+let cloudinary = null;
 
-export function initCloudinaryUpload() {
-  if (!process.env.CLOUDINARY_URL) {
+export async function initCloudinaryUpload() {
+  const url = process.env.CLOUDINARY_URL || '';
+  if (!url) {
     return null;
   }
 
-  cloudinary.config({ secure: true });
+  if (!url.startsWith('cloudinary://')) {
+    console.warn('[upload] CLOUDINARY_URL is set but invalid — it must start with "cloudinary://". Photo uploads are disabled until it is fixed.');
+    return null;
+  }
+
+  try {
+    const mod = await import('cloudinary');
+    cloudinary = mod.v2;
+    cloudinary.config({ secure: true });
+  } catch (err) {
+    console.warn('[upload] Failed to initialize Cloudinary:', err.message);
+    cloudinary = null;
+    return null;
+  }
 
   uploadMiddleware = multer({
     storage: multer.memoryStorage(),
@@ -31,6 +45,10 @@ export function getUploadMiddleware() {
 
 export function uploadBufferToCloudinary(buffer) {
   return new Promise((resolve, reject) => {
+    if (!cloudinary) {
+      reject(new Error('Cloudinary is not configured'));
+      return;
+    }
     const stream = cloudinary.uploader.upload_stream(
       {
         folder: 'ssc-facility-issues',

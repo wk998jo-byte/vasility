@@ -1071,7 +1071,7 @@ app.use((err, _req, res, _next) => {
 
 async function start() {
   try {
-    initCloudinaryUpload();
+    await initCloudinaryUpload();
     if (process.env.DATABASE_URL) {
       await initDb();
       await checkDb();
