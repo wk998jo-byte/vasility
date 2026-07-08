@@ -38,9 +38,12 @@ Set as Replit env vars / secrets (see `.env.example`):
 - `VITE_PUBLIC_BASE_URL` — build-time base URL for QR codes (falls back to
   `window.location.origin`)
 - Optional: `SMTP_*` / `NOTIFY_EMAIL` (email notifications), `CLOUDINARY_URL`
-  (issue photo uploads), `WHATSAPP_API_URL` / `WHATSAPP_API_TOKEN` (WhatsApp
-  message to the reporter's phone when their ticket is Resolved/Closed).
-  All degrade gracefully when unset (WhatsApp falls back to a console stub).
+  (issue photo uploads). WhatsApp message to the reporter's phone when their
+  ticket is Resolved/Closed: either `CALLMEBOT_KEYS` (free CallMeBot;
+  `phone:apikey` pairs, comma-separated — each recipient registers once with
+  CallMeBot) or `WHATSAPP_API_URL` / `WHATSAPP_API_TOKEN` (generic JSON
+  gateway). All degrade gracefully when unset (WhatsApp falls back to a
+  console stub).
 
 ## Deployment
 
