@@ -177,6 +177,7 @@ export function mapIssueRow(row) {
     parts: row.parts || '',
     assignee: row.assignee || '',
     imageUrl: row.image_url || null,
+    resolutionImageUrl: row.resolution_image_url || null,
     isDeleted: row.is_deleted,
     rejectionReason: row.rejection_reason || '',
   };
@@ -320,6 +321,40 @@ export async function fetchUsers(db, { role } = {}) {
   sql += ' ORDER BY username';
   const { rows } = await db.query(sql, params);
   return rows;
+}
+
+export async function fetchIssueComments(db, issueId) {
+  const { rows } = await db.query(
+    `SELECT id, user_name, role, comment_text, created_at
+     FROM issue_comments
+     WHERE issue_id = $1
+     ORDER BY created_at ASC`,
+    [issueId],
+  );
+  return rows.map((row) => ({
+    id: row.id,
+    userName: row.user_name,
+    role: row.role,
+    commentText: row.comment_text,
+    createdAt: row.created_at,
+  }));
+}
+
+export async function insertIssueComment(db, issueId, userName, role, commentText) {
+  const { rows } = await db.query(
+    `INSERT INTO issue_comments (issue_id, user_name, role, comment_text)
+     VALUES ($1, $2, $3, $4)
+     RETURNING id, user_name, role, comment_text, created_at`,
+    [issueId, userName, role, commentText],
+  );
+  const row = rows[0];
+  return {
+    id: row.id,
+    userName: row.user_name,
+    role: row.role,
+    commentText: row.comment_text,
+    createdAt: row.created_at,
+  };
 }
 
 export async function fetchIssueHistory(db, issueId) {

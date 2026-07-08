@@ -22,6 +22,8 @@ import {
   fetchDepartments,
   fetchUsers,
   fetchIssueHistory,
+  fetchIssueComments,
+  insertIssueComment,
 } from './seed.js';
 
 loadEnv();
@@ -652,6 +654,155 @@ app.post('/api/issues/:ticketNumber/attachments', issueSubmitLimiter, requireDb,
     res.status(200).json({ ok: true, imageUrl, issue });
   } catch {
     res.status(500).json({ error: 'Failed to save image' });
+  }
+});
+
+app.get('/api/issues/:ticketNumber/comments', requireDb, async (req, res) => {
+  const ticketNumber = req.params.ticketNumber;
+  const employeeId = typeof req.query.employeeId === 'string' ? req.query.employeeId.trim() : '';
+
+  // Access: staff with a valid JWT, or the reporter proving identity with
+  // ticketNumber + employeeId (same gate as the public tracking endpoint).
+  let isStaff = false;
+  const authHeader = req.headers.authorization;
+  if (authHeader?.startsWith('Bearer ') && JWT_SECRET) {
+    try {
+      jwt.verify(authHeader.slice('Bearer '.length), JWT_SECRET);
+      isStaff = true;
+    } catch {
+      // fall through to employeeId check
+    }
+  }
+
+  if (!isStaff && !employeeId) {
+    res.status(401).json({ error: 'employeeId query parameter or authentication required' });
+    return;
+  }
+
+  try {
+    const issue = await req.db.query(
+      'SELECT id, employee_id FROM facility_issues WHERE ticket_number = $1 AND is_deleted = false',
+      [ticketNumber],
+    );
+    if (!issue.rowCount || (!isStaff && issue.rows[0].employee_id !== employeeId)) {
+      res.status(404).json({ error: 'Ticket not found' });
+      return;
+    }
+
+    const comments = await fetchIssueComments(req.db, issue.rows[0].id);
+    res.status(200).json({ comments });
+  } catch {
+    res.status(500).json({ error: 'Failed to fetch comments' });
+  }
+});
+
+app.post('/api/issues/:ticketNumber/comments', requireDb, authenticateToken, async (req, res) => {
+  const ticketNumber = req.params.ticketNumber;
+  const commentText = typeof req.body?.commentText === 'string'
+    ? req.body.commentText.trim()
+    : (typeof req.body?.comment === 'string' ? req.body.comment.trim() : '');
+
+  if (!commentText) {
+    res.status(400).json({ error: 'commentText required' });
+    return;
+  }
+  if (commentText.length > 2000) {
+    res.status(400).json({ error: 'comment too long (max 2000 characters)' });
+    return;
+  }
+
+  try {
+    const issue = await req.db.query(
+      'SELECT id FROM facility_issues WHERE ticket_number = $1 AND is_deleted = false',
+      [ticketNumber],
+    );
+    if (!issue.rowCount) {
+      res.status(404).json({ error: 'Ticket not found' });
+      return;
+    }
+
+    const comment = await insertIssueComment(
+      req.db,
+      issue.rows[0].id,
+      req.user?.user || 'Unknown',
+      req.user?.role || 'facility',
+      commentText,
+    );
+    res.status(201).json({ ok: true, comment });
+  } catch {
+    res.status(500).json({ error: 'Failed to add comment' });
+  }
+});
+
+app.post('/api/issues/:ticketNumber/resolution', requireDb, authenticateToken, (req, res, next) => {
+  if (req.user?.role !== 'admin' && req.user?.role !== 'facility') {
+    res.status(403).json({ error: 'Admin or facility access required' });
+    return;
+  }
+  const upload = getUploadMiddleware();
+  if (!upload) {
+    res.status(503).json({ error: 'Photo uploads are not enabled on this deployment.' });
+    return;
+  }
+  upload.single('image')(req, res, (err) => {
+    if (err) {
+      res.status(400).json({ error: err.message || 'Upload failed' });
+      return;
+    }
+    next();
+  });
+}, async (req, res) => {
+  const ticketNumber = req.params.ticketNumber;
+  const changedBy = req.user?.sub || null;
+
+  if (!req.file?.buffer) {
+    res.status(400).json({ error: 'image file required' });
+    return;
+  }
+
+  try {
+    const existing = await req.db.query(
+      'SELECT id, status FROM facility_issues WHERE ticket_number = $1 AND is_deleted = false',
+      [ticketNumber],
+    );
+    if (!existing.rowCount) {
+      res.status(404).json({ error: 'Ticket not found' });
+      return;
+    }
+
+    const ticket = existing.rows[0];
+    const uploadResult = await uploadBufferToCloudinary(req.file.buffer);
+    const imageUrl = uploadResult?.secure_url;
+
+    if (!imageUrl) {
+      res.status(500).json({ error: 'Cloudinary upload failed' });
+      return;
+    }
+
+    await req.db.query('BEGIN');
+
+    await req.db.query(
+      `UPDATE facility_issues
+       SET resolution_image_url = $1, status = 'Resolved', updated_at = now()
+       WHERE ticket_number = $2`,
+      [imageUrl, ticketNumber],
+    );
+
+    if (ticket.status !== 'Resolved') {
+      await req.db.query(
+        `INSERT INTO issue_status_history (issue_id, from_status, to_status, changed_by, note)
+         VALUES ($1, $2, 'Resolved', $3, 'Resolution photo uploaded')`,
+        [ticket.id, ticket.status, changedBy],
+      );
+    }
+
+    await req.db.query('COMMIT');
+
+    const issue = await fetchIssueByTicketNumber(req.db, ticketNumber);
+    res.status(200).json({ ok: true, resolutionImageUrl: imageUrl, issue });
+  } catch {
+    await req.db.query('ROLLBACK').catch(() => {});
+    res.status(500).json({ error: 'Failed to save resolution photo' });
   }
 });
 

@@ -93,6 +93,7 @@ CREATE TABLE IF NOT EXISTS facility_issues (
 ALTER TABLE facility_issues ADD COLUMN IF NOT EXISTS department_id UUID REFERENCES departments(id);
 ALTER TABLE facility_issues ADD COLUMN IF NOT EXISTS assignee TEXT NOT NULL DEFAULT '';
 ALTER TABLE facility_issues ADD COLUMN IF NOT EXISTS image_url TEXT;
+ALTER TABLE facility_issues ADD COLUMN IF NOT EXISTS resolution_image_url TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_facility_issues_status ON facility_issues (status);
 CREATE INDEX IF NOT EXISTS idx_facility_issues_room ON facility_issues (room_id);
@@ -101,6 +102,19 @@ CREATE INDEX IF NOT EXISTS idx_facility_issues_created ON facility_issues (creat
 CREATE INDEX IF NOT EXISTS idx_facility_issues_ticket_number ON facility_issues (ticket_number);
 CREATE INDEX IF NOT EXISTS idx_facility_issues_employee ON facility_issues (employee_id);
 CREATE INDEX IF NOT EXISTS idx_facility_issues_priority ON facility_issues (priority);
+
+-- ─── Issue comments (admin/tech discussion, visible on tracking page) ────────
+
+CREATE TABLE IF NOT EXISTS issue_comments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  issue_id UUID NOT NULL REFERENCES facility_issues(id) ON DELETE CASCADE,
+  user_name VARCHAR(255) NOT NULL,
+  role VARCHAR(50) NOT NULL,
+  comment_text TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_issue_comments_issue ON issue_comments (issue_id, created_at);
 
 -- ─── Issue status audit trail ────────────────────────────────────────────────
 
