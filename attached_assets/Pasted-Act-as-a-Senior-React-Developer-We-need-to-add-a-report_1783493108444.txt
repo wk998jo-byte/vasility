@@ -1,0 +1,45 @@
+Act as a Senior React Developer. We need to add a reporting feature for Admins in web/src/App.jsx to print Daily, Weekly, and Monthly maintenance reports. The printed report must include the corporate logo (/logo.png), be nicely formatted for A4 paper, and hide all other UI elements when printing.
+
+Please implement the following:
+
+Report Logic & State:
+
+In the AdminDashboard component, add a new state: const [printReportConfig, setPrintReportConfig] = useState(null); (to store the title, date range, and filtered tickets).
+
+Create a helper function handlePrintReport(type).
+
+type === 'daily': Filter tickets created today.
+
+type === 'weekly': Filter tickets created in the last 7 days.
+
+type === 'monthly': Filter tickets created in the current month.
+
+Set the printReportConfig state with { title: \${type.toUpperCase()} MAINTENANCE REPORT`, tickets: filteredTickets, date: new Date().toLocaleDateString() }`.
+
+Use setTimeout(() => window.print(), 500) to trigger the print dialog after the state renders.
+
+Admin UI Buttons:
+
+In the AdminDashboard (perhaps next to "Manage Locations" or "Manage Staff"), add a "Reports" dropdown or a group of 3 small buttons with a Printer icon: "Daily", "Weekly", "Monthly". Clicking them triggers handlePrintReport(type).
+
+Printable Report Component (Hidden on Screen, Visible on Print):
+
+Create a new component <PrintableReport config={printReportConfig} />.
+
+Wrap it in a div that is hidden on screens but visible on print: <div className="hidden print:block absolute top-0 left-0 w-full bg-white text-black p-8 z-[9999]">
+
+Also, ensure the main dashboard wrapper has className={printReportConfig ? 'print:hidden' : ''} so the normal UI hides when printing.
+
+Report Design (Tailwind):
+
+Header: Flexbox with the Logo on the left (<img src="/logo.png" className="h-16 w-auto" />), and the Company Name & Report Title (from config) on the right/center. Include the generated Date.
+
+Summary Cards: A small grid showing: Total Tickets, Resolved Tickets, and Total Cost (SAR) for the filtered period.
+
+Data Table: A clean, bordered table w-full text-left text-sm border-collapse.
+
+Columns: Ticket ID, Date, Location/Asset, Issue, Assignee, Status, Cost.
+
+Use standard black-and-white borders (border-gray-800) to ensure it looks good on black/white printers. Ensure print:break-inside-avoid is used on table rows if possible.
+
+Ensure the printed layout is clean, strictly business-formatted, and completely hides the dark mode UI/navbars during the print process.

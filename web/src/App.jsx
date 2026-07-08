@@ -123,6 +123,11 @@ const t = {
     noUpdates: 'No updates yet. Check back soon.',
     userNotes: 'User Notes / Description', noNotes: 'No description provided.',
     notifications: 'Notifications', noNotifications: 'No notifications yet.',
+    reportDaily: 'Daily', reportWeekly: 'Weekly', reportMonthly: 'Monthly',
+    reportTotal: 'Total Tickets', reportResolved: 'Resolved Tickets', reportCost: 'Total Cost (SAR)',
+    reportDateCol: 'Date', reportLocationAsset: 'Location / Asset', reportAssignee: 'Assignee',
+    reportGenerated: 'Generated', reportCompany: 'SSC Building Portal (Bin Quraya)',
+    reportNoTickets: 'No tickets in this period.',
   },
   ar: {
     request: 'طلب صيانة', track: 'تتبع', admin: 'لوحة القيادة', adminLogin: 'دخول الإدارة',
@@ -193,6 +198,11 @@ const t = {
     noUpdates: 'لا توجد تحديثات بعد. تحقق لاحقاً.',
     userNotes: 'ملاحظات المستخدم / الوصف', noNotes: 'لم يتم تقديم وصف.',
     notifications: 'الإشعارات', noNotifications: 'لا توجد إشعارات بعد.',
+    reportDaily: 'يومي', reportWeekly: 'أسبوعي', reportMonthly: 'شهري',
+    reportTotal: 'إجمالي التذاكر', reportResolved: 'التذاكر المحلولة', reportCost: 'التكلفة الإجمالية (ريال)',
+    reportDateCol: 'التاريخ', reportLocationAsset: 'الموقع / الأصل', reportAssignee: 'الفني المسؤول',
+    reportGenerated: 'تاريخ الإنشاء', reportCompany: 'بوابة مباني SSC (بن قرية)',
+    reportNoTickets: 'لا توجد تذاكر في هذه الفترة.',
   },
 };
 
@@ -937,6 +947,7 @@ function AdminDashboard({
   focusTicketId, onFocusHandled,
 }) {
   const isAdmin = adminRole === 'admin';
+  const [printReportConfig, setPrintReportConfig] = useState(null);
   const [selectedTicket, setSelectedTicket] = useState(null);
   const selectedTicketIdRef = useRef(null);
   selectedTicketIdRef.current = selectedTicket?.id || null;
@@ -1058,6 +1069,12 @@ function AdminDashboard({
     ? adminRooms.filter((r) => r.departmentId === filters.departmentId)
     : adminRooms;
 
+  useEffect(() => {
+    const onAfterPrint = () => setPrintReportConfig(null);
+    window.addEventListener('afterprint', onAfterPrint);
+    return () => window.removeEventListener('afterprint', onAfterPrint);
+  }, []);
+
   const activeTickets = tickets.filter((t) => !t.isDeleted);
   const trashedTickets = tickets.filter((t) => t.isDeleted);
   const isMine = (ticket) => Boolean(adminUser) && (ticket.assignee || '') === adminUser;
@@ -1071,6 +1088,30 @@ function AdminDashboard({
   const resolved = activeTickets.filter((t) => t.status === 'Resolved' || t.status === 'Completed').length;
   const totalSpend = activeTickets.reduce((acc, ticket) => acc + (Number(ticket.cost) || 0), 0);
   const slaBreached = countSlaBreached(activeTickets);
+
+  const handlePrintReport = (type) => {
+    const now = new Date();
+    let from;
+    if (type === 'daily') {
+      from = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    } else if (type === 'weekly') {
+      from = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    } else {
+      from = new Date(now.getFullYear(), now.getMonth(), 1);
+    }
+    const filteredTickets = activeTickets.filter((ticket) => {
+      const created = new Date(ticket.createdAt);
+      return !Number.isNaN(created.getTime()) && created >= from;
+    });
+    setSelectedTicket(null);
+    setShowRoomModal(false);
+    setPrintReportConfig({
+      title: `${type.toUpperCase()} MAINTENANCE REPORT`,
+      tickets: filteredTickets,
+      date: now.toLocaleDateString(),
+    });
+    setTimeout(() => window.print(), 500);
+  };
 
   const statusData = [
     { name: dict.statusNew, value: statusNew },
@@ -1410,6 +1451,21 @@ function AdminDashboard({
           <button type="button" onClick={() => { setShowStaffModal(true); loadStaff(); }} className="flex items-center gap-2 bg-gray-100 hover:bg-gray-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-black dark:text-white px-4 py-2.5 rounded-xl font-bold transition-colors">
             <Users size={18} /> {dict.manageStaff}
           </button>
+          )}
+          {isAdmin && (
+          <div className="flex items-center gap-1 bg-gray-100 dark:bg-zinc-900 rounded-xl p-1">
+            {['daily', 'weekly', 'monthly'].map((type) => (
+              <button
+                key={type}
+                type="button"
+                onClick={() => handlePrintReport(type)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-bold text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-black hover:shadow-sm transition-all"
+              >
+                <Printer size={14} />
+                {type === 'daily' ? dict.reportDaily : type === 'weekly' ? dict.reportWeekly : dict.reportMonthly}
+              </button>
+            ))}
+          </div>
           )}
         </div>
       </div>
@@ -1895,6 +1951,77 @@ function AdminDashboard({
           </div>
         </div>
       )}
+
+      {printReportConfig && <PrintableReport config={printReportConfig} dict={dict} />}
+    </div>
+  );
+}
+
+function PrintableReport({ config, dict }) {
+  const { title, tickets, date } = config;
+  const resolvedCount = tickets.filter((t) => ['Resolved', 'Completed', 'Closed'].includes(t.status)).length;
+  const totalCost = tickets.reduce((acc, t) => acc + (Number(t.cost) || 0), 0);
+
+  return (
+    <div className="hidden print:block absolute top-0 left-0 w-full bg-white text-black p-8 z-[9999]">
+      <div className="flex items-center justify-between border-b-2 border-gray-800 pb-6 mb-6">
+        <img src="/logo.png" alt="Logo" className="h-16 w-auto object-contain" />
+        <div className="text-end">
+          <p className="text-lg font-bold">{dict.reportCompany}</p>
+          <h1 className="text-2xl font-extrabold tracking-tight">{title}</h1>
+          <p className="text-sm text-gray-700 mt-1">{dict.reportGenerated}: {date}</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-4 mb-8">
+        <div className="border border-gray-800 rounded-lg p-4 text-center">
+          <p className="text-xs font-bold uppercase tracking-wider">{dict.reportTotal}</p>
+          <p className="text-3xl font-extrabold mt-1">{tickets.length}</p>
+        </div>
+        <div className="border border-gray-800 rounded-lg p-4 text-center">
+          <p className="text-xs font-bold uppercase tracking-wider">{dict.reportResolved}</p>
+          <p className="text-3xl font-extrabold mt-1">{resolvedCount}</p>
+        </div>
+        <div className="border border-gray-800 rounded-lg p-4 text-center">
+          <p className="text-xs font-bold uppercase tracking-wider">{dict.reportCost}</p>
+          <p className="text-3xl font-extrabold mt-1">{totalCost.toLocaleString()}</p>
+        </div>
+      </div>
+
+      {tickets.length === 0 ? (
+        <p className="text-sm text-gray-700">{dict.reportNoTickets}</p>
+      ) : (
+        <table className="w-full text-start text-sm border-collapse">
+          <thead>
+            <tr>
+              <th className="border border-gray-800 px-3 py-2 font-bold text-start">{dict.ticketId}</th>
+              <th className="border border-gray-800 px-3 py-2 font-bold">{dict.reportDateCol}</th>
+              <th className="border border-gray-800 px-3 py-2 font-bold">{dict.reportLocationAsset}</th>
+              <th className="border border-gray-800 px-3 py-2 font-bold">{dict.issueCol}</th>
+              <th className="border border-gray-800 px-3 py-2 font-bold">{dict.reportAssignee}</th>
+              <th className="border border-gray-800 px-3 py-2 font-bold">{dict.statusCol}</th>
+              <th className="border border-gray-800 px-3 py-2 font-bold">{dict.cost}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {tickets.map((t) => (
+              <tr key={t.id} className="print:break-inside-avoid">
+                <td className="border border-gray-800 px-3 py-2 font-mono">{t.id}</td>
+                <td className="border border-gray-800 px-3 py-2">{new Date(t.createdAt).toLocaleDateString()}</td>
+                <td className="border border-gray-800 px-3 py-2">{t.room}{t.asset ? ` / ${t.asset}` : ''}</td>
+                <td className="border border-gray-800 px-3 py-2">{t.issue}</td>
+                <td className="border border-gray-800 px-3 py-2">{t.assignee || '—'}</td>
+                <td className="border border-gray-800 px-3 py-2">{t.status}</td>
+                <td className="border border-gray-800 px-3 py-2">{Number(t.cost) ? Number(t.cost).toLocaleString() : '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      <p className="text-xs text-gray-600 mt-8 pt-4 border-t border-gray-800">
+        {dict.reportCompany} — {dict.reportGenerated}: {date}
+      </p>
     </div>
   );
 }
