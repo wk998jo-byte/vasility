@@ -118,6 +118,8 @@ const t = {
     uploadFixPhoto: 'Upload Fix Photo & Resolve', resolutionPhoto: 'Resolution Photo',
     uploading: 'Uploading...', photoRequired: 'Please choose a photo first.',
     uploadFailed: 'Photo upload failed.',
+    updatesComments: 'Updates & Comments', proofTitle: 'Proof of Resolution / Fix Photo',
+    noUpdates: 'No updates yet. Check back soon.',
   },
   ar: {
     request: 'طلب صيانة', track: 'تتبع', admin: 'لوحة القيادة', adminLogin: 'دخول الإدارة',
@@ -184,6 +186,8 @@ const t = {
     uploadFixPhoto: 'رفع صورة الإصلاح وإغلاق البلاغ', resolutionPhoto: 'صورة الإصلاح',
     uploading: 'جاري الرفع...', photoRequired: 'يرجى اختيار صورة أولاً.',
     uploadFailed: 'فشل رفع الصورة.',
+    updatesComments: 'التحديثات والتعليقات', proofTitle: 'إثبات الإصلاح / صورة الإنجاز',
+    noUpdates: 'لا توجد تحديثات بعد. تحقق لاحقاً.',
   },
 };
 
@@ -624,8 +628,10 @@ function TrackingPortal({ dict }) {
   const [search, setSearch] = useState('');
   const [employeeId, setEmployeeId] = useState('');
   const [results, setResults] = useState([]);
+  const [comments, setComments] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
+  const searchRequestIdRef = useRef(0);
 
   const canSearch = search.trim() && employeeId.trim();
 
@@ -633,24 +639,44 @@ function TrackingPortal({ dict }) {
     const ticketNumber = search.trim();
     const badgeId = employeeId.trim();
     if (!ticketNumber || !badgeId) return;
+    const requestId = searchRequestIdRef.current + 1;
+    searchRequestIdRef.current = requestId;
     setLoading(true);
     setSearched(true);
+    setComments([]);
     try {
       const params = new URLSearchParams({
         ticketNumber,
         employeeId: badgeId,
       });
       const res = await fetch(`${API_BASE}/issues/track?${params}`);
+      if (searchRequestIdRef.current !== requestId) return;
       if (res.ok) {
         const data = await res.json();
+        if (searchRequestIdRef.current !== requestId) return;
         setResults(data.issue ? [data.issue] : []);
+        if (data.issue) {
+          try {
+            const commentsRes = await fetch(
+              `${API_BASE}/issues/${encodeURIComponent(data.issue.id)}/comments?employeeId=${encodeURIComponent(badgeId)}`,
+            );
+            if (searchRequestIdRef.current !== requestId) return;
+            if (commentsRes.ok) {
+              const commentsData = await commentsRes.json();
+              if (searchRequestIdRef.current !== requestId) return;
+              setComments(commentsData.comments || []);
+            }
+          } catch {
+            /* comments are optional; ticket still displays */
+          }
+        }
       } else {
         setResults([]);
       }
     } catch {
-      setResults([]);
+      if (searchRequestIdRef.current === requestId) setResults([]);
     } finally {
-      setLoading(false);
+      if (searchRequestIdRef.current === requestId) setLoading(false);
     }
   };
 
@@ -670,7 +696,7 @@ function TrackingPortal({ dict }) {
             placeholder={dict.search}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter' && canSearch) runSearch(); }}
+            onKeyDown={(e) => { if (e.key === 'Enter' && canSearch && !loading) runSearch(); }}
             className="w-full ps-16 pe-6 py-5 text-lg font-medium bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-3xl outline-none focus:border-black dark:focus:border-white focus:ring-2 focus:ring-black/5 dark:focus:ring-white/5 transition-all shadow-sm"
           />
         </div>
@@ -679,7 +705,7 @@ function TrackingPortal({ dict }) {
           placeholder={dict.searchEmployeeId}
           value={employeeId}
           onChange={(e) => setEmployeeId(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter' && canSearch) runSearch(); }}
+          onKeyDown={(e) => { if (e.key === 'Enter' && canSearch && !loading) runSearch(); }}
           className="w-full px-6 py-5 text-lg font-medium bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-3xl outline-none focus:border-black dark:focus:border-white focus:ring-2 focus:ring-black/5 dark:focus:ring-white/5 transition-all shadow-sm"
         />
         <button
@@ -721,10 +747,50 @@ function TrackingPortal({ dict }) {
               <div className="relative flex justify-between items-center">
                 <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-0.5 bg-gray-100 dark:bg-zinc-800 -z-10" />
                 <Step label={dict.statusNew} active done={ticket.status !== 'New'} />
-                <Step label={dict.inProgress} active={ticket.status === 'In Progress' || ticket.status === 'Resolved' || ticket.status === 'Closed'} done={ticket.status === 'Resolved' || ticket.status === 'Closed'} />
-                <Step label={dict.resolved} active={ticket.status === 'Resolved' || ticket.status === 'Closed'} done={ticket.status === 'Closed'} />
+                <Step label={dict.inProgress} active={['In Progress', 'Resolved', 'Completed', 'Closed'].includes(ticket.status)} done={['Resolved', 'Completed', 'Closed'].includes(ticket.status)} />
+                <Step label={dict.resolved} active={['Resolved', 'Completed', 'Closed'].includes(ticket.status)} done={['Completed', 'Closed'].includes(ticket.status)} />
               </div>
             )}
+
+            {(ticket.status === 'Resolved' || ticket.status === 'Completed' || ticket.status === 'Closed') && ticket.resolutionImageUrl && (
+              <div className="mt-10 border border-emerald-200 dark:border-emerald-900 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-3xl p-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center">
+                    <Check size={16} strokeWidth={3} />
+                  </div>
+                  <h4 className="font-extrabold tracking-tight">{dict.proofTitle}</h4>
+                </div>
+                <a href={ticket.resolutionImageUrl} target="_blank" rel="noreferrer" className="block">
+                  <img
+                    src={ticket.resolutionImageUrl}
+                    alt={dict.proofTitle}
+                    className="w-full rounded-2xl border border-emerald-200 dark:border-emerald-900 object-cover max-h-80 shadow-sm hover:opacity-95 transition-opacity"
+                  />
+                </a>
+              </div>
+            )}
+
+            <div className="mt-10 pt-6 border-t border-gray-100 dark:border-zinc-800">
+              <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">{dict.updatesComments}</h4>
+              {comments.length === 0 ? (
+                <p className="text-sm text-gray-400">{dict.noUpdates}</p>
+              ) : (
+                <div className="space-y-3">
+                  {comments.map((c) => (
+                    <div key={c.id} className="bg-gray-50 dark:bg-zinc-900/50 rounded-2xl px-5 py-4">
+                      <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                        <span className="text-sm font-bold">{c.userName}</span>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${c.role === 'admin' ? 'bg-black text-white dark:bg-white dark:text-black' : 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-400'}`}>
+                          {c.role}
+                        </span>
+                        <span className="text-[11px] text-gray-400 ms-auto">{formatHistoryDate(c.createdAt)}</span>
+                      </div>
+                      <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{c.commentText}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         ))}
       </div>
