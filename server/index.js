@@ -669,7 +669,8 @@ app.post('/api/issues/:ticketNumber/attachments', issueSubmitLimiter, requireDb,
 
     const issue = await fetchIssueByTicketNumber(req.db, ticketNumber);
     res.status(200).json({ ok: true, imageUrl, issue });
-  } catch {
+  } catch (err) {
+    console.error('[upload] Issue photo upload failed:', err?.message || err);
     res.status(500).json({ error: 'Failed to save image' });
   }
 });
@@ -821,7 +822,8 @@ app.post('/api/issues/:ticketNumber/resolution', requireDb, authenticateToken, (
 
     const issue = await fetchIssueByTicketNumber(req.db, ticketNumber);
     res.status(200).json({ ok: true, resolutionImageUrl: imageUrl, issue });
-  } catch {
+  } catch (err) {
+    console.error('[upload] Resolution photo upload failed:', err?.message || err);
     await req.db.query('ROLLBACK').catch(() => {});
     res.status(500).json({ error: 'Failed to save resolution photo' });
   }
@@ -1071,7 +1073,8 @@ app.use((err, _req, res, _next) => {
 
 async function start() {
   try {
-    await initCloudinaryUpload();
+    const uploadEnabled = await initCloudinaryUpload();
+    console.log(`[upload] Cloudinary photo uploads: ${uploadEnabled ? 'enabled' : 'disabled'}`);
     if (process.env.DATABASE_URL) {
       await initDb();
       await checkDb();

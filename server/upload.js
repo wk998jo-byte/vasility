@@ -4,15 +4,17 @@ let uploadMiddleware = null;
 let cloudinary = null;
 
 export async function initCloudinaryUpload() {
-  const url = process.env.CLOUDINARY_URL || '';
-  if (!url) {
+  const raw = process.env.CLOUDINARY_URL || '';
+  if (!raw) {
     return null;
   }
 
+  const url = raw.trim().replace(/^CLOUDINARY_URL=/i, '').replace(/["'<>\s]/g, '');
   if (!url.startsWith('cloudinary://')) {
     console.warn('[upload] CLOUDINARY_URL is set but invalid — it must start with "cloudinary://". Photo uploads are disabled until it is fixed.');
     return null;
   }
+  process.env.CLOUDINARY_URL = url;
 
   try {
     const mod = await import('cloudinary');
