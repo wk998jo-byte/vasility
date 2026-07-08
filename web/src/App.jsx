@@ -58,6 +58,8 @@ const t = {
     request: 'Request', track: 'Track', admin: 'Command Center', adminLogin: 'Admin Login',
     submit: 'Submit Request', scanning: 'Scanning...', scan: 'Scan QR',
     employeeId: 'Employee ID', name: 'Full Name', room: 'Select Location', asset: 'Select Asset',
+    phoneNumber: 'Phone Number (optional)', emailAddress: 'Email (optional)',
+    duplicateTicket: 'An active ticket already exists for this issue in this location.',
     issue: 'Issue Type', priority: 'Priority', notes: 'Additional Notes',
     low: 'Low', medium: 'Medium', high: 'High',
     statusNew: 'New', inProgress: 'In Progress', resolved: 'Resolved', closed: 'Closed', rejected: 'Rejected',
@@ -133,6 +135,8 @@ const t = {
     request: 'طلب صيانة', track: 'تتبع', admin: 'لوحة القيادة', adminLogin: 'دخول الإدارة',
     submit: 'إرسال الطلب', scanning: 'جاري المسح...', scan: 'مسح الباركود',
     employeeId: 'الرقم الوظيفي', name: 'الاسم الكامل', room: 'اختر الموقع', asset: 'اختر الأصل',
+    phoneNumber: 'رقم الهاتف (اختياري)', emailAddress: 'البريد الإلكتروني (اختياري)',
+    duplicateTicket: 'توجد تذكرة نشطة بالفعل لهذه المشكلة في هذا الموقع.',
     issue: 'نوع المشكلة', priority: 'الأولوية', notes: 'ملاحظات إضافية',
     low: 'منخفض', medium: 'متوسط', high: 'عالي',
     statusNew: 'جديد', inProgress: 'قيد التنفيذ', resolved: 'تم الحل', closed: 'مغلق', rejected: 'مرفوض',
@@ -517,7 +521,7 @@ function QRScannerModal({ onScan, onClose }) {
 
 function RequestForm({ dict, lang }) {
   const [form, setForm] = useState({
-    name: '', employeeId: '', roomId: '', asset: '', issue: '', priority: '', notes: '',
+    name: '', employeeId: '', phoneNumber: '', email: '', roomId: '', asset: '', issue: '', priority: '', notes: '',
   });
   const [qrToken, setQrToken] = useState('');
   const [resolvedRoomName, setResolvedRoomName] = useState('');
@@ -593,10 +597,17 @@ function RequestForm({ dict, lang }) {
           issueType: form.issue,
           priority: form.priority,
           description: form.notes,
+          phone: form.phoneNumber,
+          email: form.email,
           qrToken,
         }),
       });
       const data = await res.json().catch(() => ({}));
+
+      if (res.status === 409) {
+        setSubmitError(dict.duplicateTicket);
+        return;
+      }
 
       if (!res.ok) {
         setSubmitError(data.error || dict.submitError);
@@ -605,7 +616,7 @@ function RequestForm({ dict, lang }) {
 
       const ticket = data.issue;
       setSuccessTicket(ticket);
-      setForm({ name: '', employeeId: '', roomId: form.roomId, asset: '', issue: '', priority: '', notes: '' });
+      setForm({ name: '', employeeId: '', phoneNumber: '', email: '', roomId: form.roomId, asset: '', issue: '', priority: '', notes: '' });
     } catch {
       setSubmitError(dict.backendError);
     } finally {
@@ -669,6 +680,11 @@ function RequestForm({ dict, lang }) {
           <Input label={dict.employeeId} value={form.employeeId} onChange={(e) => setForm({ ...form, employeeId: e.target.value })} />
         </div>
 
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+          <Input label={dict.phoneNumber} type="tel" required={false} value={form.phoneNumber} onChange={(e) => setForm({ ...form, phoneNumber: e.target.value })} />
+          <Input label={dict.emailAddress} type="email" required={false} value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+        </div>
+
         <hr className="border-gray-100 dark:border-zinc-900" />
 
         <div className="space-y-6 bg-gray-50 dark:bg-zinc-900/50 p-6 rounded-3xl border border-gray-100 dark:border-zinc-800/50">
@@ -717,11 +733,11 @@ function RequestForm({ dict, lang }) {
   );
 }
 
-function Input({ label, value, onChange }) {
+function Input({ label, value, onChange, type = 'text', required }) {
   return (
     <div>
       <label className="text-sm font-bold text-gray-900 dark:text-gray-100 block mb-2">{label}</label>
-      <input type="text" value={value} onChange={onChange} className="w-full border border-gray-200 dark:border-zinc-800 rounded-2xl px-5 py-4 bg-transparent focus:border-black dark:focus:border-white focus:ring-1 focus:ring-black dark:focus:ring-white outline-none transition-all" />
+      <input type={type} required={required} value={value} onChange={onChange} className="w-full border border-gray-200 dark:border-zinc-800 rounded-2xl px-5 py-4 bg-transparent focus:border-black dark:focus:border-white focus:ring-1 focus:ring-black dark:focus:ring-white outline-none transition-all" />
     </div>
   );
 }

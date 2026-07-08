@@ -163,6 +163,8 @@ export function mapIssueRow(row) {
     requesterName: row.reporter_name,
     name: row.reporter_name,
     employeeId: row.employee_id,
+    phone: row.reporter_phone || '',
+    email: row.reporter_email || '',
     room: row.room_name,
     roomId: row.room_id,
     departmentId: row.department_id,

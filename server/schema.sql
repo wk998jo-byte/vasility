@@ -80,6 +80,8 @@ CREATE TABLE IF NOT EXISTS facility_issues (
   employee_id TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'New',
   qr_token_used TEXT,
+  reporter_phone TEXT NOT NULL DEFAULT '',
+  reporter_email TEXT NOT NULL DEFAULT '',
   rejection_reason TEXT,
   cost NUMERIC(12, 2) NOT NULL DEFAULT 0,
   parts TEXT NOT NULL DEFAULT '',
@@ -94,6 +96,8 @@ ALTER TABLE facility_issues ADD COLUMN IF NOT EXISTS department_id UUID REFERENC
 ALTER TABLE facility_issues ADD COLUMN IF NOT EXISTS assignee TEXT NOT NULL DEFAULT '';
 ALTER TABLE facility_issues ADD COLUMN IF NOT EXISTS image_url TEXT;
 ALTER TABLE facility_issues ADD COLUMN IF NOT EXISTS resolution_image_url TEXT;
+ALTER TABLE facility_issues ADD COLUMN IF NOT EXISTS reporter_phone TEXT NOT NULL DEFAULT '';
+ALTER TABLE facility_issues ADD COLUMN IF NOT EXISTS reporter_email TEXT NOT NULL DEFAULT '';
 
 CREATE INDEX IF NOT EXISTS idx_facility_issues_status ON facility_issues (status);
 CREATE INDEX IF NOT EXISTS idx_facility_issues_room ON facility_issues (room_id);
@@ -102,6 +106,18 @@ CREATE INDEX IF NOT EXISTS idx_facility_issues_created ON facility_issues (creat
 CREATE INDEX IF NOT EXISTS idx_facility_issues_ticket_number ON facility_issues (ticket_number);
 CREATE INDEX IF NOT EXISTS idx_facility_issues_employee ON facility_issues (employee_id);
 CREATE INDEX IF NOT EXISTS idx_facility_issues_priority ON facility_issues (priority);
+
+-- At most one active (non-deleted, New/In Progress) ticket per room + issue type.
+-- Wrapped in a DO block so startup never fails if legacy duplicate rows exist —
+-- the API-level duplicate check still applies in that case.
+DO $$
+BEGIN
+  CREATE UNIQUE INDEX IF NOT EXISTS uniq_facility_issues_active_room_issue
+    ON facility_issues (room_id, issue_type)
+    WHERE is_deleted = false AND status IN ('New', 'In Progress');
+EXCEPTION WHEN unique_violation THEN
+  RAISE NOTICE 'Skipping unique active-ticket index (legacy duplicate rows exist): %', SQLERRM;
+END $$;
 
 -- ─── Issue comments (admin/tech discussion, visible on tracking page) ────────
 

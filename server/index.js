@@ -530,6 +530,8 @@ app.post('/api/issues', issueSubmitLimiter, requireDb, async (req, res) => {
   const priority = typeof body.priority === 'string' ? body.priority.trim() : '';
   const description = typeof body.description === 'string' ? body.description.trim() : '';
   const qrToken = typeof body.qrToken === 'string' ? body.qrToken.trim() : '';
+  const reporterPhone = typeof body.phone === 'string' ? body.phone.trim().slice(0, 30) : '';
+  const reporterEmail = typeof body.email === 'string' ? body.email.trim().slice(0, 254) : '';
 
   if (!reporterName || !employeeId || !assetName || !issueType || !priority) {
     res.status(400).json({ error: 'reporterName, employeeId, assetName, issueType, and priority are required' });
@@ -574,17 +576,29 @@ app.post('/api/issues', issueSubmitLimiter, requireDb, async (req, res) => {
       return;
     }
 
+    const duplicate = await req.db.query(
+      `SELECT id FROM facility_issues
+       WHERE room_id = $1 AND issue_type = $2
+         AND status IN ('New', 'In Progress') AND is_deleted = false
+       LIMIT 1`,
+      [resolvedRoomId, issueType],
+    );
+    if (duplicate.rowCount > 0) {
+      res.status(409).json({ error: 'An active ticket already exists for this issue in this location.' });
+      return;
+    }
+
     const ticketNumber = await generateTicketNumber(req.db);
 
     const { rows } = await req.db.query(
       `INSERT INTO facility_issues (
          ticket_number, room_id, department_id, asset_name, issue_type, priority, description,
-         reporter_name, employee_id, status, qr_token_used
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'New', $10)
+         reporter_name, employee_id, status, qr_token_used, reporter_phone, reporter_email
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'New', $10, $11, $12)
        RETURNING id`,
       [
         ticketNumber, resolvedRoomId, departmentId, assetName, issueType, priority, description,
-        reporterName, employeeId, qrToken,
+        reporterName, employeeId, qrToken, reporterPhone, reporterEmail,
       ],
     );
 
@@ -604,7 +618,12 @@ app.post('/api/issues', issueSubmitLimiter, requireDb, async (req, res) => {
     }).catch((err) => console.error('[notifications] insert failed:', err.message));
 
     res.status(201).json({ ok: true, issue });
-  } catch {
+  } catch (err) {
+    if (err?.code === '23505' && err?.constraint === 'uniq_facility_issues_active_room_issue') {
+      res.status(409).json({ error: 'An active ticket already exists for this issue in this location.' });
+      return;
+    }
+    console.error('[issues] create failed:', err?.message || err);
     res.status(500).json({ error: 'Failed to create issue' });
   }
 });
@@ -977,8 +996,12 @@ app.put('/api/issues/:ticketNumber', requireDb, authenticateToken, async (req, r
 
     const issue = await fetchIssueByTicketNumber(req.db, ticketNumber);
     res.status(200).json({ ok: true, issue });
-  } catch {
+  } catch (err) {
     await req.db.query('ROLLBACK').catch(() => {});
+    if (err?.code === '23505' && err?.constraint === 'uniq_facility_issues_active_room_issue') {
+      res.status(409).json({ error: 'Cannot make this ticket active: another active ticket already exists for the same issue in this location.' });
+      return;
+    }
     res.status(500).json({ error: 'Failed to update issue' });
   }
 });
