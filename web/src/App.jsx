@@ -4,6 +4,7 @@ import { Scanner } from '@yudiel/react-qr-scanner';
 import {
   Check, QrCode, Search, LayoutGrid, LogOut, Trash2, RotateCcw,
   X, Plus, Printer, Moon, Sun, Globe, ArrowRight, RefreshCw, Pencil, Users,
+  Bell,
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import {
@@ -121,6 +122,7 @@ const t = {
     updatesComments: 'Updates & Comments', proofTitle: 'Proof of Resolution / Fix Photo',
     noUpdates: 'No updates yet. Check back soon.',
     userNotes: 'User Notes / Description', noNotes: 'No description provided.',
+    notifications: 'Notifications', noNotifications: 'No notifications yet.',
   },
   ar: {
     request: 'طلب صيانة', track: 'تتبع', admin: 'لوحة القيادة', adminLogin: 'دخول الإدارة',
@@ -190,6 +192,7 @@ const t = {
     updatesComments: 'التحديثات والتعليقات', proofTitle: 'إثبات الإصلاح / صورة الإنجاز',
     noUpdates: 'لا توجد تحديثات بعد. تحقق لاحقاً.',
     userNotes: 'ملاحظات المستخدم / الوصف', noNotes: 'لم يتم تقديم وصف.',
+    notifications: 'الإشعارات', noNotifications: 'لا توجد إشعارات بعد.',
   },
 };
 
@@ -229,6 +232,7 @@ export default function App() {
   const [tickets, setTickets] = useState([]);
   const [adminToken, setAdminToken] = useState(localStorage.getItem('ssc_admin_token') || '');
   const [adminRole, setAdminRole] = useState(localStorage.getItem('ssc_admin_role') || '');
+  const [focusTicketId, setFocusTicketId] = useState('');
 
   const tokenPayload = adminToken ? decodeJwtPayload(adminToken) : null;
   const adminUser = tokenPayload?.user || localStorage.getItem('ssc_admin_user') || '';
@@ -279,6 +283,16 @@ export default function App() {
 
           <div className="flex items-center gap-3">
             {adminToken && (
+              <NotificationBell
+                adminToken={adminToken}
+                dict={dict}
+                onOpenTicket={(ticketNumber) => {
+                  setFocusTicketId(ticketNumber);
+                  setView('admin');
+                }}
+              />
+            )}
+            {adminToken && (
               <button type="button" onClick={handleLogout} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-zinc-900 text-gray-500 hover:text-red-600 transition-colors" aria-label={dict.logout}>
                 <LogOut size={18} />
               </button>
@@ -306,11 +320,107 @@ export default function App() {
                 adminToken={adminToken}
                 adminRole={adminRole}
                 adminUser={adminUser}
+                focusTicketId={focusTicketId}
+                onFocusHandled={() => setFocusTicketId('')}
               />
             )
             : <AdminLogin dict={dict} setToken={setAdminToken} setRole={setAdminRole} />
         )}
       </main>
+    </div>
+  );
+}
+
+function NotificationBell({ adminToken, dict, onOpenTicket }) {
+  const [notifications, setNotifications] = useState([]);
+  const [open, setOpen] = useState(false);
+  const panelRef = useRef(null);
+
+  useEffect(() => {
+    if (!adminToken) {
+      setNotifications([]);
+      return undefined;
+    }
+    let cancelled = false;
+    const load = () => {
+      fetch(`${API_BASE}/notifications`, {
+        headers: { Authorization: `Bearer ${adminToken}` },
+      })
+        .then((r) => (r.ok ? r.json() : Promise.reject(new Error('fetch failed'))))
+        .then((data) => { if (!cancelled) setNotifications(data.notifications || []); })
+        .catch(() => {});
+    };
+    load();
+    const timer = setInterval(load, 30000);
+    return () => { cancelled = true; clearInterval(timer); };
+  }, [adminToken]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const onDown = (e) => {
+      if (panelRef.current && !panelRef.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [open]);
+
+  const unread = notifications.filter((n) => !n.isRead).length;
+
+  const handleNotificationClick = (n) => {
+    if (!n.isRead) {
+      setNotifications((prev) => prev.map((x) => (x.id === n.id ? { ...x, isRead: true } : x)));
+      fetch(`${API_BASE}/notifications/${encodeURIComponent(n.id)}/read`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${adminToken}` },
+      }).catch(() => {});
+    }
+    if (n.ticketNumber && onOpenTicket) {
+      setOpen(false);
+      onOpenTicket(n.ticketNumber);
+    }
+  };
+
+  return (
+    <div className="relative" ref={panelRef}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="relative p-2 rounded-full hover:bg-gray-100 dark:hover:bg-zinc-900 transition-colors"
+        aria-label={dict.notifications}
+      >
+        <Bell size={18} />
+        {unread > 0 && (
+          <span className="absolute -top-0.5 -end-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center border-2 border-white dark:border-black">
+            {unread > 9 ? '9+' : unread}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <div className="absolute end-0 mt-2 w-80 max-h-96 overflow-y-auto bg-white dark:bg-black border border-gray-200 dark:border-zinc-800 rounded-2xl shadow-2xl p-2">
+          <p className="text-xs font-bold text-gray-400 uppercase tracking-wider px-3 py-2">{dict.notifications}</p>
+          {notifications.length === 0 ? (
+            <p className="text-sm text-gray-400 px-3 pb-3">{dict.noNotifications}</p>
+          ) : (
+            notifications.map((n) => (
+              <button
+                key={n.id}
+                type="button"
+                onClick={() => handleNotificationClick(n)}
+                className={`w-full text-start px-3 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-zinc-900 transition-colors ${n.isRead ? 'opacity-60' : ''}`}
+              >
+                <div className="flex items-start gap-2">
+                  {!n.isRead && <span className="mt-1.5 w-2 h-2 rounded-full bg-red-500 shrink-0" />}
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold leading-snug break-words">{n.message}</p>
+                    <p className="text-[11px] text-gray-400 mt-0.5">{formatHistoryDate(n.createdAt)}</p>
+                  </div>
+                </div>
+              </button>
+            ))
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -824,6 +934,7 @@ function Step({ label, active, done, rejected }) {
 
 function AdminDashboard({
   dict, tickets, setTickets, adminToken, adminRole, adminUser,
+  focusTicketId, onFocusHandled,
 }) {
   const isAdmin = adminRole === 'admin';
   const [selectedTicket, setSelectedTicket] = useState(null);
@@ -932,6 +1043,16 @@ function AdminDashboard({
       .catch(() => { if (!cancelled) setComments([]); });
     return () => { cancelled = true; };
   }, [selectedTicket?.id, adminToken]);
+
+  useEffect(() => {
+    if (!focusTicketId) return;
+    const match = tickets.find((ticket) => ticket.id === focusTicketId && !ticket.isDeleted);
+    if (match) {
+      setShowTicketTrash(false);
+      setSelectedTicket(match);
+      onFocusHandled?.();
+    }
+  }, [focusTicketId, tickets]);
 
   const filterRoomOptions = filters.departmentId
     ? adminRooms.filter((r) => r.departmentId === filters.departmentId)
