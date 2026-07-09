@@ -12,6 +12,7 @@ expertMode = true
 [userenv.shared]
 ADMIN_USER = "admin"
 FACILITY_USER = "facility_user"
+WHATSAPP_API_URL = "https://api.ultramsg.com/instance184225/messages/chat"
 
 [workflows]
 runButton = "Project"
