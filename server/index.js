@@ -8,7 +8,7 @@ import rateLimit from 'express-rate-limit';
 import { loadEnv } from './env.js';
 import { getPool, initDb, checkDb, withTransaction } from './db.js';
 import { sendNewIssueNotification } from './notify.js';
-import { sendWhatsAppNotification } from './whatsapp.js';
+import { sendWhatsAppNotification, sendWhatsAppWelcome } from './whatsapp.js';
 import { initCloudinaryUpload, getUploadMiddleware, uploadBufferToCloudinary } from './upload.js';
 import {
   generateTicketNumber,
@@ -617,6 +617,11 @@ app.post('/api/issues', issueSubmitLimiter, requireDb, async (req, res) => {
     );
 
     sendNewIssueNotification(issue).catch(() => {});
+    if (reporterPhone) {
+      // Fire-and-forget so the HTTP response is never delayed by WhatsApp.
+      sendWhatsAppWelcome(reporterPhone, ticketNumber)
+        .catch((err) => console.error('[whatsapp] welcome message failed:', err?.message || err));
+    }
     createNotification(req.db, {
       role: 'admin',
       message: `New Ticket created: ${ticketNumber}`,

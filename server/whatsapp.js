@@ -161,6 +161,15 @@ export async function sendWhatsAppMessage(phone, message) {
   return { sent: false, stub: true };
 }
 
+/** Welcome message sent right after a new ticket is created. */
+export async function sendWhatsAppWelcome(phone, ticketNumber) {
+  const message =
+    `مرحباً بك في نظام SSC OS 🏢. تم استلام طلب الصيانة الخاص بك بنجاح برقم: *${ticketNumber}*. `
+    + 'فريقنا الفني يقوم بمراجعة الطلب الآن وسيتواصل معك قريباً. ✨';
+
+  return sendWhatsAppMessage(phone, message);
+}
+
 /** Builds the ticket-status message and sends it. Used by the issue routes. */
 export async function sendWhatsAppNotification(phone, ticketNumber, status) {
   const message = [
