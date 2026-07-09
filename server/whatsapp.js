@@ -9,17 +9,24 @@
  *    their apikeys, e.g. "+966501234567:123456,+966559876543:654321".
  *    Phones without a key are skipped (logged, no failure).
  *
- * 2. Generic gateway — posts a JSON payload to WHATSAPP_API_URL
- *    (Twilio, UltraMsg, Meta Graph API gateway, etc.). Optional
- *    WHATSAPP_API_TOKEN is sent as a Bearer token.
+ * 2. REST gateway (UltraMsg / Green API style) — enabled when
+ *    WHATSAPP_API_URL is set (e.g. https://api.ultramsg.com/instanceXXX/messages/chat).
+ *    Sends POST JSON { token, to, body } where token comes from
+ *    WHATSAPP_TOKEN (or legacy WHATSAPP_API_TOKEN) and the phone is
+ *    normalized to international digits (no leading '+' or '00').
  *
  * When neither is configured the function degrades to a console stub so
  * the app keeps working without the integration.
  */
 
-/** Keep digits only so "+966 50 123 4567" and "0966501234567" style variants match. */
+/** Keep digits only so "+966 50 123 4567" and "0096650..." style variants match. */
 function normalizePhone(phone) {
   return String(phone).replace(/\D/g, '');
+}
+
+/** Digits only, without a leading "00" — UltraMsg/Green API expect "9665..." format. */
+function normalizePhoneForSend(phone) {
+  return normalizePhone(phone).replace(/^00/, '');
 }
 
 /** Parse CALLMEBOT_KEYS ("phone:apikey,phone:apikey") into a lookup map. */
@@ -35,13 +42,13 @@ function parseCallMeBotKeys(raw) {
   return map;
 }
 
-async function sendViaCallMeBot(to, message, ticketNumber, status) {
+async function sendViaCallMeBot(to, message) {
   const keys = parseCallMeBotKeys(process.env.CALLMEBOT_KEYS);
   const apikey = keys.get(normalizePhone(to));
 
   if (!apikey) {
     console.log(
-      `[whatsapp] ${to} is not registered with CallMeBot (no apikey in CALLMEBOT_KEYS) — skipping notification for ${ticketNumber}`,
+      `[whatsapp] ${to} is not registered with CallMeBot (no apikey in CALLMEBOT_KEYS) — skipping notification`,
     );
     return { sent: false, skipped: true, reason: 'callmebot-unregistered' };
   }
@@ -62,48 +69,45 @@ async function sendViaCallMeBot(to, message, ticketNumber, status) {
     throw new Error(`CallMeBot responded with HTTP ${response.status}: ${safeBody}`);
   }
 
-  console.log(`[whatsapp] CallMeBot notification sent to ${to} for ${ticketNumber} (${status})`);
+  console.log(`[whatsapp] CallMeBot notification sent to ${to}`);
   return { sent: true, provider: 'callmebot' };
 }
 
-async function sendViaGenericGateway(to, message, ticketNumber, status) {
-  const headers = { 'Content-Type': 'application/json' };
-  if (process.env.WHATSAPP_API_TOKEN) {
-    headers.Authorization = `Bearer ${process.env.WHATSAPP_API_TOKEN}`;
-  }
+async function sendViaRestGateway(phone, message) {
+  const token = process.env.WHATSAPP_TOKEN || process.env.WHATSAPP_API_TOKEN || '';
+  const to = normalizePhoneForSend(phone);
 
   const response = await fetch(process.env.WHATSAPP_API_URL, {
     method: 'POST',
-    headers,
-    body: JSON.stringify({ to, message, ticketNumber, status }),
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, to, body: message }),
     signal: AbortSignal.timeout(10_000),
   });
 
-  if (!response.ok) {
-    throw new Error(`WhatsApp API responded with HTTP ${response.status}`);
+  const responseText = await response.text().catch(() => '');
+  // UltraMsg/Green API can return HTTP 200 with an error object in the body.
+  if (!response.ok || /"error"|error:/i.test(responseText)) {
+    const safeBody = (token ? responseText.split(token).join('[redacted]') : responseText).slice(0, 200);
+    throw new Error(`WhatsApp API responded with HTTP ${response.status}: ${safeBody}`);
   }
 
-  console.log(`[whatsapp] Notification sent to ${to} for ${ticketNumber} (${status})`);
+  console.log(`[whatsapp] Notification sent to ${to}`);
   return { sent: true, provider: 'gateway' };
 }
 
-export async function sendWhatsAppNotification(phone, ticketNumber, status) {
+/** Provider-dispatching low-level sender. Never throws — callers fire-and-forget. */
+export async function sendWhatsAppMessage(phone, message) {
   const to = typeof phone === 'string' ? phone.trim() : '';
   if (!to) {
     return { sent: false, skipped: true };
   }
 
-  const message = [
-    `Hello! Your maintenance request (Ticket: ${ticketNumber}) has been marked as ${status}. Thank you for using SSC OS.`,
-    `مرحباً! تم تحديث حالة طلب الصيانة الخاص بك (تذكرة: ${ticketNumber}) إلى "${status}". شكراً لاستخدامك SSC OS.`,
-  ].join('\n');
-
   try {
     if (process.env.CALLMEBOT_KEYS) {
-      return await sendViaCallMeBot(to, message, ticketNumber, status);
+      return await sendViaCallMeBot(to, message);
     }
     if (process.env.WHATSAPP_API_URL) {
-      return await sendViaGenericGateway(to, message, ticketNumber, status);
+      return await sendViaRestGateway(to, message);
     }
   } catch (err) {
     console.error('[whatsapp] Notification failed:', err?.message || err);
@@ -111,6 +115,16 @@ export async function sendWhatsAppNotification(phone, ticketNumber, status) {
   }
 
   console.log('WhatsApp Stub: Message sent to', to);
-  console.log(`[whatsapp] Stub message for ${ticketNumber}: ${message.replace(/\n/g, ' | ')}`);
+  console.log(`[whatsapp] Stub message: ${message.replace(/\n/g, ' | ')}`);
   return { sent: false, stub: true };
+}
+
+/** Builds the ticket-status message and sends it. Used by the issue routes. */
+export async function sendWhatsAppNotification(phone, ticketNumber, status) {
+  const message = [
+    `مرحباً، تم الانتهاء من طلب الصيانة الخاص بك رقم ${ticketNumber}. شكراً لاستخدامك نظام SSC OS.`,
+    `Hello! Your maintenance request (Ticket: ${ticketNumber}) has been marked as ${status}. Thank you for using SSC OS.`,
+  ].join('\n');
+
+  return sendWhatsAppMessage(phone, message);
 }
