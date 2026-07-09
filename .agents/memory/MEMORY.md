@@ -1,4 +1,5 @@
 - [Single-port serving](single-port-serving.md) — Express serves both /api and the built React app; dev workflow builds then serves on 5000 (no vite dev/proxy).
+- [pg.Pool transactions](pg-pool-transactions.md) — never BEGIN/COMMIT via pool.query(); multi-statement writes must use the withTransaction single-client helper.
 - [Pasted secret sanitization](pasted-secret-sanitization.md) — user-pasted secret URLs may keep placeholder brackets; sanitize + lazy-import SDKs so bad secrets disable the feature, not the server.
 - [CORS testing blind spot](cors-testing-blind-spot.md) — always test APIs with an Origin header; plain curl bypasses CORS and hid a login-breaking 500 for days.
 - [Async fetch guards](async-fetch-guards.md) — reviewer fails races; gate every await boundary with a request-id/selection ref before setState.

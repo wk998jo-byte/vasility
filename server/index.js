@@ -6,7 +6,7 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
 import rateLimit from 'express-rate-limit';
 import { loadEnv } from './env.js';
-import { getPool, initDb, checkDb } from './db.js';
+import { getPool, initDb, checkDb, withTransaction } from './db.js';
 import { sendNewIssueNotification } from './notify.js';
 import { sendWhatsAppNotification } from './whatsapp.js';
 import { initCloudinaryUpload, getUploadMiddleware, uploadBufferToCloudinary } from './upload.js';
@@ -474,20 +474,19 @@ app.post('/api/rooms/:id/qr/regenerate', requireDb, authenticateToken, requireAd
 
     const newToken = generateQrToken();
 
-    await req.db.query('BEGIN');
-    await req.db.query(
-      'UPDATE room_qr_tokens SET is_active = false WHERE room_id = $1 AND is_active = true',
-      [roomId],
-    );
-    await req.db.query(
-      'INSERT INTO room_qr_tokens (room_id, token, is_active) VALUES ($1, $2, true)',
-      [roomId, newToken],
-    );
-    await req.db.query('COMMIT');
+    await withTransaction(req.db, async (client) => {
+      await client.query(
+        'UPDATE room_qr_tokens SET is_active = false WHERE room_id = $1 AND is_active = true',
+        [roomId],
+      );
+      await client.query(
+        'INSERT INTO room_qr_tokens (room_id, token, is_active) VALUES ($1, $2, true)',
+        [roomId, newToken],
+      );
+    });
 
     res.status(200).json({ ok: true, token: newToken, roomId });
   } catch {
-    await req.db.query('ROLLBACK').catch(() => {});
     res.status(500).json({ error: 'Failed to regenerate QR token' });
   }
 });
@@ -505,20 +504,19 @@ app.delete('/api/rooms/:id', requireDb, authenticateToken, requireAdmin, async (
       return;
     }
 
-    await req.db.query('BEGIN');
-    await req.db.query(
-      'UPDATE rooms SET is_active = false WHERE id = $1',
-      [roomId],
-    );
-    await req.db.query(
-      'UPDATE room_qr_tokens SET is_active = false WHERE room_id = $1',
-      [roomId],
-    );
-    await req.db.query('COMMIT');
+    await withTransaction(req.db, async (client) => {
+      await client.query(
+        'UPDATE rooms SET is_active = false WHERE id = $1',
+        [roomId],
+      );
+      await client.query(
+        'UPDATE room_qr_tokens SET is_active = false WHERE room_id = $1',
+        [roomId],
+      );
+    });
 
     res.status(200).json({ ok: true, roomId });
   } catch {
-    await req.db.query('ROLLBACK').catch(() => {});
     res.status(500).json({ error: 'Failed to delete room' });
   }
 });
@@ -822,24 +820,22 @@ app.post('/api/issues/:ticketNumber/resolution', requireDb, authenticateToken, (
       return;
     }
 
-    await req.db.query('BEGIN');
-
-    await req.db.query(
-      `UPDATE facility_issues
-       SET resolution_image_url = $1, status = 'Resolved', updated_at = now()
-       WHERE ticket_number = $2`,
-      [imageUrl, ticketNumber],
-    );
-
-    if (ticket.status !== 'Resolved') {
-      await req.db.query(
-        `INSERT INTO issue_status_history (issue_id, from_status, to_status, changed_by, note)
-         VALUES ($1, $2, 'Resolved', $3, 'Resolution photo uploaded')`,
-        [ticket.id, ticket.status, changedBy],
+    await withTransaction(req.db, async (client) => {
+      await client.query(
+        `UPDATE facility_issues
+         SET resolution_image_url = $1, status = 'Resolved', updated_at = now()
+         WHERE ticket_number = $2`,
+        [imageUrl, ticketNumber],
       );
-    }
 
-    await req.db.query('COMMIT');
+      if (ticket.status !== 'Resolved') {
+        await client.query(
+          `INSERT INTO issue_status_history (issue_id, from_status, to_status, changed_by, note)
+           VALUES ($1, $2, 'Resolved', $3, 'Resolution photo uploaded')`,
+          [ticket.id, ticket.status, changedBy],
+        );
+      }
+    });
 
     if (ticket.status !== 'Resolved' && ticket.reporter_phone) {
       sendWhatsAppNotification(ticket.reporter_phone, ticketNumber, 'Resolved')
@@ -850,7 +846,6 @@ app.post('/api/issues/:ticketNumber/resolution', requireDb, authenticateToken, (
     res.status(200).json({ ok: true, resolutionImageUrl: imageUrl, issue });
   } catch (err) {
     console.error('[upload] Resolution photo upload failed:', err?.message || err);
-    await req.db.query('ROLLBACK').catch(() => {});
     res.status(500).json({ error: 'Failed to save resolution photo' });
   }
 });
@@ -952,38 +947,44 @@ app.put('/api/issues/:ticketNumber', requireDb, authenticateToken, async (req, r
       ? body.rejectionReason
       : current.rejection_reason ?? '';
 
-    await req.db.query('BEGIN');
-
-    await req.db.query(
-      `UPDATE facility_issues
-       SET status = $1,
-           rejection_reason = $2,
-           cost = $3,
-           parts = $4,
-           assignee = $5,
-           is_deleted = $6,
-           updated_at = now()
-       WHERE ticket_number = $7`,
-      [
-        newStatus,
-        newRejection,
-        newCost,
-        newParts,
-        newAssignee,
-        newIsDeleted,
-        ticketNumber,
-      ],
-    );
-
-    if (newStatus !== current.status) {
-      await req.db.query(
-        `INSERT INTO issue_status_history (issue_id, from_status, to_status, changed_by, note)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [current.id, current.status, newStatus, changedBy, statusNote],
+    await withTransaction(req.db, async (client) => {
+      await client.query(
+        `UPDATE facility_issues
+         SET status = $1,
+             rejection_reason = $2,
+             cost = $3,
+             parts = $4,
+             assignee = $5,
+             is_deleted = $6,
+             updated_at = now()
+         WHERE ticket_number = $7`,
+        [
+          newStatus,
+          newRejection,
+          newCost,
+          newParts,
+          newAssignee,
+          newIsDeleted,
+          ticketNumber,
+        ],
       );
-    }
 
-    await req.db.query('COMMIT');
+      if (newStatus !== current.status) {
+        await client.query(
+          `INSERT INTO issue_status_history (issue_id, from_status, to_status, changed_by, note)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [current.id, current.status, newStatus, changedBy, statusNote],
+        );
+      }
+
+      // Moving a ticket to trash also removes its notifications.
+      if (newIsDeleted && !current.is_deleted) {
+        await client.query(
+          'DELETE FROM notifications WHERE ticket_number = $1',
+          [ticketNumber],
+        );
+      }
+    });
 
     if (newAssignee && newAssignee !== current.assignee) {
       try {
@@ -1011,7 +1012,6 @@ app.put('/api/issues/:ticketNumber', requireDb, authenticateToken, async (req, r
     const issue = await fetchIssueByTicketNumber(req.db, ticketNumber);
     res.status(200).json({ ok: true, issue });
   } catch (err) {
-    await req.db.query('ROLLBACK').catch(() => {});
     if (err?.code === '23505' && err?.constraint === 'uniq_facility_issues_active_room_issue') {
       res.status(409).json({ error: 'Cannot make this ticket active: another active ticket already exists for the same issue in this location.' });
       return;
@@ -1070,16 +1070,29 @@ app.put('/api/notifications/:id/read', requireDb, authenticateToken, async (req,
 
 app.delete('/api/issues/:ticketNumber', requireDb, authenticateToken, requireAdmin, async (req, res) => {
   try {
-    const { rowCount } = await req.db.query(
-      'DELETE FROM facility_issues WHERE ticket_number = $1',
-      [req.params.ticketNumber],
-    );
-    if (!rowCount) {
+    const deleted = await withTransaction(req.db, async (client) => {
+      await client.query(
+        'DELETE FROM notifications WHERE ticket_number = $1',
+        [req.params.ticketNumber],
+      );
+      const { rowCount } = await client.query(
+        'DELETE FROM facility_issues WHERE ticket_number = $1',
+        [req.params.ticketNumber],
+      );
+      if (!rowCount) {
+        // Roll back the notification delete too — nothing existed for this ticket.
+        const notFound = new Error('Ticket not found');
+        notFound.code = 'TICKET_NOT_FOUND';
+        throw notFound;
+      }
+      return rowCount;
+    });
+    res.status(200).json({ ok: true, deleted });
+  } catch (err) {
+    if (err?.code === 'TICKET_NOT_FOUND') {
       res.status(404).json({ error: 'Ticket not found' });
       return;
     }
-    res.status(200).json({ ok: true });
-  } catch {
     res.status(500).json({ error: 'Failed to delete issue' });
   }
 });
