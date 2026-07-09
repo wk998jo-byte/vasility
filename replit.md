@@ -39,7 +39,9 @@ Set as Replit env vars / secrets (see `.env.example`):
   `window.location.origin`)
 - Optional: `SMTP_*` / `NOTIFY_EMAIL` (email notifications), `CLOUDINARY_URL`
   (issue photo uploads). WhatsApp message to the reporter's phone when their
-  ticket is Resolved/Closed: either `CALLMEBOT_KEYS` (free CallMeBot;
+  ticket is Resolved/Closed: `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` /
+  `TWILIO_WHATSAPP_NUMBER` (Twilio, highest priority), or `CALLMEBOT_KEYS`
+  (free CallMeBot;
   `phone:apikey` pairs, comma-separated — each recipient registers once with
   CallMeBot) or `WHATSAPP_API_URL` / `WHATSAPP_TOKEN` (UltraMsg / Green API
   style REST gateway; POST JSON `{ token, to, body }`, phone sent as

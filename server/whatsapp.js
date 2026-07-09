@@ -1,23 +1,40 @@
 /**
  * WhatsApp notification for ticket status updates.
  *
- * Supports two providers, checked in this order:
+ * Supports three providers, checked in this order:
  *
- * 1. CallMeBot (free, per-recipient registration) — enabled when
+ * 1. Twilio — enabled when TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN and
+ *    TWILIO_WHATSAPP_NUMBER (e.g. "whatsapp:+14155238886") are all set.
+ *    Uses the twilio SDK (lazy-imported so a bad config can't crash the
+ *    server at startup).
+ *
+ * 2. CallMeBot (free, per-recipient registration) — enabled when
  *    CALLMEBOT_KEYS is set. Each recipient registers once with CallMeBot
  *    and gets a personal apikey. CALLMEBOT_KEYS maps phone numbers to
  *    their apikeys, e.g. "+966501234567:123456,+966559876543:654321".
  *    Phones without a key are skipped (logged, no failure).
  *
- * 2. REST gateway (UltraMsg / Green API style) — enabled when
+ * 3. REST gateway (UltraMsg / Green API style) — enabled when
  *    WHATSAPP_API_URL is set (e.g. https://api.ultramsg.com/instanceXXX/messages/chat).
  *    Sends POST JSON { token, to, body } where token comes from
  *    WHATSAPP_TOKEN (or legacy WHATSAPP_API_TOKEN) and the phone is
  *    normalized to international digits (no leading '+' or '00').
  *
- * When neither is configured the function degrades to a console stub so
+ * When none is configured the function degrades to a console stub so
  * the app keeps working without the integration.
  */
+
+let twilioClient = null;
+
+async function getTwilioClient() {
+  if (twilioClient) return twilioClient;
+  const { default: twilio } = await import('twilio');
+  twilioClient = twilio(
+    process.env.TWILIO_ACCOUNT_SID.trim(),
+    process.env.TWILIO_AUTH_TOKEN.trim(),
+  );
+  return twilioClient;
+}
 
 /** Keep digits only so "+966 50 123 4567" and "0096650..." style variants match. */
 function normalizePhone(phone) {
@@ -27,6 +44,28 @@ function normalizePhone(phone) {
 /** Digits only, without a leading "00" — UltraMsg/Green API expect "9665..." format. */
 function normalizePhoneForSend(phone) {
   return normalizePhone(phone).replace(/^00/, '');
+}
+
+function twilioConfigured() {
+  return Boolean(
+    process.env.TWILIO_ACCOUNT_SID
+    && process.env.TWILIO_AUTH_TOKEN
+    && process.env.TWILIO_WHATSAPP_NUMBER,
+  );
+}
+
+async function sendViaTwilio(phone, message) {
+  const client = await getTwilioClient();
+  const to = `whatsapp:+${normalizePhoneForSend(phone)}`;
+
+  const result = await client.messages.create({
+    from: process.env.TWILIO_WHATSAPP_NUMBER.trim(),
+    to,
+    body: message,
+  });
+
+  console.log(`[whatsapp] Twilio notification sent to ${to} (sid: ${result.sid})`);
+  return { sent: true, provider: 'twilio' };
 }
 
 /** Parse CALLMEBOT_KEYS ("phone:apikey,phone:apikey") into a lookup map. */
@@ -103,6 +142,9 @@ export async function sendWhatsAppMessage(phone, message) {
   }
 
   try {
+    if (twilioConfigured()) {
+      return await sendViaTwilio(to, message);
+    }
     if (process.env.CALLMEBOT_KEYS) {
       return await sendViaCallMeBot(to, message);
     }
