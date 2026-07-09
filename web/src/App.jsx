@@ -104,6 +104,7 @@ const t = {
     accept: 'Accept', reject: 'Reject', reopenNew: 'Reopen as New',
     deleteTicket: 'Delete Ticket', viewTrash: 'View Trash', hideTrash: 'Back to Tickets',
     deleteForever: 'Delete Forever', restore: 'Restore',
+    deleteLocation: 'Delete Location',
     manageLocations: 'Manage Locations', locationManager: 'Location Manager',
     addLocation: 'Add Location', addNewLocation: 'Add New Location',
     roomName: 'Room Name', floor: 'Floor', assetsComma: 'Assets (comma separated)',
@@ -183,6 +184,7 @@ const t = {
     accept: 'قبول', reject: 'رفض', reopenNew: 'إعادة فتح كجديد',
     deleteTicket: 'حذف التذكرة', viewTrash: 'عرض المحذوفات', hideTrash: 'العودة للتذاكر',
     deleteForever: 'حذف نهائي', restore: 'استعادة',
+    deleteLocation: 'حذف الموقع',
     manageLocations: 'إدارة المواقع', locationManager: 'مدير المواقع',
     addLocation: 'إضافة موقع', addNewLocation: 'إضافة موقع جديد',
     roomName: 'اسم الغرفة', floor: 'الطابق', assetsComma: 'الأصول (مفصولة بفاصلة)',
@@ -1920,7 +1922,7 @@ function AdminDashboard({
                         <RefreshCw size={12} /> {dict.rotateQr}
                       </button>
                       <button type="button" onClick={() => handleDeleteRoom(room.id, room.name)} className="text-xs font-bold flex items-center justify-center gap-1 text-red-600 hover:text-red-700">
-                        <Trash2 size={12} /> {dict.deleteTicket}
+                        <Trash2 size={12} /> {dict.deleteLocation}
                       </button>
                     </div>
                   )}
