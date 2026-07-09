@@ -538,6 +538,12 @@ app.post('/api/issues', issueSubmitLimiter, requireDb, async (req, res) => {
     return;
   }
 
+  const phoneDigits = reporterPhone.replace(/\D/g, '');
+  if (!reporterPhone || phoneDigits.length < 8) {
+    res.status(400).json({ error: 'A valid phone number is required (for WhatsApp notifications)' });
+    return;
+  }
+
   if (!qrToken) {
     res.status(400).json({ error: 'qrToken required — scan a valid Room QR code' });
     return;

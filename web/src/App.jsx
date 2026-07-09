@@ -53,12 +53,28 @@ const BrandLogo = ({ className = 'h-10 w-auto object-contain', alt = 'Bin Quraya
 
 const ISSUES = ['Broken / Not Working', 'Leaking', 'Electrical Issue', 'Needs Cleaning', 'Noise / Vibration', 'Missing Part', 'Other'];
 
+const COUNTRY_CODES = [
+  { code: '+966', flag: '🇸🇦' },
+  { code: '+971', flag: '🇦🇪' },
+  { code: '+965', flag: '🇰🇼' },
+  { code: '+973', flag: '🇧🇭' },
+  { code: '+968', flag: '🇴🇲' },
+  { code: '+974', flag: '🇶🇦' },
+  { code: '+20', flag: '🇪🇬' },
+  { code: '+962', flag: '🇯🇴' },
+  { code: '+91', flag: '🇮🇳' },
+  { code: '+92', flag: '🇵🇰' },
+  { code: '+63', flag: '🇵🇭' },
+  { code: '+880', flag: '🇧🇩' },
+];
+
 const t = {
   en: {
     request: 'Request', track: 'Track', admin: 'Command Center', adminLogin: 'Admin Login',
     submit: 'Submit Request', scanning: 'Scanning...', scan: 'Scan QR',
     employeeId: 'Employee ID', name: 'Full Name', room: 'Select Location', asset: 'Select Asset',
-    phoneNumber: 'Phone Number (optional)', emailAddress: 'Email (optional)',
+    phoneNumber: 'Phone Number', emailAddress: 'Email (optional)',
+    phoneRequired: 'Phone number is required so we can notify you on WhatsApp.',
     duplicateTicket: 'An active ticket already exists for this issue in this location.',
     issue: 'Issue Type', priority: 'Priority', notes: 'Additional Notes',
     low: 'Low', medium: 'Medium', high: 'High',
@@ -136,7 +152,8 @@ const t = {
     request: 'طلب صيانة', track: 'تتبع', admin: 'لوحة القيادة', adminLogin: 'دخول الإدارة',
     submit: 'إرسال الطلب', scanning: 'جاري المسح...', scan: 'مسح الباركود',
     employeeId: 'الرقم الوظيفي', name: 'الاسم الكامل', room: 'اختر الموقع', asset: 'اختر الأصل',
-    phoneNumber: 'رقم الهاتف (اختياري)', emailAddress: 'البريد الإلكتروني (اختياري)',
+    phoneNumber: 'رقم الهاتف', emailAddress: 'البريد الإلكتروني (اختياري)',
+    phoneRequired: 'رقم الهاتف مطلوب حتى نتمكن من إشعارك عبر واتساب.',
     duplicateTicket: 'توجد تذكرة نشطة بالفعل لهذه المشكلة في هذا الموقع.',
     issue: 'نوع المشكلة', priority: 'الأولوية', notes: 'ملاحظات إضافية',
     low: 'منخفض', medium: 'متوسط', high: 'عالي',
@@ -523,7 +540,7 @@ function QRScannerModal({ onScan, onClose }) {
 
 function RequestForm({ dict, lang }) {
   const [form, setForm] = useState({
-    name: '', employeeId: '', phoneNumber: '', email: '', roomId: '', asset: '', issue: '', priority: '', notes: '',
+    name: '', employeeId: '', countryCode: '+966', phoneNumber: '', email: '', roomId: '', asset: '', issue: '', priority: '', notes: '',
   });
   const [qrToken, setQrToken] = useState('');
   const [resolvedRoomName, setResolvedRoomName] = useState('');
@@ -536,7 +553,8 @@ function RequestForm({ dict, lang }) {
   const [successTicket, setSuccessTicket] = useState(null);
 
   const isOther = form.issue === 'Other';
-  const isValid = hasValidToken && form.name && form.employeeId && form.roomId && form.asset
+  const isValid = hasValidToken && form.name && form.employeeId && form.phoneNumber.trim() !== ''
+    && form.roomId && form.asset
     && form.issue && form.priority && (!isOther || form.notes.trim() !== '');
 
   const applyResolvedRoom = (resolved, token) => {
@@ -588,6 +606,10 @@ function RequestForm({ dict, lang }) {
     setSubmitting(true);
     setSubmitError('');
 
+    // Strip separators and any leading zeros so "+966" + "0501234567" → "+966501234567"
+    const localDigits = form.phoneNumber.replace(/\D/g, '').replace(/^0+/, '');
+    const fullPhone = form.countryCode + localDigits;
+
     try {
       const res = await fetch(`${API_BASE}/issues`, {
         method: 'POST',
@@ -599,7 +621,7 @@ function RequestForm({ dict, lang }) {
           issueType: form.issue,
           priority: form.priority,
           description: form.notes,
-          phone: form.phoneNumber,
+          phone: fullPhone,
           email: form.email,
           qrToken,
         }),
@@ -618,7 +640,7 @@ function RequestForm({ dict, lang }) {
 
       const ticket = data.issue;
       setSuccessTicket(ticket);
-      setForm({ name: '', employeeId: '', phoneNumber: '', email: '', roomId: form.roomId, asset: '', issue: '', priority: '', notes: '' });
+      setForm({ name: '', employeeId: '', countryCode: '+966', phoneNumber: '', email: '', roomId: form.roomId, asset: '', issue: '', priority: '', notes: '' });
     } catch {
       setSubmitError(dict.backendError);
     } finally {
@@ -683,7 +705,28 @@ function RequestForm({ dict, lang }) {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-          <Input label={dict.phoneNumber} type="tel" required={false} value={form.phoneNumber} onChange={(e) => setForm({ ...form, phoneNumber: e.target.value })} />
+          <div>
+            <label className="text-sm font-bold text-gray-900 dark:text-gray-100 block mb-2">{dict.phoneNumber}</label>
+            <div className="flex gap-2" dir="ltr">
+              <select
+                value={form.countryCode}
+                onChange={(e) => setForm({ ...form, countryCode: e.target.value })}
+                className="border border-gray-200 dark:border-zinc-800 rounded-2xl px-3 py-4 bg-transparent focus:border-black dark:focus:border-white outline-none appearance-none transition-all font-medium shrink-0"
+              >
+                {COUNTRY_CODES.map((c) => <option key={c.code} value={c.code} className="text-black">{c.flag} {c.code}</option>)}
+              </select>
+              <input
+                type="tel"
+                required
+                inputMode="numeric"
+                placeholder="5X XXX XXXX"
+                value={form.phoneNumber}
+                onChange={(e) => setForm({ ...form, phoneNumber: e.target.value })}
+                className="w-full border border-gray-200 dark:border-zinc-800 rounded-2xl px-5 py-4 bg-transparent focus:border-black dark:focus:border-white focus:ring-1 focus:ring-black dark:focus:ring-white outline-none transition-all"
+              />
+            </div>
+            <p className="text-xs text-gray-500 mt-2">{dict.phoneRequired}</p>
+          </div>
           <Input label={dict.emailAddress} type="email" required={false} value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
         </div>
 
