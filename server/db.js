@@ -28,7 +28,32 @@ export async function initDb() {
   const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
   await db.query(schema);
   await seedDb(db);
+  await cleanupOrphanedNotifications(db);
   return true;
+}
+
+/**
+ * Remove notifications whose ticket no longer exists or is in the trash.
+ * Tickets deleted/trashed before per-request cleanup existed left orphans
+ * behind; this sweep on startup keeps dev and production consistent.
+ */
+export async function cleanupOrphanedNotifications(db) {
+  try {
+    const { rowCount } = await db.query(
+      `DELETE FROM notifications n
+       WHERE n.ticket_number IS NOT NULL
+         AND NOT EXISTS (
+           SELECT 1 FROM facility_issues fi
+           WHERE fi.ticket_number = n.ticket_number
+             AND fi.is_deleted = false
+         )`,
+    );
+    if (rowCount > 0) {
+      console.log(`Cleaned up ${rowCount} orphaned notification(s)`);
+    }
+  } catch (err) {
+    console.error('Error cleaning up orphaned notifications:', err.message);
+  }
 }
 
 /**

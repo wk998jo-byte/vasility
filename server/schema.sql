@@ -161,6 +161,7 @@ CREATE TABLE IF NOT EXISTS notifications (
 
 CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications (user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_notifications_role ON notifications (role, created_at DESC) WHERE role IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_notifications_ticket ON notifications (ticket_number) WHERE ticket_number IS NOT NULL;
 
 -- ─── Sequential ticket numbering ─────────────────────────────────────────────
 
