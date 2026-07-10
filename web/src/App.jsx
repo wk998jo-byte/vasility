@@ -1886,9 +1886,9 @@ function AdminDashboard({
       )}
 
       {showRoomModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center print:bg-white">
+        <div className="fixed inset-0 z-50 flex items-center justify-center print:static print:block print:bg-white">
           <div className="absolute inset-0 bg-black/20 backdrop-blur-sm print:hidden" onClick={() => setShowRoomModal(false)} />
-          <div className="w-full max-w-4xl bg-white dark:bg-black border border-gray-200 dark:border-zinc-800 rounded-[2rem] relative z-10 shadow-2xl p-8 max-h-[90vh] overflow-y-auto print:shadow-none print:border-none print:p-0">
+          <div className="w-full max-w-4xl bg-white dark:bg-black border border-gray-200 dark:border-zinc-800 rounded-[2rem] relative z-10 shadow-2xl p-8 max-h-[90vh] overflow-y-auto print:max-h-none print:max-w-none print:overflow-visible print:shadow-none print:border-none print:p-0">
             <div className="flex flex-wrap justify-between items-center gap-4 mb-8 print:hidden">
               <div className="flex items-center gap-4">
                 <BrandLogo className="h-12 w-auto object-contain" />
