@@ -105,6 +105,7 @@ const t = {
     deleteTicket: 'Delete Ticket', viewTrash: 'View Trash', hideTrash: 'Back to Tickets',
     deleteForever: 'Delete Forever', restore: 'Restore',
     deleteLocation: 'Delete Location',
+    facilityDepartment: 'Facility Department',
     manageLocations: 'Manage Locations', locationManager: 'Location Manager',
     addLocation: 'Add Location', addNewLocation: 'Add New Location',
     roomName: 'Room Name', floor: 'Floor', assetsComma: 'Assets (comma separated)',
@@ -185,6 +186,7 @@ const t = {
     deleteTicket: 'حذف التذكرة', viewTrash: 'عرض المحذوفات', hideTrash: 'العودة للتذاكر',
     deleteForever: 'حذف نهائي', restore: 'استعادة',
     deleteLocation: 'حذف الموقع',
+    facilityDepartment: 'إدارة المرافق',
     manageLocations: 'إدارة المواقع', locationManager: 'مدير المواقع',
     addLocation: 'إضافة موقع', addNewLocation: 'إضافة موقع جديد',
     roomName: 'اسم الغرفة', floor: 'الطابق', assetsComma: 'الأصول (مفصولة بفاصلة)',
@@ -1905,6 +1907,8 @@ function AdminDashboard({
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6 print:grid-cols-3">
               {adminRooms.map((room) => (
                 <div key={room.id} className="border border-gray-200 dark:border-zinc-800 rounded-2xl p-6 flex flex-col items-center text-center print:border-black print:break-inside-avoid">
+                  <BrandLogo className="h-10 w-auto object-contain mb-2 print:h-12" />
+                  <p className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-4 print:text-black">{dict.facilityDepartment}</p>
                   {room.token && (
                     <QRCodeSVG
                       value={`${baseUrl}?token=${encodeURIComponent(room.token)}`}
