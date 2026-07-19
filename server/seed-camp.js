@@ -12,106 +12,94 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
  * camp-rooms-data.json. Safe to run on every server start — including in
  * production, where it populates the database on first publish.
  *
- * Self-healing: each room is created/completed inside its own transaction —
- * if a previous start crashed mid-room, the next start ensures the room has
- * an active QR token and all of its assets.
+ * Uses a handful of bulk statements (set-based inserts with ON CONFLICT /
+ * anti-joins) inside one transaction so startup stays fast even against a
+ * remote production database. Self-healing: missing tokens or assets for
+ * previously-created rooms are filled in on the next start.
  */
 export async function seedCampRooms(pool) {
   const dataPath = path.join(__dirname, 'camp-rooms-data.json');
-  if (!fs.existsSync(dataPath)) return { created: 0, completed: 0, skipped: 0 };
+  if (!fs.existsSync(dataPath)) return { created: 0 };
   const rooms = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
+  if (!rooms.length) return { created: 0 };
 
   const { rows: deptRows } = await pool.query(
     `SELECT id FROM departments WHERE code = 'FAC' LIMIT 1`,
   );
   if (!deptRows.length) {
     console.warn('[seed-camp] FAC department not found — skipping camp rooms seed');
-    return { created: 0, completed: 0, skipped: 0 };
+    return { created: 0 };
   }
   const deptId = deptRows[0].id;
 
-  let created = 0;
-  let completed = 0;
-  let skipped = 0;
+  const names = rooms.map((r) => r.name);
+  const floors = rooms.map((r) => r.floor || null);
 
+  // Flatten (roomName, assetName) pairs for the bulk asset insert.
+  const assetRoomNames = [];
+  const assetNames = [];
   for (const room of rooms) {
-    await withTransaction(pool, async (client) => {
-      // Ensure the room row exists (unique on department_id + name).
-      const { rows: [inserted] } = await client.query(
-        `INSERT INTO rooms (department_id, name, floor, is_active)
-         VALUES ($1, $2, $3, true)
-         ON CONFLICT (department_id, name) DO NOTHING
-         RETURNING id`,
-        [deptId, room.name, room.floor || null],
-      );
-      let roomId = inserted?.id;
-      const isNew = Boolean(roomId);
-      if (!roomId) {
-        const { rows } = await client.query(
-          'SELECT id FROM rooms WHERE department_id = $1 AND name = $2',
-          [deptId, room.name],
-        );
-        roomId = rows[0].id;
-      }
-
-      let touched = false;
-
-      // Ensure an active QR token exists.
-      const { rows: tokenRows } = await client.query(
-        'SELECT 1 FROM room_qr_tokens WHERE room_id = $1 AND is_active = true LIMIT 1',
-        [roomId],
-      );
-      if (!tokenRows.length) {
-        await client.query(
-          `INSERT INTO room_qr_tokens (room_id, token, is_active) VALUES ($1, $2, true)`,
-          [roomId, generateQrToken()],
-        );
-        touched = true;
-      }
-
-      // Ensure all listed assets exist (insert only the missing ones).
-      const assets = room.assets || [];
-      if (assets.length) {
-        const { rows: existingAssets } = await client.query(
-          'SELECT name FROM room_assets WHERE room_id = $1',
-          [roomId],
-        );
-        const have = new Set(existingAssets.map((r) => r.name));
-        for (const asset of assets) {
-          if (have.has(asset)) continue;
-          await client.query(
-            'INSERT INTO room_assets (room_id, name) VALUES ($1, $2)',
-            [roomId, asset],
-          );
-          touched = true;
-        }
-      }
-
-      if (isNew) created += 1;
-      else if (touched) completed += 1;
-      else skipped += 1;
-    });
+    for (const asset of room.assets || []) {
+      assetRoomNames.push(room.name);
+      assetNames.push(asset);
+    }
   }
 
-  if (created > 0 || completed > 0) {
+  const result = await withTransaction(pool, async (client) => {
+    // 1. Ensure all rooms exist (skip ones already present).
+    const { rowCount: created } = await client.query(
+      `INSERT INTO rooms (department_id, name, floor, is_active)
+       SELECT $1, t.name, t.floor, true
+       FROM unnest($2::text[], $3::text[]) AS t(name, floor)
+       ON CONFLICT (department_id, name) DO NOTHING`,
+      [deptId, names, floors],
+    );
+
+    // 2. Find seeded rooms that lack an active QR token.
+    const { rows: tokenless } = await client.query(
+      `SELECT r.id
+       FROM rooms r
+       WHERE r.department_id = $1
+         AND r.name = ANY($2::text[])
+         AND NOT EXISTS (
+           SELECT 1 FROM room_qr_tokens t WHERE t.room_id = r.id AND t.is_active = true
+         )`,
+      [deptId, names],
+    );
+    if (tokenless.length) {
+      const ids = tokenless.map((r) => r.id);
+      const tokens = tokenless.map(() => generateQrToken());
+      await client.query(
+        `INSERT INTO room_qr_tokens (room_id, token, is_active)
+         SELECT t.room_id::uuid, t.token, true
+         FROM unnest($1::uuid[], $2::text[]) AS t(room_id, token)`,
+        [ids, tokens],
+      );
+    }
+
+    // 3. Insert any missing assets for the seeded rooms.
+    let assetsAdded = 0;
+    if (assetNames.length) {
+      const { rowCount } = await client.query(
+        `INSERT INTO room_assets (room_id, name)
+         SELECT r.id, t.asset
+         FROM unnest($2::text[], $3::text[]) AS t(room_name, asset)
+         JOIN rooms r ON r.department_id = $1 AND r.name = t.room_name
+         WHERE NOT EXISTS (
+           SELECT 1 FROM room_assets ra WHERE ra.room_id = r.id AND ra.name = t.asset
+         )`,
+        [deptId, assetRoomNames, assetNames],
+      );
+      assetsAdded = rowCount;
+    }
+
+    return { created, tokensAdded: tokenless.length, assetsAdded };
+  });
+
+  if (result.created > 0 || result.tokensAdded > 0 || result.assetsAdded > 0) {
     console.log(
-      `[seed-camp] Camp rooms: ${created} created, ${completed} repaired, ${skipped} already complete`,
+      `[seed-camp] Camp rooms: ${result.created} created, ${result.tokensAdded} tokens added, ${result.assetsAdded} assets added`,
     );
   }
-
-  // Integrity check: surface any seeded room left without an active token.
-  const { rows: [{ missing }] } = await pool.query(
-    `SELECT COUNT(*)::int AS missing
-     FROM rooms r
-     WHERE r.department_id = $1
-       AND NOT EXISTS (
-         SELECT 1 FROM room_qr_tokens t WHERE t.room_id = r.id AND t.is_active = true
-       )`,
-    [deptId],
-  );
-  if (missing > 0) {
-    console.warn(`[seed-camp] WARNING: ${missing} room(s) have no active QR token`);
-  }
-
-  return { created, completed, skipped };
+  return result;
 }
