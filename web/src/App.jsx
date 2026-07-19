@@ -53,6 +53,8 @@ const BrandLogo = ({ className = 'h-10 w-auto object-contain', alt = 'Bin Quraya
 
 const ISSUES = ['Broken / Not Working', 'Leaking', 'Electrical Issue', 'Needs Cleaning', 'Noise / Vibration', 'Missing Part', 'Other'];
 
+const MGS_FLOORS = new Set(['A Block', 'B Block', 'C Block', 'Mess Hall', 'Gym Hall']);
+
 const COUNTRY_CODES = [
   { code: '+966', flag: '🇸🇦' },
   { code: '+971', flag: '🇦🇪' },
@@ -106,6 +108,7 @@ const t = {
     deleteForever: 'Delete Forever', restore: 'Restore',
     deleteLocation: 'Delete Location',
     facilityDepartment: 'Facility Department',
+    dhahranRooms: 'Dhahran Rooms', mgsRooms: 'MGS Rooms',
     manageLocations: 'Manage Locations', locationManager: 'Location Manager',
     addLocation: 'Add Location', addNewLocation: 'Add New Location',
     roomName: 'Room Name', floor: 'Floor', assetsComma: 'Assets (comma separated)',
@@ -187,6 +190,7 @@ const t = {
     deleteForever: 'حذف نهائي', restore: 'استعادة',
     deleteLocation: 'حذف الموقع',
     facilityDepartment: 'إدارة المرافق',
+    dhahranRooms: 'غرف الظهران', mgsRooms: 'غرف MGS',
     manageLocations: 'إدارة المواقع', locationManager: 'مدير المواقع',
     addLocation: 'إضافة موقع', addNewLocation: 'إضافة موقع جديد',
     roomName: 'اسم الغرفة', floor: 'الطابق', assetsComma: 'الأصول (مفصولة بفاصلة)',
@@ -1904,8 +1908,21 @@ function AdminDashboard({
               <BrandLogo className="h-16 w-auto object-contain" />
             </div>
 
+            {[
+              { key: 'dhahran', label: dict.dhahranRooms, rooms: adminRooms.filter((r) => !MGS_FLOORS.has(r.floor)) },
+              {
+                key: 'mgs',
+                label: dict.mgsRooms,
+                rooms: adminRooms
+                  .filter((r) => MGS_FLOORS.has(r.floor))
+                  .slice()
+                  .sort((a, b) => (a.floor || '').localeCompare(b.floor || '') || a.name.localeCompare(b.name, undefined, { numeric: true })),
+              },
+            ].filter((section) => section.rooms.length > 0 || section.key === 'dhahran').map((section) => (
+            <div key={section.key} className="mb-10 print:mb-0">
+            <h3 className="text-xl font-extrabold tracking-tight mb-4 pb-2 border-b border-gray-200 dark:border-zinc-800 print:text-black print:border-black print:mt-6 print:break-after-avoid">{section.label}</h3>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6 print:block print:gap-0">
-              {adminRooms.map((room) => (
+              {section.rooms.map((room) => (
                 <div key={room.id} className="border border-gray-200 dark:border-zinc-800 rounded-2xl p-6 flex flex-col items-center text-center print:inline-flex print:w-[30%] print:align-top print:m-[1.5%] print:border-black print:break-inside-avoid">
                   <BrandLogo className="h-10 w-auto object-contain mb-2 print:h-12" />
                   <p className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-4 print:text-black">{dict.facilityDepartment}</p>
@@ -1932,13 +1949,15 @@ function AdminDashboard({
                   )}
                 </div>
               ))}
-              {isAdmin && (
+              {isAdmin && section.key === 'dhahran' && (
               <button type="button" onClick={() => setShowAddRoomForm(true)} className="print:hidden border-2 border-dashed border-gray-200 dark:border-zinc-800 rounded-2xl p-6 flex flex-col items-center justify-center text-gray-400 hover:text-black dark:hover:text-white min-h-[180px]">
                 <Plus size={32} className="mb-2" />
                 <span className="font-bold text-sm">{dict.addLocation}</span>
               </button>
               )}
             </div>
+            </div>
+            ))}
 
             {showAddRoomForm && (
               <form onSubmit={handleSaveRoom} className="mt-8 p-6 border border-gray-200 dark:border-zinc-800 rounded-2xl space-y-4 print:hidden">
