@@ -72,8 +72,17 @@ export async function seedUsers(db) {
 // Read-only monitoring account (dashboard access, no changes allowed).
 // Override via VIEWER_USER / VIEWER_PASS env vars; VIEWER_PASS syncs on restart.
 async function seedViewerUser(db) {
-  const viewerUser = process.env.VIEWER_USER || 'irfan mohammad';
+  const viewerUser = process.env.VIEWER_USER || 'irfanmohammad';
   const viewerPass = process.env.VIEWER_PASS || 'irfan@1111';
+
+  // Migration: rename the old spaced username to the new one (if not taken).
+  await db.query(
+    `UPDATE users SET username = $1
+     WHERE LOWER(username) = 'irfan mohammad' AND role = 'viewer'
+       AND NOT EXISTS (SELECT 1 FROM users WHERE LOWER(username) = LOWER($1))`,
+    [viewerUser],
+  );
+
   const { rows } = await db.query(
     'SELECT id FROM users WHERE LOWER(username) = LOWER($1)',
     [viewerUser],
