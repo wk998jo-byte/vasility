@@ -58,7 +58,7 @@ CREATE TABLE IF NOT EXISTS users (
   username TEXT UNIQUE NOT NULL,
   -- see CREATE UNIQUE INDEX users_username_lower_idx below (case-insensitive uniqueness)
   password_hash VARCHAR(255),
-  role VARCHAR(50) NOT NULL CHECK (role IN ('admin', 'facility')),
+  role VARCHAR(50) NOT NULL CHECK (role IN ('admin', 'facility', 'viewer')),
   is_active BOOLEAN NOT NULL DEFAULT true,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -98,6 +98,10 @@ ALTER TABLE facility_issues ADD COLUMN IF NOT EXISTS image_url TEXT;
 ALTER TABLE facility_issues ADD COLUMN IF NOT EXISTS resolution_image_url TEXT;
 ALTER TABLE facility_issues ADD COLUMN IF NOT EXISTS reporter_phone TEXT NOT NULL DEFAULT '';
 ALTER TABLE facility_issues ADD COLUMN IF NOT EXISTS reporter_email TEXT NOT NULL DEFAULT '';
+
+-- Migration: allow the read-only 'viewer' role on existing databases.
+ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
+ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('admin', 'facility', 'viewer'));
 
 CREATE INDEX IF NOT EXISTS idx_facility_issues_status ON facility_issues (status);
 CREATE INDEX IF NOT EXISTS idx_facility_issues_room ON facility_issues (room_id);

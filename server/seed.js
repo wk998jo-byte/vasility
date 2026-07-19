@@ -33,6 +33,8 @@ export async function seedUsers(db) {
     );
     console.log(`[seed] Created facility user "${facilityUser}"`);
 
+    await seedViewerUser(db);
+
     return { seeded: true };
   }
 
@@ -62,7 +64,31 @@ export async function seedUsers(db) {
     await syncUserPassword(db, facilityUser, facilityPass);
   }
 
+  await seedViewerUser(db);
+
   return { seeded: false };
+}
+
+// Read-only monitoring account (dashboard access, no changes allowed).
+// Override via VIEWER_USER / VIEWER_PASS env vars; VIEWER_PASS syncs on restart.
+async function seedViewerUser(db) {
+  const viewerUser = process.env.VIEWER_USER || 'irfan mohammad';
+  const viewerPass = process.env.VIEWER_PASS || 'irfan@1111';
+  const { rows } = await db.query(
+    'SELECT id FROM users WHERE LOWER(username) = LOWER($1)',
+    [viewerUser],
+  );
+  if (rows.length === 0) {
+    const hash = await bcrypt.hash(viewerPass, 12);
+    await db.query(
+      `INSERT INTO users (username, password_hash, role, is_active)
+       VALUES ($1, $2, 'viewer', true)`,
+      [viewerUser, hash],
+    );
+    console.log(`[seed] Created viewer user "${viewerUser}"`);
+  } else if (process.env.VIEWER_PASS) {
+    await syncUserPassword(db, viewerUser, viewerPass);
+  }
 }
 
 async function syncUserPassword(db, username, password) {

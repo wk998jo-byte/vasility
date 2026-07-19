@@ -137,6 +137,15 @@ function requireAdmin(req, res, next) {
   next();
 }
 
+// Admin or facility staff — blocks read-only 'viewer' accounts from mutations.
+function requireStaff(req, res, next) {
+  if (req.user?.role !== 'admin' && req.user?.role !== 'facility') {
+    res.status(403).json({ error: 'Staff access required' });
+    return;
+  }
+  next();
+}
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 async function createNotification(db, {
@@ -744,7 +753,7 @@ app.get('/api/issues/:ticketNumber/comments', requireDb, async (req, res) => {
   }
 });
 
-app.post('/api/issues/:ticketNumber/comments', requireDb, authenticateToken, async (req, res) => {
+app.post('/api/issues/:ticketNumber/comments', requireDb, authenticateToken, requireStaff, async (req, res) => {
   const ticketNumber = req.params.ticketNumber;
   const commentText = typeof req.body?.commentText === 'string'
     ? req.body.commentText.trim()
@@ -918,7 +927,7 @@ app.get('/api/issues/:ticketNumber/history', requireDb, authenticateToken, async
   }
 });
 
-app.put('/api/issues/:ticketNumber', requireDb, authenticateToken, async (req, res) => {
+app.put('/api/issues/:ticketNumber', requireDb, authenticateToken, requireStaff, async (req, res) => {
   const ticketNumber = req.params.ticketNumber;
   const body = req.body || {};
   const changedBy = req.user?.sub || null;
@@ -1057,7 +1066,7 @@ app.get('/api/notifications', requireDb, authenticateToken, async (req, res) => 
   }
 });
 
-app.put('/api/notifications/:id/read', requireDb, authenticateToken, async (req, res) => {
+app.put('/api/notifications/:id/read', requireDb, authenticateToken, requireStaff, async (req, res) => {
   const { id } = req.params;
   if (!UUID_RE.test(id)) {
     res.status(404).json({ error: 'Notification not found' });

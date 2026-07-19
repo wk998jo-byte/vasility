@@ -998,11 +998,12 @@ function AdminDashboard({
   focusTicketId, onFocusHandled,
 }) {
   const isAdmin = adminRole === 'admin';
+  const isViewer = adminRole === 'viewer';
   const [printReportConfig, setPrintReportConfig] = useState(null);
   const [selectedTicket, setSelectedTicket] = useState(null);
   const selectedTicketIdRef = useRef(null);
   selectedTicketIdRef.current = selectedTicket?.id || null;
-  const [showMineOnly, setShowMineOnly] = useState(!isAdmin);
+  const [showMineOnly, setShowMineOnly] = useState(!isAdmin && !isViewer);
   const [pendingAssignee, setPendingAssignee] = useState('');
   const [comments, setComments] = useState([]);
   const [commentDraft, setCommentDraft] = useState('');
@@ -1559,7 +1560,7 @@ function AdminDashboard({
         </>
       )}
 
-      {!isAdmin && !showTicketTrash && (
+      {!isAdmin && !isViewer && !showTicketTrash && (
         <div className="flex gap-2 mb-4 print:hidden">
           <button
             type="button"
@@ -1755,7 +1756,7 @@ function AdminDashboard({
                   </>
                 )}
 
-                {!isAdmin && isMine(selectedTicket) && selectedTicket.status === 'Resolved' && (
+                {!isAdmin && !isViewer && isMine(selectedTicket) && selectedTicket.status === 'Resolved' && (
                   <button type="button" onClick={() => updateTicket(selectedTicket.id, { status: 'Closed' })} className="flex-1 bg-zinc-700 hover:bg-zinc-800 text-white py-3 rounded-xl font-bold transition-colors">
                     {dict.markClosed}
                   </button>
@@ -1768,7 +1769,7 @@ function AdminDashboard({
                 )}
               </div>
 
-              {!isAdmin && isMine(selectedTicket) && selectedTicket.status === 'In Progress' && (
+              {!isAdmin && !isViewer && isMine(selectedTicket) && selectedTicket.status === 'In Progress' && (
                 <div className="border border-gray-200 dark:border-zinc-800 rounded-2xl p-4">
                   <label className="text-xs font-bold text-gray-400 block mb-3 uppercase">{dict.uploadFixPhoto}</label>
                   <input
@@ -1837,22 +1838,26 @@ function AdminDashboard({
                   </div>
                 ))}
               </div>
-              <textarea
-                value={commentDraft}
-                onChange={(e) => setCommentDraft(e.target.value)}
-                placeholder={dict.writeComment}
-                rows={3}
-                maxLength={2000}
-                className="w-full border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-3 bg-transparent outline-none focus:border-black dark:focus:border-white text-sm resize-none"
-              />
-              <button
-                type="button"
-                onClick={handleSendComment}
-                disabled={sendingComment || !commentDraft.trim()}
-                className="mt-2 w-full bg-black text-white dark:bg-white dark:text-black disabled:opacity-50 py-3 rounded-xl font-bold transition-opacity hover:opacity-90"
-              >
-                {sendingComment ? dict.sending : dict.sendComment}
-              </button>
+              {!isViewer && (
+                <>
+                  <textarea
+                    value={commentDraft}
+                    onChange={(e) => setCommentDraft(e.target.value)}
+                    placeholder={dict.writeComment}
+                    rows={3}
+                    maxLength={2000}
+                    className="w-full border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-3 bg-transparent outline-none focus:border-black dark:focus:border-white text-sm resize-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSendComment}
+                    disabled={sendingComment || !commentDraft.trim()}
+                    className="mt-2 w-full bg-black text-white dark:bg-white dark:text-black disabled:opacity-50 py-3 rounded-xl font-bold transition-opacity hover:opacity-90"
+                  >
+                    {sendingComment ? dict.sending : dict.sendComment}
+                  </button>
+                </>
+              )}
             </div>
 
             {ticketHistory.length > 0 && (
