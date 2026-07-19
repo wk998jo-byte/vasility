@@ -13,6 +13,9 @@ expertMode = true
 ADMIN_USER = "admin"
 FACILITY_USER = "facility_user"
 WHATSAPP_API_URL = "https://api.ultramsg.com/instance184225/messages/chat"
+TWILIO_WHATSAPP_FROM = "whatsapp:+15553707968"
+TWILIO_TEMPLATE_WELCOME = "HXdeaac5f5bbc3811296fd509ca18f4772"
+TWILIO_TEMPLATE_DONE = "HX60603624cce5d632ee649acd1d8b1da1"
 
 [workflows]
 runButton = "Project"

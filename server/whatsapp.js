@@ -3,8 +3,14 @@
  *
  * Supports three providers, checked in this order:
  *
- * 1. Twilio — enabled when TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN and
- *    TWILIO_WHATSAPP_NUMBER (e.g. "whatsapp:+14155238886") are all set.
+ * 1. Twilio — enabled when TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN and a
+ *    sender number are all set. The sender is read from TWILIO_WHATSAPP_FROM
+ *    (env var, preferred) falling back to TWILIO_WHATSAPP_NUMBER (secret),
+ *    e.g. "whatsapp:+15553707968". Official (non-sandbox) senders can only
+ *    reach users outside a 24-hour session via approved WhatsApp templates:
+ *    set TWILIO_TEMPLATE_WELCOME / TWILIO_TEMPLATE_DONE to approved Content
+ *    SIDs (HX...) and the welcome/status messages are sent as templates;
+ *    unset, they fall back to freeform text (session-only).
  *    Uses the twilio SDK (lazy-imported so a bad config can't crash the
  *    server at startup).
  *
@@ -46,23 +52,35 @@ function normalizePhoneForSend(phone) {
   return normalizePhone(phone).replace(/^00/, '');
 }
 
+function twilioFromNumber() {
+  return (process.env.TWILIO_WHATSAPP_FROM || process.env.TWILIO_WHATSAPP_NUMBER || '').trim();
+}
+
 function twilioConfigured() {
   return Boolean(
     process.env.TWILIO_ACCOUNT_SID
     && process.env.TWILIO_AUTH_TOKEN
-    && process.env.TWILIO_WHATSAPP_NUMBER,
+    && twilioFromNumber(),
   );
 }
 
-async function sendViaTwilio(phone, message) {
+async function sendViaTwilio(phone, message, template) {
   const client = await getTwilioClient();
   const to = `whatsapp:+${normalizePhoneForSend(phone)}`;
 
-  const result = await client.messages.create({
-    from: process.env.TWILIO_WHATSAPP_NUMBER.trim(),
-    to,
-    body: message,
-  });
+  const payload = { from: twilioFromNumber(), to };
+  if (template?.contentSid) {
+    // Approved WhatsApp template — required to reach users outside the
+    // 24-hour session window (Twilio error 63016 otherwise).
+    payload.contentSid = template.contentSid;
+    if (template.variables) {
+      payload.contentVariables = JSON.stringify(template.variables);
+    }
+  } else {
+    payload.body = message;
+  }
+
+  const result = await client.messages.create(payload);
 
   console.log(`[whatsapp] Twilio notification sent to ${to} (sid: ${result.sid})`);
   return { sent: true, provider: 'twilio' };
@@ -135,7 +153,7 @@ async function sendViaRestGateway(phone, message) {
 }
 
 /** Provider-dispatching low-level sender. Never throws — callers fire-and-forget. */
-export async function sendWhatsAppMessage(phone, message) {
+export async function sendWhatsAppMessage(phone, message, template) {
   const to = typeof phone === 'string' ? phone.trim() : '';
   if (!to) {
     return { sent: false, skipped: true };
@@ -143,7 +161,7 @@ export async function sendWhatsAppMessage(phone, message) {
 
   try {
     if (twilioConfigured()) {
-      return await sendViaTwilio(to, message);
+      return await sendViaTwilio(to, message, template);
     }
     if (process.env.CALLMEBOT_KEYS) {
       return await sendViaCallMeBot(to, message);
@@ -167,7 +185,9 @@ export async function sendWhatsAppWelcome(phone, ticketNumber) {
     `مرحباً بك في نظام SSC OS 🏢. تم استلام طلب الصيانة الخاص بك بنجاح برقم: *${ticketNumber}*. `
     + 'فريقنا الفني يقوم بمراجعة الطلب الآن وسيتواصل معك قريباً. ✨';
 
-  return sendWhatsAppMessage(phone, message);
+  const contentSid = (process.env.TWILIO_TEMPLATE_WELCOME || '').trim();
+  const template = contentSid ? { contentSid, variables: { 1: ticketNumber } } : undefined;
+  return sendWhatsAppMessage(phone, message, template);
 }
 
 /** Builds the ticket-status message and sends it. Used by the issue routes. */
@@ -177,5 +197,7 @@ export async function sendWhatsAppNotification(phone, ticketNumber, status) {
     `Hello! Your maintenance request (Ticket: ${ticketNumber}) has been marked as ${status}. Thank you for using SSC OS.`,
   ].join('\n');
 
-  return sendWhatsAppMessage(phone, message);
+  const contentSid = (process.env.TWILIO_TEMPLATE_DONE || '').trim();
+  const template = contentSid ? { contentSid, variables: { 1: ticketNumber } } : undefined;
+  return sendWhatsAppMessage(phone, message, template);
 }

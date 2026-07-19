@@ -40,7 +40,12 @@ Set as Replit env vars / secrets (see `.env.example`):
 - Optional: `SMTP_*` / `NOTIFY_EMAIL` (email notifications), `CLOUDINARY_URL`
   (issue photo uploads). WhatsApp message to the reporter's phone when their
   ticket is Resolved/Closed: `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` /
-  `TWILIO_WHATSAPP_NUMBER` (Twilio, highest priority), or `CALLMEBOT_KEYS`
+  `TWILIO_WHATSAPP_FROM` (env var, preferred sender) or `TWILIO_WHATSAPP_NUMBER`
+  (secret fallback) — currently the official sender `whatsapp:+15553707968`.
+  `TWILIO_TEMPLATE_WELCOME` / `TWILIO_TEMPLATE_DONE` hold approved WhatsApp
+  Content template SIDs (HX...) required to message users outside the 24-hour
+  session window (Twilio error 63016 otherwise); unset = freeform text
+  (session-only). Fallbacks: `CALLMEBOT_KEYS`
   (free CallMeBot;
   `phone:apikey` pairs, comma-separated — each recipient registers once with
   CallMeBot) or `WHATSAPP_API_URL` / `WHATSAPP_TOKEN` (UltraMsg / Green API
