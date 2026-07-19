@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { loadEnv } from './env.js';
 import { seedDb } from './seed.js';
+import { seedCampRooms } from './seed-camp.js';
 
 loadEnv();
 
@@ -28,6 +29,7 @@ export async function initDb() {
   const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
   await db.query(schema);
   await seedDb(db);
+  await seedCampRooms(db);
   await cleanupOrphanedNotifications(db);
   return true;
 }
