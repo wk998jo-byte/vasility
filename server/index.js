@@ -1133,6 +1133,17 @@ app.use((err, _req, res, _next) => {
 });
 
 async function start() {
+  // Open the port immediately so deployment health checks pass, then finish
+  // database initialization in the background. The '/' healthcheck serves the
+  // static frontend and does not depend on the database.
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`SSC Building Portal → http://0.0.0.0:${PORT}`);
+  });
+
+  if (!JWT_SECRET) {
+    console.warn('[auth] Set JWT_SECRET in .env for admin login.');
+  }
+
   try {
     const uploadEnabled = await initCloudinaryUpload();
     console.log(`[upload] Cloudinary photo uploads: ${uploadEnabled ? 'enabled' : 'disabled'}`);
@@ -1145,14 +1156,6 @@ async function start() {
     console.error('[db] Connection failed:', err.message);
     console.error('[db] Check DATABASE_URL in .env and ensure the database exists.');
   }
-
-  if (!JWT_SECRET) {
-    console.warn('[auth] Set JWT_SECRET in .env for admin login.');
-  }
-
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`SSC Building Portal → http://0.0.0.0:${PORT}`);
-  });
 }
 
 start();
