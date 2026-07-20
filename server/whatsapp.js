@@ -179,14 +179,76 @@ export async function sendWhatsAppMessage(phone, message, template) {
   return { sent: false, stub: true };
 }
 
+/**
+ * Discover approved WhatsApp templates directly from the Twilio Content API,
+ * so deleted/recreated templates never leave the app pointing at stale SIDs
+ * (Twilio error 63112). Templates are matched by friendly_name prefix
+ * ("ssc_ticket_welcome" / "ssc_ticket_done"), newest first, approved only.
+ * Cached for 10 minutes; falls back to TWILIO_TEMPLATE_* env vars, then to
+ * freeform text (delivered only inside a 24h session window).
+ */
+const TEMPLATE_CACHE_TTL_MS = 10 * 60 * 1000;
+let templateCache = { at: 0, map: null };
+
+async function twilioContentGet(path) {
+  const auth = Buffer.from(
+    `${process.env.TWILIO_ACCOUNT_SID.trim()}:${process.env.TWILIO_AUTH_TOKEN.trim()}`,
+  ).toString('base64');
+  const res = await fetch(`https://content.twilio.com/v1${path}`, {
+    headers: { Authorization: `Basic ${auth}` },
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!res.ok) throw new Error(`Content API HTTP ${res.status}`);
+  return res.json();
+}
+
+async function discoverTemplates() {
+  const now = Date.now();
+  if (templateCache.map && now - templateCache.at < TEMPLATE_CACHE_TTL_MS) {
+    return templateCache.map;
+  }
+
+  const map = {};
+  try {
+    const list = await twilioContentGet('/Content?PageSize=100');
+    // Newest first so a re-created template wins over an older one.
+    const contents = (list.contents || []).sort(
+      (a, b) => new Date(b.date_created) - new Date(a.date_created),
+    );
+    for (const c of contents) {
+      const name = c.friendly_name || '';
+      let key = null;
+      if (name.startsWith('ssc_ticket_welcome')) key = 'welcome';
+      else if (name.startsWith('ssc_ticket_done')) key = 'done';
+      if (!key || map[key]) continue;
+
+      const approval = await twilioContentGet(`/Content/${c.sid}/ApprovalRequests`)
+        .catch(() => null);
+      if (approval?.whatsapp?.status === 'approved') map[key] = c.sid;
+    }
+    templateCache = { at: now, map };
+  } catch (err) {
+    console.error('[whatsapp] template discovery failed:', err?.message || err);
+    // Cache failures briefly too, so an outage doesn't add latency to every send.
+    templateCache = { at: now - TEMPLATE_CACHE_TTL_MS + 60_000, map };
+  }
+  return map;
+}
+
+async function resolveTemplate(kind, envKey, ticketNumber) {
+  if (!twilioConfigured()) return undefined;
+  const discovered = (await discoverTemplates())[kind];
+  const contentSid = discovered || (process.env[envKey] || '').trim();
+  return contentSid ? { contentSid, variables: { 1: ticketNumber } } : undefined;
+}
+
 /** Welcome message sent right after a new ticket is created. */
 export async function sendWhatsAppWelcome(phone, ticketNumber) {
   const message =
     `مرحباً بك في نظام SSC OS 🏢. تم استلام طلب الصيانة الخاص بك بنجاح برقم: *${ticketNumber}*. `
     + 'فريقنا الفني يقوم بمراجعة الطلب الآن وسيتواصل معك قريباً. ✨';
 
-  const contentSid = (process.env.TWILIO_TEMPLATE_WELCOME || '').trim();
-  const template = contentSid ? { contentSid, variables: { 1: ticketNumber } } : undefined;
+  const template = await resolveTemplate('welcome', 'TWILIO_TEMPLATE_WELCOME', ticketNumber);
   return sendWhatsAppMessage(phone, message, template);
 }
 
@@ -197,7 +259,6 @@ export async function sendWhatsAppNotification(phone, ticketNumber, status) {
     `Hello! Your maintenance request (Ticket: ${ticketNumber}) has been marked as ${status}. Thank you for using SSC OS.`,
   ].join('\n');
 
-  const contentSid = (process.env.TWILIO_TEMPLATE_DONE || '').trim();
-  const template = contentSid ? { contentSid, variables: { 1: ticketNumber } } : undefined;
+  const template = await resolveTemplate('done', 'TWILIO_TEMPLATE_DONE', ticketNumber);
   return sendWhatsAppMessage(phone, message, template);
 }
