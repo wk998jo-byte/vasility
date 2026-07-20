@@ -36,7 +36,7 @@ function buildHtmlEmail(issue) {
       <tr><td style="padding:8px 0;color:#6b7280;">Reporter</td><td style="padding:8px 0;">${reporter} (${employeeId})</td></tr>
       <tr><td style="padding:8px 0;color:#6b7280;vertical-align:top;">Notes</td><td style="padding:8px 0;">${notes}</td></tr>
     </table>
-    <p style="margin:24px 0 0;font-size:12px;color:#9ca3af;">SSC Building Portal — automated notification</p>
+    <p style="margin:24px 0 0;font-size:12px;color:#9ca3af;">Facility Maintenance Center (FMC) — automated notification</p>
   </div>
 </body>
 </html>`;
@@ -65,7 +65,7 @@ export async function sendNewIssueNotification(issue) {
   const smtpPass = process.env.SMTP_PASS;
   const notifyTo = process.env.NOTIFY_EMAIL;
 
-  const subject = `[SSC Portal] New issue ${issue.id || issue.ticketNumber}`;
+  const subject = `[FMC] New issue ${issue.id || issue.ticketNumber}`;
   const text = buildTextEmail(issue);
   const html = buildHtmlEmail(issue);
 

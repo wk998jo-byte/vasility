@@ -245,7 +245,7 @@ async function resolveTemplate(kind, envKey, ticketNumber) {
 /** Welcome message sent right after a new ticket is created. */
 export async function sendWhatsAppWelcome(phone, ticketNumber) {
   const message =
-    `مرحباً بك في نظام SSC OS 🏢. تم استلام طلب الصيانة الخاص بك بنجاح برقم: *${ticketNumber}*. `
+    `مرحباً بك في مركز صيانة المرافق FMC 🏢. تم استلام طلب الصيانة الخاص بك بنجاح برقم: *${ticketNumber}*. `
     + 'فريقنا الفني يقوم بمراجعة الطلب الآن وسيتواصل معك قريباً. ✨';
 
   const template = await resolveTemplate('welcome', 'TWILIO_TEMPLATE_WELCOME', ticketNumber);
@@ -255,8 +255,8 @@ export async function sendWhatsAppWelcome(phone, ticketNumber) {
 /** Builds the ticket-status message and sends it. Used by the issue routes. */
 export async function sendWhatsAppNotification(phone, ticketNumber, status) {
   const message = [
-    `مرحباً، تم الانتهاء من طلب الصيانة الخاص بك رقم ${ticketNumber}. شكراً لاستخدامك نظام SSC OS.`,
-    `Hello! Your maintenance request (Ticket: ${ticketNumber}) has been marked as ${status}. Thank you for using SSC OS.`,
+    `مرحباً، تم الانتهاء من طلب الصيانة الخاص بك رقم ${ticketNumber}. شكراً لاستخدامك مركز صيانة المرافق FMC.`,
+    `Hello! Your maintenance request (Ticket: ${ticketNumber}) has been marked as ${status}. Thank you for using FMC (Facility Maintenance Center).`,
   ].join('\n');
 
   const template = await resolveTemplate('done', 'TWILIO_TEMPLATE_DONE', ticketNumber);

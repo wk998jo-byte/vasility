@@ -188,7 +188,7 @@ export async function generateTicketNumber(db) {
     [year],
   );
   const num = String(rows[0].last_number).padStart(4, '0');
-  return `SSC-${year}-${num}`;
+  return `FMC-${year}-${num}`;
 }
 
 export function mapIssueRow(row) {

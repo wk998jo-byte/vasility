@@ -1,4 +1,7 @@
-# SSC Building Portal (Bin Quraya)
+# Facility Maintenance Center — FMC (Bin Quraya)
+
+Formerly "SSC Building Portal". Brand name is FMC everywhere user-facing;
+new ticket numbers use the `FMC-` prefix (old `SSC-` tickets remain valid).
 
 Facilities QR Room Reporting MVP. Staff scan a room QR code to report facility
 issues; admins and facility users manage rooms, users, and tickets via a

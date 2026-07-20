@@ -84,7 +84,7 @@ const t = {
     total: 'Total Tickets', active: 'Active Issues', breached: 'SLA Breached', spend: 'Total Spend (SAR)',
     print: 'Print', assign: 'Assign Technician', cost: 'Cost (SAR)', parts: 'Parts Used',
     markResolved: 'Mark Resolved', markClosed: 'Close Ticket',
-    search: 'Enter exact Ticket Number (e.g., SSC-2026-0001)',
+    search: 'Enter exact Ticket Number (e.g., FMC-2026-0001)',
     searchEmployeeId: 'Employee ID (Badge Number)',
     trackVerifyHint: 'For your privacy, enter both your Ticket Number and Employee ID to view status.',
     trackNotFound: 'No ticket found. Verify both your Ticket Number and Employee ID.',
@@ -150,7 +150,7 @@ const t = {
     reportDaily: 'Daily', reportWeekly: 'Weekly', reportMonthly: 'Monthly',
     reportTotal: 'Total Tickets', reportResolved: 'Resolved Tickets', reportCost: 'Total Cost (SAR)',
     reportDateCol: 'Date', reportLocationAsset: 'Location / Asset', reportAssignee: 'Assignee',
-    reportGenerated: 'Generated', reportCompany: 'SSC Building Portal (Bin Quraya)',
+    reportGenerated: 'Generated', reportCompany: 'Facility Maintenance Center — FMC (Bin Quraya)',
     reportNoTickets: 'No tickets in this period.',
   },
   ar: {
@@ -166,7 +166,7 @@ const t = {
     total: 'إجمالي التذاكر', active: 'الطلبات النشطة', breached: 'تجاوز الوقت', spend: 'إجمالي التكلفة (ريال)',
     print: 'طباعة', assign: 'تعيين فني', cost: 'التكلفة (ريال)', parts: 'القطع المستخدمة',
     markResolved: 'تم الحل', markClosed: 'إغلاق التذكرة',
-    search: 'أدخل رقم التذكرة بالضبط (مثال: SSC-2026-0001)',
+    search: 'أدخل رقم التذكرة بالضبط (مثال: FMC-2026-0001)',
     searchEmployeeId: 'الرقم الوظيفي (رقم البطاقة)',
     trackVerifyHint: 'لحماية خصوصيتك، أدخل رقم التذكرة والرقم الوظيفي معاً لعرض الحالة.',
     trackNotFound: 'لم يتم العثور على تذكرة. تحقق من رقم التذكرة والرقم الوظيفي.',
@@ -232,7 +232,7 @@ const t = {
     reportDaily: 'يومي', reportWeekly: 'أسبوعي', reportMonthly: 'شهري',
     reportTotal: 'إجمالي التذاكر', reportResolved: 'التذاكر المحلولة', reportCost: 'التكلفة الإجمالية (ريال)',
     reportDateCol: 'التاريخ', reportLocationAsset: 'الموقع / الأصل', reportAssignee: 'الفني المسؤول',
-    reportGenerated: 'تاريخ الإنشاء', reportCompany: 'بوابة مباني SSC (بن قرية)',
+    reportGenerated: 'تاريخ الإنشاء', reportCompany: 'مركز صيانة المرافق FMC (بن قرية)',
     reportNoTickets: 'لا توجد تذاكر في هذه الفترة.',
   },
 };
@@ -311,7 +311,7 @@ export default function App() {
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <button type="button" onClick={() => setView('request')} className="flex items-center gap-3">
             <BrandLogo className="h-14 w-auto drop-shadow-md object-contain" />
-            <span className="font-extrabold tracking-tight text-lg hidden sm:inline">SSC<span className="opacity-50">.OS</span></span>
+            <span className="font-extrabold tracking-tight text-lg hidden sm:inline">FMC<span className="opacity-50">.OS</span></span>
           </button>
 
           <div className="flex items-center gap-1 sm:gap-4">

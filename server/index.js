@@ -1146,7 +1146,7 @@ async function start() {
   // database initialization in the background. The '/' healthcheck serves the
   // static frontend and does not depend on the database.
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`SSC Building Portal → http://0.0.0.0:${PORT}`);
+    console.log(`Facility Maintenance Center (FMC) → http://0.0.0.0:${PORT}`);
   });
 
   if (!JWT_SECRET) {
