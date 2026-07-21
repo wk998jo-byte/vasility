@@ -45,6 +45,8 @@ Set as Replit env vars / secrets (see `.env.example`):
   ticket is Resolved/Closed: `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` /
   `TWILIO_WHATSAPP_FROM` (env var, preferred sender) or `TWILIO_WHATSAPP_NUMBER`
   (secret fallback) — currently the official sender `whatsapp:+15553707968`.
+  `ADMIN_WHATSAPP` (shared env var) — admin phone that receives a WhatsApp
+  alert for every new ticket (template prefix `ssc_ticket_admin`).
   `TWILIO_TEMPLATE_WELCOME` / `TWILIO_TEMPLATE_DONE` hold approved WhatsApp
   Content template SIDs (HX...) required to message users outside the 24-hour
   session window (Twilio error 63016 otherwise); unset = freeform text

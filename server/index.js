@@ -8,7 +8,7 @@ import rateLimit from 'express-rate-limit';
 import { loadEnv } from './env.js';
 import { getPool, initDb, checkDb, withTransaction } from './db.js';
 import { sendNewIssueNotification } from './notify.js';
-import { sendWhatsAppNotification, sendWhatsAppWelcome } from './whatsapp.js';
+import { sendWhatsAppNotification, sendWhatsAppWelcome, sendWhatsAppAdminAlert } from './whatsapp.js';
 import { initCloudinaryUpload, getUploadMiddleware, uploadBufferToCloudinary } from './upload.js';
 import {
   generateTicketNumber,
@@ -636,6 +636,11 @@ app.post('/api/issues', issueSubmitLimiter, requireDb, async (req, res) => {
       message: `New Ticket created: ${ticketNumber}`,
       ticketNumber,
     }).catch((err) => console.error('[notifications] insert failed:', err.message));
+
+    const adminSummary = [issue?.roomName || issue?.room_name, assetName, issueType]
+      .filter(Boolean).join(' — ');
+    sendWhatsAppAdminAlert(ticketNumber, adminSummary)
+      .catch((err) => console.error('[whatsapp] admin alert failed:', err?.message || err));
 
     res.status(201).json({ ok: true, issue: toPublicIssue(issue) });
   } catch (err) {

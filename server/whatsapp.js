@@ -220,6 +220,7 @@ async function discoverTemplates() {
       let key = null;
       if (name.startsWith('ssc_ticket_welcome')) key = 'welcome';
       else if (name.startsWith('ssc_ticket_done')) key = 'done';
+      else if (name.startsWith('ssc_ticket_admin')) key = 'admin';
       if (!key || map[key]) continue;
 
       const approval = await twilioContentGet(`/Content/${c.sid}/ApprovalRequests`)
@@ -235,11 +236,11 @@ async function discoverTemplates() {
   return map;
 }
 
-async function resolveTemplate(kind, envKey, ticketNumber) {
+async function resolveTemplate(kind, envKey, variables) {
   if (!twilioConfigured()) return undefined;
   const discovered = (await discoverTemplates())[kind];
   const contentSid = discovered || (process.env[envKey] || '').trim();
-  return contentSid ? { contentSid, variables: { 1: ticketNumber } } : undefined;
+  return contentSid ? { contentSid, variables } : undefined;
 }
 
 /** Welcome message sent right after a new ticket is created. */
@@ -248,7 +249,7 @@ export async function sendWhatsAppWelcome(phone, ticketNumber) {
     `مرحباً بك في مركز صيانة المرافق FMC 🏢. تم استلام طلب الصيانة الخاص بك بنجاح برقم: *${ticketNumber}*. `
     + 'فريقنا الفني يقوم بمراجعة الطلب الآن وسيتواصل معك قريباً. ✨';
 
-  const template = await resolveTemplate('welcome', 'TWILIO_TEMPLATE_WELCOME', ticketNumber);
+  const template = await resolveTemplate('welcome', 'TWILIO_TEMPLATE_WELCOME', { 1: ticketNumber });
   return sendWhatsAppMessage(phone, message, template);
 }
 
@@ -259,6 +260,23 @@ export async function sendWhatsAppNotification(phone, ticketNumber, status) {
     `Hello! Your maintenance request (Ticket: ${ticketNumber}) has been marked as ${status}. Thank you for using FMC (Facility Maintenance Center).`,
   ].join('\n');
 
-  const template = await resolveTemplate('done', 'TWILIO_TEMPLATE_DONE', ticketNumber);
+  const template = await resolveTemplate('done', 'TWILIO_TEMPLATE_DONE', { 1: ticketNumber });
   return sendWhatsAppMessage(phone, message, template);
+}
+
+/**
+ * Alert sent to the admin's WhatsApp (ADMIN_WHATSAPP env var) whenever a new
+ * ticket is created. Silently skipped when ADMIN_WHATSAPP is unset.
+ */
+export async function sendWhatsAppAdminAlert(ticketNumber, details) {
+  const adminPhone = (process.env.ADMIN_WHATSAPP || '').trim();
+  if (!adminPhone) return { sent: false, skipped: true, reason: 'no-admin-phone' };
+
+  const summary = String(details || '').slice(0, 200);
+  const message =
+    `🔔 تذكرة جديدة في مركز صيانة المرافق FMC\nرقم التذكرة: *${ticketNumber}*\n${summary}\n\n`
+    + `New FMC ticket: ${ticketNumber} — ${summary}`;
+
+  const template = await resolveTemplate('admin', 'TWILIO_TEMPLATE_ADMIN', { 1: ticketNumber, 2: summary });
+  return sendWhatsAppMessage(adminPhone, message, template);
 }
