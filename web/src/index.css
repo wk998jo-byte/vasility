@@ -1,10 +1,25 @@
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Spline+Sans+Mono:wght@500;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --bg-main: #f5f7fa;
+    --text-main: #1d2537;
+  }
+  
+  .dark {
+    --bg-main: #0b0f17;
+    --text-main: #f5f7fa;
+  }
+
   body {
-    @apply min-h-screen bg-[#fcfcfc] text-black antialiased dark:bg-[#0a0a0a] dark:text-white;
+    background-color: var(--bg-main);
+    color: var(--text-main);
+    @apply min-h-[100dvh] antialiased selection:bg-accent-500 selection:text-white transition-colors duration-300;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   }
 
   @media print {
@@ -17,5 +32,15 @@
   @page {
     size: A4;
     margin: 12mm;
+  }
+}
+
+@layer utilities {
+  .glass-panel {
+    @apply bg-white/80 dark:bg-industrial-950/80 backdrop-blur-xl border border-white/20 dark:border-industrial-800/50 shadow-premium;
+  }
+  
+  .card-hover {
+    @apply transition-all duration-300 hover:-translate-y-1 hover:shadow-premium-hover;
   }
 }

@@ -359,15 +359,20 @@ export default function App() {
   };
 
   return (
-    <div className={`min-h-screen bg-white dark:bg-black text-black dark:text-white transition-colors duration-300 ${fontClass}`}>
-      <nav className="fixed top-0 inset-x-0 z-40 bg-white/80 dark:bg-black/80 backdrop-blur-xl border-b border-gray-200 dark:border-zinc-800 print:hidden">
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-          <button type="button" onClick={() => setView('request')} className="flex items-center gap-3">
-            <BrandLogo className="h-14 w-auto drop-shadow-md object-contain" />
-            <span className="font-extrabold tracking-tight text-lg hidden sm:inline">FMC</span>
+    <div className={`min-h-[100dvh] bg-industrial-50 dark:bg-industrial-950 text-industrial-950 dark:text-industrial-50 transition-colors duration-300 ${fontClass}`}>
+      <nav className="fixed top-0 inset-x-0 z-40 bg-white/80 dark:bg-industrial-950/80 backdrop-blur-xl border-b border-industrial-200/50 dark:border-industrial-800/50 shadow-sm print:hidden">
+        <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+          <button type="button" onClick={() => setView('request')} className="flex items-center gap-4 group">
+            <div className="bg-white dark:bg-industrial-900 p-2 rounded-xl shadow-premium group-hover:scale-105 transition-transform duration-300">
+              <BrandLogo className="h-10 w-auto object-contain" />
+            </div>
+            <div className="flex flex-col items-start hidden sm:flex">
+              <span className="font-extrabold tracking-tight text-xl leading-none text-industrial-900 dark:text-white">FMC</span>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-accent-600 dark:text-accent-500">Bin Quraya</span>
+            </div>
           </button>
 
-          <div className="flex items-center gap-1 sm:gap-4">
+          <div className="flex items-center bg-industrial-100/50 dark:bg-industrial-900/50 p-1.5 rounded-2xl border border-industrial-200/50 dark:border-industrial-800/50">
             <NavBtn active={view === 'request'} onClick={() => setView('request')}>{dict.request}</NavBtn>
             <NavBtn active={view === 'track'} onClick={() => setView('track')}>{dict.track}</NavBtn>
             <NavBtn active={view === 'admin'} onClick={() => setView('admin')}>
@@ -375,7 +380,7 @@ export default function App() {
             </NavBtn>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             {adminToken && (
               <NotificationBell
                 adminToken={adminToken}
@@ -387,21 +392,22 @@ export default function App() {
               />
             )}
             {adminToken && (
-              <button type="button" onClick={handleLogout} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-zinc-900 text-gray-500 hover:text-red-600 transition-colors" aria-label={dict.logout}>
+              <button type="button" onClick={handleLogout} className="p-2.5 rounded-xl hover:bg-red-50 dark:hover:bg-red-950/30 text-industrial-500 hover:text-red-600 transition-colors" aria-label={dict.logout}>
                 <LogOut size={18} />
               </button>
             )}
-            <button type="button" onClick={() => setLang((l) => (l === 'en' ? 'ar' : 'en'))} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-zinc-900 transition-colors">
+            <div className="w-px h-6 bg-industrial-200 dark:bg-industrial-800 mx-1 hidden sm:block" />
+            <button type="button" onClick={() => setLang((l) => (l === 'en' ? 'ar' : 'en'))} className="p-2.5 rounded-xl hover:bg-industrial-100 dark:hover:bg-industrial-900 transition-colors text-industrial-600 dark:text-industrial-400">
               <Globe size={18} />
             </button>
-            <button type="button" onClick={() => setTheme((th) => (th === 'light' ? 'dark' : 'light'))} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-zinc-900 transition-colors">
+            <button type="button" onClick={() => setTheme((th) => (th === 'light' ? 'dark' : 'light'))} className="p-2.5 rounded-xl hover:bg-industrial-100 dark:hover:bg-industrial-900 transition-colors text-industrial-600 dark:text-industrial-400">
               {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
             </button>
           </div>
         </div>
       </nav>
 
-      <main className="pt-24 pb-12 px-6 max-w-7xl mx-auto min-h-[90vh]">
+      <main className="pt-28 pb-12 px-4 sm:px-6 max-w-7xl mx-auto min-h-[90vh] animate-fade-in">
         {view === 'request' && <RequestForm dict={dict} lang={lang} />}
         {view === 'track' && <TrackingPortal dict={dict} />}
         {view === 'admin' && (
@@ -480,35 +486,35 @@ function NotificationBell({ adminToken, dict, onOpenTicket }) {
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="relative p-2 rounded-full hover:bg-gray-100 dark:hover:bg-zinc-900 transition-colors"
+        className="relative p-2.5 rounded-xl hover:bg-white/50 dark:hover:bg-industrial-800/50 transition-colors text-industrial-600 dark:text-industrial-400 group"
         aria-label={dict.notifications}
       >
-        <Bell size={18} />
+        <Bell size={18} className="group-hover:text-industrial-900 dark:group-hover:text-white transition-colors" />
         {unread > 0 && (
-          <span className="absolute -top-0.5 -end-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center border-2 border-white dark:border-black">
+          <span className="absolute -top-1 -end-1 min-w-[20px] h-[20px] px-1 rounded-full bg-accent-500 text-white text-[10px] font-extrabold flex items-center justify-center border-2 border-white dark:border-industrial-950 shadow-sm">
             {unread > 9 ? '9+' : unread}
           </span>
         )}
       </button>
 
       {open && (
-        <div className="absolute end-0 mt-2 w-80 max-h-96 overflow-y-auto bg-white dark:bg-black border border-gray-200 dark:border-zinc-800 rounded-2xl shadow-2xl p-2">
-          <p className="text-xs font-bold text-gray-400 uppercase tracking-wider px-3 py-2">{dict.notifications}</p>
+        <div className="absolute end-0 mt-3 w-80 max-h-96 overflow-y-auto glass-panel rounded-2xl p-2 animate-fade-in origin-top-right">
+          <p className="text-[10px] font-extrabold text-industrial-400 uppercase tracking-widest px-3 py-2">{dict.notifications}</p>
           {notifications.length === 0 ? (
-            <p className="text-sm text-gray-400 px-3 pb-3">{dict.noNotifications}</p>
+            <p className="text-sm text-industrial-400 px-3 pb-3 font-medium">{dict.noNotifications}</p>
           ) : (
             notifications.map((n) => (
               <button
                 key={n.id}
                 type="button"
                 onClick={() => handleNotificationClick(n)}
-                className={`w-full text-start px-3 py-3 rounded-xl hover:bg-gray-50 dark:hover:bg-zinc-900 transition-colors ${n.isRead ? 'opacity-60' : ''}`}
+                className={`w-full text-start px-3 py-3 rounded-xl hover:bg-industrial-50 dark:hover:bg-industrial-900/50 transition-colors group ${n.isRead ? 'opacity-60' : ''}`}
               >
-                <div className="flex items-start gap-2">
-                  {!n.isRead && <span className="mt-1.5 w-2 h-2 rounded-full bg-red-500 shrink-0" />}
+                <div className="flex items-start gap-3">
+                  {!n.isRead && <span className="mt-1.5 w-2 h-2 rounded-full bg-accent-500 shrink-0 shadow-[0_0_8px_rgba(249,140,7,0.5)]" />}
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold leading-snug break-words">{n.message}</p>
-                    <p className="text-[11px] text-gray-400 mt-0.5">{formatHistoryDate(n.createdAt)}</p>
+                    <p className="text-sm font-semibold leading-snug break-words text-industrial-900 dark:text-industrial-50 group-hover:text-accent-600 dark:group-hover:text-accent-400 transition-colors">{n.message}</p>
+                    <p className="text-[10px] font-mono text-industrial-400 mt-1">{formatHistoryDate(n.createdAt)}</p>
                   </div>
                 </div>
               </button>
@@ -522,7 +528,7 @@ function NotificationBell({ adminToken, dict, onOpenTicket }) {
 
 function NavBtn({ active, onClick, children }) {
   return (
-    <button type="button" onClick={onClick} className={`px-4 py-2 rounded-2xl text-sm font-semibold transition-all duration-300 active:scale-95 ${active ? 'bg-black text-white dark:bg-white dark:text-black' : 'text-gray-500 hover:text-black dark:hover:text-white'}`}>
+    <button type="button" onClick={onClick} className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all duration-300 ${active ? 'bg-white dark:bg-industrial-800 text-accent-600 dark:text-accent-400 shadow-sm' : 'text-industrial-600 dark:text-industrial-400 hover:text-industrial-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-industrial-800/50'}`}>
       {children}
     </button>
   );
@@ -558,16 +564,25 @@ function AdminLogin({ setToken, setRole, setSite, dict }) {
   };
 
   return (
-    <div className="max-w-md mx-auto mt-16 bg-white dark:bg-black p-8 rounded-[2rem] border border-gray-200 dark:border-zinc-800 shadow-sm">
-      <div className="text-center mb-8">
-        <BrandLogo className="h-24 w-auto mx-auto mb-4 drop-shadow-lg object-contain" />
-        <h2 className="text-2xl font-extrabold tracking-tighter">{dict.loginTitle}</h2>
-        <p className="text-gray-500 text-sm mt-1">{dict.loginSubtitle}</p>
+    <div className="max-w-md mx-auto mt-12 lg:mt-24 glass-panel p-8 sm:p-10 rounded-[2.5rem] animate-slide-up relative overflow-hidden">
+      <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-accent-400 to-accent-600" />
+      <div className="text-center mb-10">
+        <div className="bg-white dark:bg-industrial-900 w-20 h-20 mx-auto rounded-2xl shadow-premium flex items-center justify-center mb-6">
+          <BrandLogo className="h-12 w-auto object-contain" />
+        </div>
+        <h2 className="text-3xl font-extrabold tracking-tighter text-industrial-900 dark:text-white">{dict.loginTitle}</h2>
+        <p className="text-industrial-500 text-sm mt-2 font-medium">{dict.loginSubtitle}</p>
       </div>
-      <form onSubmit={handleLogin} className="space-y-4">
-        <input type="text" placeholder={dict.username} required value={user} onChange={(e) => setUser(e.target.value)} autoCapitalize="none" autoCorrect="off" spellCheck={false} autoComplete="username" className="w-full border border-gray-200 dark:border-zinc-800 rounded-2xl px-5 py-4 bg-transparent focus:border-black dark:focus:border-white outline-none" />
-        <input type="password" placeholder={dict.password} required value={pass} onChange={(e) => setPass(e.target.value)} className="w-full border border-gray-200 dark:border-zinc-800 rounded-2xl px-5 py-4 bg-transparent focus:border-black dark:focus:border-white outline-none" />
-        <button type="submit" className="w-full bg-black text-white dark:bg-white dark:text-black font-bold py-4 rounded-2xl mt-4 hover:bg-gray-900 dark:hover:bg-gray-100 transition-colors">{dict.loginBtn}</button>
+      <form onSubmit={handleLogin} className="space-y-5">
+        <div className="space-y-1.5">
+          <label className="text-xs font-bold text-industrial-500 uppercase tracking-wider ms-1">{dict.username}</label>
+          <input type="text" placeholder={dict.username} required value={user} onChange={(e) => setUser(e.target.value)} autoCapitalize="none" autoCorrect="off" spellCheck={false} autoComplete="username" className="w-full border border-industrial-200 dark:border-industrial-800 rounded-2xl px-5 py-4 bg-white/50 dark:bg-industrial-900/50 focus:border-accent-500 dark:focus:border-accent-400 outline-none focus:ring-4 focus:ring-accent-500/10 transition-all font-medium" />
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-xs font-bold text-industrial-500 uppercase tracking-wider ms-1">{dict.password}</label>
+          <input type="password" placeholder={dict.password} required value={pass} onChange={(e) => setPass(e.target.value)} className="w-full border border-industrial-200 dark:border-industrial-800 rounded-2xl px-5 py-4 bg-white/50 dark:bg-industrial-900/50 focus:border-accent-500 dark:focus:border-accent-400 outline-none focus:ring-4 focus:ring-accent-500/10 transition-all font-medium" />
+        </div>
+        <button type="submit" className="w-full bg-industrial-900 text-white dark:bg-white dark:text-industrial-900 font-bold py-4 rounded-2xl mt-8 hover:bg-accent-600 dark:hover:bg-accent-500 hover:text-white transition-all duration-300 shadow-premium hover:shadow-premium-hover hover:-translate-y-0.5">{dict.loginBtn}</button>
       </form>
     </div>
   );
@@ -576,9 +591,9 @@ function AdminLogin({ setToken, setRole, setSite, dict }) {
 function QRScannerModal({ onScan, onClose }) {
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 print:hidden">
-      <div className="bg-white dark:bg-black p-6 rounded-2xl w-full max-w-md shadow-2xl">
+      <div className="bg-white dark:bg-industrial-950 p-6 rounded-2xl w-full max-w-md shadow-2xl">
         <h3 className="text-xl font-extrabold mb-4 text-center">Scan Room QR</h3>
-        <div className="w-full overflow-hidden rounded-xl border border-gray-200 dark:border-zinc-800 bg-black aspect-square flex items-center justify-center">
+        <div className="w-full overflow-hidden rounded-xl border border-industrial-200 dark:border-industrial-800 bg-black aspect-square flex items-center justify-center">
           <Scanner
             formats={['qr_code', 'micro_qr_code']}
             constraints={{ facingMode: { ideal: 'environment' } }}
@@ -769,19 +784,22 @@ function RequestForm({ dict, lang }) {
 
   if (successTicket) {
     return (
-      <div className="max-w-2xl mx-auto print:hidden text-center">
-        <BrandLogo className="h-12 w-auto drop-shadow-sm object-contain mx-auto mb-4" />
-        <div className="bg-white dark:bg-black border border-gray-200 dark:border-zinc-800 rounded-[2rem] p-10 shadow-sm">
-          <div className="w-16 h-16 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center mx-auto mb-6">
-            <Check size={32} className="text-emerald-600 dark:text-emerald-400" />
+      <div className="max-w-2xl mx-auto print:hidden text-center animate-fade-in">
+        <BrandLogo className="h-14 w-auto drop-shadow-sm object-contain mx-auto mb-8" />
+        <div className="glass-panel p-10 sm:p-12 relative overflow-hidden rounded-[2.5rem]">
+          <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-emerald-400 to-emerald-600" />
+          <div className="w-20 h-20 rounded-2xl bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center mx-auto mb-8 shadow-sm">
+            <Check size={40} className="text-emerald-600 dark:text-emerald-400" />
           </div>
-          <h2 className="text-3xl font-extrabold tracking-tighter mb-2">{dict.submitSuccess}</h2>
-          <p className="text-gray-500 mb-4">{dict.ticketCreated}</p>
-          <p className="text-4xl font-mono font-extrabold mb-8">{successTicket.id}</p>
+          <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tighter mb-3 text-industrial-900 dark:text-white">{dict.submitSuccess}</h2>
+          <p className="text-industrial-500 dark:text-industrial-400 mb-6 font-medium text-lg">{dict.ticketCreated}</p>
+          <div className="bg-industrial-50 dark:bg-industrial-900/50 py-6 px-8 rounded-2xl border border-industrial-100 dark:border-industrial-800 mb-8 inline-block">
+            <p className="text-5xl font-mono font-extrabold text-industrial-900 dark:text-white tracking-tight">{successTicket.id}</p>
+          </div>
           {photoWarning && (
-            <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded-2xl p-4 text-amber-700 dark:text-amber-400 text-sm font-semibold mb-6">{photoWarning}</div>
+            <div className="bg-accent-50 dark:bg-accent-950/30 border border-accent-200 dark:border-accent-900 rounded-2xl p-4 text-accent-700 dark:text-accent-400 text-sm font-bold mb-8">{photoWarning}</div>
           )}
-          <button type="button" onClick={() => setSuccessTicket(null)} className="w-full bg-black text-white dark:bg-white dark:text-black py-4 rounded-2xl font-extrabold hover:bg-gray-900 dark:hover:bg-gray-100 transition-colors">
+          <button type="button" onClick={() => setSuccessTicket(null)} className="w-full bg-industrial-900 text-white dark:bg-white dark:text-industrial-900 py-4 rounded-2xl font-extrabold text-lg transition-all shadow-premium hover:shadow-premium-hover hover:-translate-y-0.5">
             {dict.submitAnother}
           </button>
         </div>
@@ -791,13 +809,16 @@ function RequestForm({ dict, lang }) {
 
   if (!hasValidToken) {
     return (
-      <div className="max-w-2xl mx-auto print:hidden text-center">
-        <BrandLogo className="h-12 w-auto drop-shadow-sm object-contain mx-auto mb-6" />
-        <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded-[2rem] p-10">
-          <QrCode size={48} className="mx-auto mb-4 text-amber-600" />
-          <h2 className="text-2xl font-extrabold tracking-tighter mb-3">{dict.scanQrRequired}</h2>
-          <button type="button" onClick={() => setShowScanner(true)} className="mt-6 bg-black text-white dark:bg-white dark:text-black px-8 py-4 rounded-2xl font-bold inline-flex items-center gap-2">
-            <QrCode size={18} /> {dict.scan}
+      <div className="max-w-2xl mx-auto print:hidden text-center animate-fade-in">
+        <BrandLogo className="h-14 w-auto drop-shadow-sm object-contain mx-auto mb-8" />
+        <div className="glass-panel p-10 sm:p-12 relative overflow-hidden rounded-[2.5rem]">
+          <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-accent-400 to-accent-600" />
+          <div className="w-24 h-24 rounded-3xl bg-accent-100/50 dark:bg-accent-900/30 flex items-center justify-center mx-auto mb-8 shadow-sm">
+            <QrCode size={48} className="text-accent-600 dark:text-accent-500" />
+          </div>
+          <h2 className="text-3xl font-extrabold tracking-tighter mb-4 text-industrial-900 dark:text-white">{dict.scanQrRequired}</h2>
+          <button type="button" onClick={() => setShowScanner(true)} className="mt-6 w-full sm:w-auto bg-industrial-900 text-white dark:bg-white dark:text-industrial-900 px-10 py-5 rounded-2xl font-extrabold text-lg inline-flex items-center justify-center gap-3 transition-all shadow-premium hover:shadow-premium-hover hover:-translate-y-0.5">
+            <QrCode size={24} /> {dict.scan}
           </button>
         </div>
         {showScanner && <QRScannerModal onClose={() => setShowScanner(false)} onScan={handleScanSuccess} />}
@@ -806,18 +827,22 @@ function RequestForm({ dict, lang }) {
   }
 
   return (
-    <div className="max-w-2xl mx-auto print:hidden">
+    <div className="max-w-2xl mx-auto print:hidden animate-fade-in">
       {showScanner && <QRScannerModal onClose={() => setShowScanner(false)} onScan={handleScanSuccess} />}
-      <div className="mb-10 text-center">
-        <BrandLogo className="h-12 w-auto drop-shadow-sm object-contain mx-auto mb-4" />
-        <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tighter mb-3">{dict.request}</h1>
-        <p className="text-gray-500 dark:text-gray-400">{dict.requestSubtitle}</p>
+      <div className="mb-12 text-center">
+        <div className="bg-white dark:bg-industrial-900 w-20 h-20 mx-auto rounded-2xl shadow-premium flex items-center justify-center mb-6">
+          <BrandLogo className="h-12 w-auto object-contain" />
+        </div>
+        <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tighter mb-3 text-industrial-900 dark:text-white">{dict.request}</h1>
+        <p className="text-industrial-500 dark:text-industrial-400 font-medium">{dict.requestSubtitle}</p>
       </div>
 
-      <form onSubmit={submit} className="bg-white dark:bg-black border border-gray-200 dark:border-zinc-800 rounded-[2rem] p-6 sm:p-10 shadow-sm space-y-6">
+      <form onSubmit={submit} className="glass-panel rounded-[2.5rem] p-6 sm:p-12 space-y-8 relative overflow-hidden">
+        <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-industrial-900 to-industrial-700 dark:from-white dark:to-industrial-200" />
+
         {departmentName && (
-          <div className="inline-flex items-center gap-2 bg-gray-100 dark:bg-zinc-900 px-4 py-2 rounded-full text-sm font-bold">
-            <span className="text-gray-500">{dict.department}:</span> {departmentName}
+          <div className="inline-flex items-center gap-2 bg-industrial-100 dark:bg-industrial-900 px-4 py-2 rounded-full text-sm font-bold">
+            <span className="text-industrial-500 dark:text-industrial-400">{dict.department}:</span> {departmentName}
           </div>
         )}
 
@@ -828,12 +853,12 @@ function RequestForm({ dict, lang }) {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
           <div>
-            <label className="text-sm font-bold text-gray-900 dark:text-gray-100 block mb-2">{dict.phoneNumber}</label>
+            <label className="text-sm font-bold text-industrial-900 dark:text-industrial-50 block mb-2">{dict.phoneNumber}</label>
             <div className="flex gap-2" dir="ltr">
               <select
                 value={form.countryCode}
                 onChange={(e) => setForm({ ...form, countryCode: e.target.value })}
-                className="border border-gray-200 dark:border-zinc-800 rounded-2xl px-3 py-4 bg-transparent focus:border-black dark:focus:border-white outline-none appearance-none transition-all font-medium shrink-0"
+                className="border border-industrial-200 dark:border-industrial-800 rounded-2xl px-3 py-4 bg-transparent focus:border-industrial-900 dark:focus:border-industrial-50 outline-none appearance-none transition-all font-medium shrink-0"
               >
                 {COUNTRY_CODES.map((c) => <option key={c.code} value={c.code} className="text-black">{c.flag} {c.code}</option>)}
               </select>
@@ -844,37 +869,37 @@ function RequestForm({ dict, lang }) {
                 placeholder="5X XXX XXXX"
                 value={form.phoneNumber}
                 onChange={(e) => setForm({ ...form, phoneNumber: e.target.value })}
-                className="w-full border border-gray-200 dark:border-zinc-800 rounded-2xl px-5 py-4 bg-transparent focus:border-black dark:focus:border-white focus:ring-1 focus:ring-black dark:focus:ring-white outline-none transition-all"
+                className="w-full border border-industrial-200 dark:border-industrial-800 rounded-2xl px-5 py-4 bg-transparent focus:border-industrial-900 dark:focus:border-industrial-50 focus:ring-1 focus:ring-accent-500/20 outline-none transition-all"
               />
             </div>
-            <p className="text-xs text-gray-500 mt-2">{dict.phoneRequired}</p>
+            <p className="text-xs text-industrial-500 dark:text-industrial-400 mt-2">{dict.phoneRequired}</p>
           </div>
           <Input label={dict.emailAddress} type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
         </div>
 
         <hr className="border-gray-100 dark:border-zinc-900" />
 
-        <div className="space-y-6 bg-gray-50 dark:bg-zinc-900/50 p-6 rounded-3xl border border-gray-100 dark:border-zinc-800/50">
+        <div className="space-y-6 bg-industrial-50 dark:bg-industrial-900/50 p-6 rounded-3xl border border-industrial-100 dark:border-industrial-800/50">
           <div>
-            <label className="text-sm font-bold text-gray-900 dark:text-gray-100 block mb-2">{dict.room}</label>
-            <div className="w-full border border-gray-200 dark:border-zinc-800 rounded-2xl px-5 py-4 bg-gray-100 dark:bg-zinc-900 font-medium">
+            <label className="text-sm font-bold text-industrial-900 dark:text-industrial-50 block mb-2">{dict.room}</label>
+            <div className="w-full border border-industrial-200 dark:border-industrial-800 rounded-2xl px-5 py-4 bg-industrial-100 dark:bg-industrial-900 font-medium">
               {resolvedRoomName}
-              <p className="text-xs text-gray-500 mt-1">{dict.roomLocked}</p>
+              <p className="text-xs text-industrial-500 dark:text-industrial-400 mt-1">{dict.roomLocked}</p>
             </div>
           </div>
           <div>
-            <label className="text-sm font-bold text-gray-900 dark:text-gray-100 block mb-2">{dict.asset}</label>
+            <label className="text-sm font-bold text-industrial-900 dark:text-industrial-50 block mb-2">{dict.asset}</label>
             <Select value={form.asset} onChange={(e) => setForm({ ...form, asset: e.target.value })} options={assets} placeholder={dict.selectPlaceholder} />
           </div>
         </div>
 
         <div>
-          <label className="text-sm font-bold text-gray-900 dark:text-gray-100 block mb-2">{dict.issue}</label>
+          <label className="text-sm font-bold text-industrial-900 dark:text-industrial-50 block mb-2">{dict.issue}</label>
           <Select disabled={!form.asset} value={form.issue} onChange={(e) => setForm({ ...form, issue: e.target.value })} options={ISSUES} placeholder={dict.selectPlaceholder} />
         </div>
 
         <div>
-          <label className="text-sm font-bold text-gray-900 dark:text-gray-100 block mb-3">{dict.priority}</label>
+          <label className="text-sm font-bold text-industrial-900 dark:text-industrial-50 block mb-3">{dict.priority}</label>
           <div className="grid grid-cols-3 gap-3">
             <RadioCard label={dict.low} active={form.priority === 'Low'} onClick={() => setForm({ ...form, priority: 'Low' })} />
             <RadioCard label={dict.medium} active={form.priority === 'Medium'} onClick={() => setForm({ ...form, priority: 'Medium' })} />
@@ -883,17 +908,17 @@ function RequestForm({ dict, lang }) {
         </div>
 
         <div>
-          <label className="text-sm font-bold text-gray-900 dark:text-gray-100 block mb-2">{dict.notes}</label>
-          <textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} maxLength={250} rows={3} className={`w-full border rounded-2xl px-5 py-4 bg-transparent outline-none transition-all ${isOther && !form.notes ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-200 dark:border-zinc-800 focus:border-black dark:focus:border-white'}`} />
+          <label className="text-sm font-bold text-industrial-900 dark:text-industrial-50 block mb-2">{dict.notes}</label>
+          <textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} maxLength={250} rows={3} className={`w-full border rounded-2xl px-5 py-4 bg-transparent outline-none transition-all ${isOther && !form.notes ? 'border-red-500 ring-1 ring-red-500' : 'border-industrial-200 dark:border-industrial-800 focus:border-industrial-900 dark:focus:border-industrial-50'}`} />
           {isOther && !form.notes && <p className="text-red-500 text-xs mt-2 font-semibold" aria-live="polite">{dict.otherRequired}</p>}
         </div>
 
         <div>
-          <label className="text-sm font-bold text-gray-900 dark:text-gray-100 block mb-2">{dict.issuePhoto}</label>
+          <label className="text-sm font-bold text-industrial-900 dark:text-industrial-50 block mb-2">{dict.issuePhoto}</label>
           <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handlePhotoSelected} className="hidden" />
           <input ref={galleryInputRef} type="file" accept="image/*" onChange={handlePhotoSelected} className="hidden" />
           {photoPreview ? (
-            <div className="relative rounded-2xl overflow-hidden border border-gray-200 dark:border-zinc-800">
+            <div className="relative rounded-2xl overflow-hidden border border-industrial-200 dark:border-industrial-800">
               <img src={photoPreview} alt={dict.issuePhoto} className="w-full max-h-64 object-cover" />
               <button
                 type="button"
@@ -909,27 +934,27 @@ function RequestForm({ dict, lang }) {
               <button
                 type="button"
                 onClick={() => cameraInputRef.current?.click()}
-                className="border border-gray-200 dark:border-zinc-800 rounded-2xl px-4 py-4 font-bold text-sm flex items-center justify-center gap-2 hover:border-black dark:hover:border-white transition-colors"
+                className="border border-industrial-200 dark:border-industrial-800 rounded-2xl px-4 py-4 font-bold text-sm flex items-center justify-center gap-2 hover:border-black dark:hover:border-white transition-colors"
               >
                 <Camera size={18} /> {dict.takePhoto}
               </button>
               <button
                 type="button"
                 onClick={() => galleryInputRef.current?.click()}
-                className="border border-gray-200 dark:border-zinc-800 rounded-2xl px-4 py-4 font-bold text-sm flex items-center justify-center gap-2 hover:border-black dark:hover:border-white transition-colors"
+                className="border border-industrial-200 dark:border-industrial-800 rounded-2xl px-4 py-4 font-bold text-sm flex items-center justify-center gap-2 hover:border-black dark:hover:border-white transition-colors"
               >
                 <ImagePlus size={18} /> {dict.choosePhoto}
               </button>
             </div>
           )}
-          <p className="text-xs text-gray-500 mt-2">{dict.photoUploadNote}</p>
+          <p className="text-xs text-industrial-500 dark:text-industrial-400 mt-2">{dict.photoUploadNote}</p>
         </div>
 
         {submitError && (
           <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 rounded-2xl p-4 text-red-700 dark:text-red-400 text-sm font-semibold">{submitError}</div>
         )}
 
-        <button type="submit" disabled={!isValid || submitting} className="w-full bg-black text-white dark:bg-white dark:text-black py-4 rounded-2xl font-extrabold text-lg flex items-center justify-center gap-2 hover:bg-gray-900 dark:hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all active:scale-[0.98]">
+        <button type="submit" disabled={!isValid || submitting} className="w-full bg-industrial-900 text-white dark:bg-industrial-50 dark:text-industrial-900 hover:bg-industrial-800 dark:hover:bg-industrial-200 py-4 rounded-2xl font-extrabold text-lg flex items-center justify-center gap-2 hover:bg-gray-900 dark:hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all active:scale-[0.98]">
           {submitting ? dict.scanning : dict.submit} {!submitting && <ArrowRight size={20} className="rtl:rotate-180" />}
         </button>
       </form>
@@ -940,27 +965,27 @@ function RequestForm({ dict, lang }) {
 function Input({ label, value, onChange, type = 'text', required }) {
   return (
     <div>
-      <label className="text-sm font-bold text-gray-900 dark:text-gray-100 block mb-2">{label}</label>
-      <input type={type} required={required} value={value} onChange={onChange} className="w-full border border-gray-200 dark:border-zinc-800 rounded-2xl px-5 py-4 bg-transparent focus:border-black dark:focus:border-white focus:ring-1 focus:ring-black dark:focus:ring-white outline-none transition-all" />
+      <label className="text-xs font-extrabold text-industrial-500 dark:text-industrial-400 block mb-2 uppercase tracking-widest">{label}</label>
+      <input type={type} required={required} value={value} onChange={onChange} className="w-full border border-industrial-200 dark:border-industrial-800 rounded-2xl px-5 py-4 bg-white/50 dark:bg-industrial-900/50 backdrop-blur-xl focus:border-accent-500 dark:focus:border-accent-400 outline-none transition-all shadow-sm focus:ring-4 focus:ring-accent-500/10 font-bold text-industrial-900 dark:text-white" />
     </div>
   );
 }
 
 function Select({ value, onChange, options, disabled, placeholder }) {
   return (
-    <select disabled={disabled} value={value} onChange={onChange} className="w-full border border-gray-200 dark:border-zinc-800 rounded-2xl px-5 py-4 bg-transparent focus:border-black dark:focus:border-white outline-none appearance-none disabled:opacity-40 transition-all font-medium">
+    <select disabled={disabled} value={value} onChange={onChange} className="w-full border border-industrial-200 dark:border-industrial-800 rounded-2xl px-5 py-4 bg-white/50 dark:bg-industrial-900/50 backdrop-blur-xl focus:border-accent-500 dark:focus:border-accent-400 outline-none appearance-none disabled:opacity-40 transition-all font-bold shadow-sm focus:ring-4 focus:ring-accent-500/10 text-industrial-900 dark:text-white">
       <option value="" disabled>{placeholder}</option>
-      {options.map((o) => <option key={o} value={o} className="text-black">{o}</option>)}
+      {options.map((o) => <option key={o} value={o} className="text-industrial-900">{o}</option>)}
     </select>
   );
 }
 
 function RadioCard({ label, active, onClick }) {
-  const activeClass = 'bg-black text-white border-black dark:bg-white dark:text-black dark:border-white';
-  const inactiveClass = 'border-gray-200 text-gray-500 hover:border-gray-300 dark:border-zinc-800 dark:hover:border-zinc-700';
+  const activeClass = 'bg-accent-500 text-white border-accent-500 shadow-[0_0_20px_rgba(249,140,7,0.3)] ring-2 ring-accent-500/20';
+  const inactiveClass = 'border-industrial-200 bg-white/50 dark:bg-industrial-900/50 dark:border-industrial-800 text-industrial-500 dark:text-industrial-400 hover:border-industrial-300 dark:hover:border-industrial-700 hover:bg-white dark:hover:bg-industrial-800';
 
   return (
-    <button type="button" onClick={onClick} className={`py-4 px-2 rounded-2xl border font-bold text-center transition-all active:scale-95 ${active ? activeClass : inactiveClass}`}>
+    <button type="button" onClick={onClick} className={`py-4 px-2 rounded-2xl border font-extrabold text-sm text-center transition-all shadow-sm active:scale-[0.98] ${active ? activeClass : inactiveClass}`}>
       {label}
     </button>
   );
@@ -1025,21 +1050,23 @@ function TrackingPortal({ dict }) {
   return (
     <div className="max-w-3xl mx-auto print:hidden">
       <div className="text-center mb-10">
-        <BrandLogo className="h-20 w-auto mx-auto mb-4 drop-shadow-lg object-contain" />
-        <h2 className="text-3xl font-extrabold tracking-tighter mb-2">{dict.track}</h2>
-        <p className="text-gray-500 dark:text-gray-400 text-sm">{dict.trackSubtitle}</p>
-        <p className="text-amber-700 dark:text-amber-400 text-sm font-semibold mt-3 max-w-md mx-auto">{dict.trackVerifyHint}</p>
+        <div className="bg-white dark:bg-industrial-900 w-20 h-20 mx-auto rounded-2xl shadow-premium flex items-center justify-center mb-6">
+          <BrandLogo className="h-12 w-auto object-contain" />
+        </div>
+        <h2 className="text-3xl font-extrabold tracking-tighter mb-2 text-industrial-900 dark:text-white">{dict.track}</h2>
+        <p className="text-industrial-500 dark:text-industrial-400 text-sm font-medium">{dict.trackSubtitle}</p>
+        <p className="text-accent-600 dark:text-accent-500 text-sm font-bold mt-4 max-w-md mx-auto">{dict.trackVerifyHint}</p>
       </div>
       <div className="space-y-4 mb-12">
-        <div className="relative">
-          <Search className="absolute start-6 top-1/2 -translate-y-1/2 text-gray-400" size={24} />
+        <div className="relative group">
+          <Search className="absolute start-6 top-1/2 -translate-y-1/2 text-industrial-400 group-focus-within:text-accent-500 transition-colors" size={24} />
           <input
             type="text"
             placeholder={dict.search}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && canSearch && !loading) runSearch(); }}
-            className="w-full ps-16 pe-6 py-5 text-lg font-medium bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-3xl outline-none focus:border-black dark:focus:border-white focus:ring-2 focus:ring-black/5 dark:focus:ring-white/5 transition-all shadow-sm"
+            className="w-full ps-16 pe-6 py-5 text-lg font-bold bg-white/80 dark:bg-industrial-900/80 border border-industrial-200 dark:border-industrial-800 rounded-3xl outline-none focus:border-accent-500 dark:focus:border-accent-400 focus:ring-4 focus:ring-accent-500/10 transition-all shadow-sm backdrop-blur-xl"
           />
         </div>
         <input
@@ -1048,13 +1075,13 @@ function TrackingPortal({ dict }) {
           value={employeeId}
           onChange={(e) => setEmployeeId(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter' && canSearch && !loading) runSearch(); }}
-          className="w-full px-6 py-5 text-lg font-medium bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-3xl outline-none focus:border-black dark:focus:border-white focus:ring-2 focus:ring-black/5 dark:focus:ring-white/5 transition-all shadow-sm"
+          className="w-full px-6 py-5 text-lg font-bold bg-white/80 dark:bg-industrial-900/80 border border-industrial-200 dark:border-industrial-800 rounded-3xl outline-none focus:border-accent-500 dark:focus:border-accent-400 focus:ring-4 focus:ring-accent-500/10 transition-all shadow-sm backdrop-blur-xl"
         />
         <button
           type="button"
           onClick={runSearch}
           disabled={loading || !canSearch}
-          className="w-full bg-black text-white dark:bg-white dark:text-black py-4 rounded-2xl text-base font-bold disabled:opacity-40 transition-colors"
+          className="w-full bg-industrial-900 text-white dark:bg-white dark:text-industrial-900 py-4 rounded-2xl text-lg font-extrabold disabled:opacity-40 transition-all hover:bg-accent-600 dark:hover:bg-accent-500 hover:text-white shadow-premium hover:-translate-y-0.5"
         >
           {loading ? '...' : dict.track}
         </button>
@@ -1062,19 +1089,19 @@ function TrackingPortal({ dict }) {
 
       <div className="space-y-6">
         {searched && !loading && results.length === 0 && (
-          <p className="text-center text-gray-500">{dict.trackNotFound}</p>
+          <p className="text-center text-industrial-500 dark:text-industrial-400 font-medium">{dict.trackNotFound}</p>
         )}
         {results.map((ticket) => (
-          <div key={ticket.id} className={`border rounded-[2rem] p-8 bg-white dark:bg-black shadow-sm ${ticket.status === 'Rejected' ? 'border-red-300 dark:border-red-900' : 'border-gray-200 dark:border-zinc-800'}`}>
+          <div key={ticket.id} className={`glass-panel rounded-[2rem] p-8 ${ticket.status === 'Rejected' ? 'border-red-300 dark:border-red-900' : ''}`}>
             <div className="flex justify-between items-start mb-8">
               <div>
-                <h3 className="text-2xl font-extrabold tracking-tight mb-1">{ticket.issue}</h3>
-                <p className="text-gray-500">{ticket.room} — {ticket.asset}</p>
+                <h3 className="text-2xl font-extrabold tracking-tight mb-1 text-industrial-900 dark:text-white">{ticket.issue}</h3>
+                <p className="text-industrial-500 dark:text-industrial-400 font-medium">{ticket.room} — {ticket.asset}</p>
                 {ticket.status === 'Rejected' && ticket.rejectionReason && (
-                  <p className="text-sm text-red-600 dark:text-red-400 mt-2 font-medium">{ticket.rejectionReason}</p>
+                  <p className="text-sm text-red-600 dark:text-red-400 mt-2 font-bold">{ticket.rejectionReason}</p>
                 )}
               </div>
-              <span className={`font-mono font-bold px-3 py-1 rounded-lg ${ticket.status === 'Rejected' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : 'text-gray-400 bg-gray-100 dark:bg-zinc-900'}`}>
+              <span className={`font-mono font-bold px-3 py-1 rounded-lg shadow-sm ${ticket.status === 'Rejected' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : 'text-industrial-600 bg-industrial-100 dark:bg-industrial-900 dark:text-industrial-300'}`}>
                 {ticket.id}
               </span>
             </div>
@@ -1087,29 +1114,29 @@ function TrackingPortal({ dict }) {
               </div>
             ) : (
               <div className="relative flex justify-between items-center">
-                <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-0.5 bg-gray-100 dark:bg-zinc-800 -z-10" />
+                <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-0.5 bg-industrial-100 dark:bg-industrial-800 -z-10" />
                 <Step label={dict.statusNew} active done={ticket.status !== 'New'} />
                 <Step label={dict.inProgress} active={['In Progress', 'Resolved', 'Completed', 'Closed'].includes(ticket.status)} done={['Resolved', 'Completed', 'Closed'].includes(ticket.status)} />
                 <Step label={dict.resolved} active={['Resolved', 'Completed', 'Closed'].includes(ticket.status)} done={['Completed', 'Closed'].includes(ticket.status)} />
               </div>
             )}
 
-            <div className="mt-10 pt-6 border-t border-gray-100 dark:border-zinc-800">
-              <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">{dict.updatesComments}</h4>
+            <div className="mt-10 pt-6 border-t border-industrial-100 dark:border-industrial-800">
+              <h4 className="text-xs font-bold text-industrial-400 uppercase tracking-wider mb-4">{dict.updatesComments}</h4>
               {comments.length === 0 ? (
-                <p className="text-sm text-gray-400">{dict.noUpdates}</p>
+                <p className="text-sm text-industrial-400 font-medium">{dict.noUpdates}</p>
               ) : (
                 <div className="space-y-3">
                   {comments.map((c) => (
-                    <div key={c.id} className="bg-gray-50 dark:bg-zinc-900/50 rounded-2xl px-5 py-4">
+                    <div key={c.id} className="bg-industrial-50 dark:bg-industrial-900/50 rounded-2xl px-5 py-4 border border-industrial-100 dark:border-industrial-800/50">
                       <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                        <span className="text-sm font-bold">{c.userName}</span>
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${c.role === 'admin' ? 'bg-black text-white dark:bg-white dark:text-black' : 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-400'}`}>
+                        <span className="text-sm font-bold text-industrial-900 dark:text-white">{c.userName}</span>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase shadow-sm ${c.role === 'admin' ? 'bg-accent-500 text-white' : 'bg-industrial-200 text-industrial-800 dark:bg-industrial-800 dark:text-industrial-300'}`}>
                           {c.role}
                         </span>
-                        <span className="text-[11px] text-gray-400 ms-auto">{formatHistoryDate(c.createdAt)}</span>
+                        <span className="text-[11px] font-mono text-industrial-400 ms-auto">{formatHistoryDate(c.createdAt)}</span>
                       </div>
-                      <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{c.commentText}</p>
+                      <p className="text-sm text-industrial-700 dark:text-industrial-300 whitespace-pre-wrap font-medium">{c.commentText}</p>
                     </div>
                   ))}
                 </div>
@@ -1125,7 +1152,7 @@ function TrackingPortal({ dict }) {
 function Step({ label, active, done, rejected }) {
   if (rejected) {
     return (
-      <div className="flex flex-col items-center gap-3 bg-white dark:bg-black px-2">
+      <div className="flex flex-col items-center gap-3 bg-white dark:bg-industrial-950 px-2">
         <div className="w-10 h-10 rounded-full flex items-center justify-center border-2 bg-red-500 border-red-500 text-white shadow-[0_0_20px_rgba(239,68,68,0.35)]">
           <X size={18} strokeWidth={3} />
         </div>
@@ -1135,11 +1162,11 @@ function Step({ label, active, done, rejected }) {
   }
 
   return (
-    <div className="flex flex-col items-center gap-3 bg-white dark:bg-black px-2">
-      <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all duration-500 ${done ? 'bg-black border-black text-white dark:bg-white dark:border-white dark:text-black' : active ? 'border-black dark:border-white bg-white dark:bg-black text-black dark:text-white' : 'border-gray-200 dark:border-zinc-800 bg-white dark:bg-black text-gray-300'}`}>
-        {done ? <Check size={16} strokeWidth={3} /> : <div className={`w-2.5 h-2.5 rounded-full ${active ? 'bg-black dark:bg-white' : 'bg-transparent'}`} />}
+    <div className="flex flex-col items-center gap-3 bg-white dark:bg-industrial-950 px-2">
+      <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all duration-500 ${done ? 'bg-black border-black text-white dark:bg-white dark:border-white dark:text-black' : active ? 'border-industrial-900 dark:border-industrial-50 bg-white dark:bg-industrial-950 text-industrial-900 dark:text-industrial-50' : 'border-industrial-200 dark:border-industrial-800 bg-white dark:bg-industrial-950 text-gray-300'}`}>
+        {done ? <Check size={16} strokeWidth={3} /> : <div className={`w-2.5 h-2.5 rounded-full ${active ? 'bg-industrial-900 dark:bg-industrial-50' : 'bg-transparent'}`} />}
       </div>
-      <span className={`text-xs font-bold ${active ? 'text-black dark:text-white' : 'text-gray-400'}`}>{label}</span>
+      <span className={`text-xs font-bold ${active ? 'text-industrial-900 dark:text-industrial-50' : 'text-industrial-400'}`}>{label}</span>
     </div>
   );
 }
@@ -1669,7 +1696,7 @@ function AdminDashboard({
           <BrandLogo className="h-12 sm:h-16 w-auto drop-shadow-lg object-contain" />
           <div>
             <h1 className="text-4xl font-extrabold tracking-tighter">{dict.admin}</h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{dict.adminSubtitle}</p>
+            <p className="text-sm text-industrial-500 dark:text-industrial-400 mt-1">{dict.adminSubtitle}</p>
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -1677,23 +1704,23 @@ function AdminDashboard({
           <button
             type="button"
             onClick={() => setShowTicketTrash((v) => !v)}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold transition-colors ${showTicketTrash ? 'bg-black text-white dark:bg-white dark:text-black' : 'bg-gray-100 hover:bg-gray-200 dark:bg-zinc-900 dark:hover:bg-zinc-800'}`}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold transition-colors ${showTicketTrash ? 'bg-industrial-900 text-white dark:bg-industrial-50 dark:text-industrial-900 hover:bg-industrial-800 dark:hover:bg-industrial-200' : 'bg-gray-100 hover:bg-gray-200 dark:bg-zinc-900 dark:hover:bg-zinc-800'}`}
           >
             <Trash2 size={18} /> {showTicketTrash ? dict.hideTrash : dict.viewTrash}
           </button>
           )}
           {isManager && (
-          <button type="button" onClick={() => setShowRoomModal(true)} className="flex items-center gap-2 bg-gray-100 hover:bg-gray-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-black dark:text-white px-4 py-2.5 rounded-xl font-bold transition-colors">
+          <button type="button" onClick={() => setShowRoomModal(true)} className="flex items-center gap-2 bg-gray-100 hover:bg-gray-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-industrial-900 dark:text-industrial-50 px-4 py-2.5 rounded-xl font-bold transition-colors">
             <LayoutGrid size={18} /> {dict.manageLocations}
           </button>
           )}
           {isManager && (
-          <button type="button" onClick={() => { setShowStaffModal(true); loadStaff(); }} className="flex items-center gap-2 bg-gray-100 hover:bg-gray-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-black dark:text-white px-4 py-2.5 rounded-xl font-bold transition-colors">
+          <button type="button" onClick={() => { setShowStaffModal(true); loadStaff(); }} className="flex items-center gap-2 bg-gray-100 hover:bg-gray-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-industrial-900 dark:text-industrial-50 px-4 py-2.5 rounded-xl font-bold transition-colors">
             <Users size={18} /> {dict.manageStaff}
           </button>
           )}
           {isAdmin && (
-          <div className="flex items-center gap-1 bg-gray-100 dark:bg-zinc-900 rounded-xl p-1">
+          <div className="flex items-center gap-1 bg-industrial-100 dark:bg-industrial-900 rounded-xl p-1">
             {['daily', 'weekly', 'monthly'].map((type) => (
               <button
                 key={type}
@@ -1719,28 +1746,28 @@ function AdminDashboard({
             <MetricCard label={dict.spend} value={`SAR ${totalSpend.toLocaleString()}`} />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4 print:hidden">
-            <div className="md:col-span-2 border border-gray-200 dark:border-zinc-800 bg-white dark:bg-black rounded-[2rem] p-6 h-72">
-              <h3 className="font-bold mb-4">{dict.issuesByLocation}</h3>
-              <ResponsiveContainer width="100%" height="100%">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 print:hidden">
+            <div className="md:col-span-2 glass-panel rounded-[2.5rem] p-6 sm:p-8 h-[22rem]">
+              <h3 className="font-extrabold text-xl tracking-tight mb-6 text-industrial-900 dark:text-white">{dict.issuesByLocation}</h3>
+              <ResponsiveContainer width="100%" height="85%">
                 <BarChart data={chartRoomData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#888' }} />
-                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#888' }} />
-                  <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }} />
-                  <Bar dataKey="count" fill="currentColor" className="text-black dark:text-white" radius={[4, 4, 0, 0]} />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: 'currentColor' }} className="text-industrial-400" />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: 'currentColor' }} className="text-industrial-400" />
+                  <Tooltip cursor={{ fill: 'rgba(255, 170, 26, 0.1)' }} contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 20px 40px -10px rgba(0,0,0,0.15)', background: 'var(--bg-main)', color: 'var(--text-main)', fontWeight: 'bold' }} />
+                  <Bar dataKey="count" fill="currentColor" className="text-industrial-900 dark:text-white hover:opacity-80 transition-opacity" radius={[8, 8, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
-            <div className="border border-gray-200 dark:border-zinc-800 bg-white dark:bg-black rounded-[2rem] p-6 h-72">
-              <h3 className="font-bold mb-4">{dict.statusOverview}</h3>
-              <ResponsiveContainer width="100%" height="100%">
+            <div className="glass-panel rounded-[2.5rem] p-6 sm:p-8 h-[22rem]">
+              <h3 className="font-extrabold text-xl tracking-tight mb-6 text-industrial-900 dark:text-white">{dict.statusOverview}</h3>
+              <ResponsiveContainer width="100%" height="85%">
                 <PieChart>
-                  <Pie data={statusData} innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value" stroke="none">
-                    <Cell fill="#000000" className="dark:fill-white" />
-                    <Cell fill="#9ca3af" />
-                    <Cell fill="#e5e7eb" className="dark:fill-zinc-800" />
+                  <Pie data={statusData} innerRadius={70} outerRadius={100} paddingAngle={8} dataKey="value" stroke="none">
+                    <Cell fill="#f98c07" className="drop-shadow-sm" />
+                    <Cell fill="#46628c" className="drop-shadow-sm" />
+                    <Cell fill="#1d2537" className="dark:fill-white drop-shadow-sm" />
                   </Pie>
-                  <Tooltip contentStyle={{ borderRadius: '12px', border: 'none' }} />
+                  <Tooltip contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 20px 40px -10px rgba(0,0,0,0.15)', background: 'var(--bg-main)', color: 'var(--text-main)', fontWeight: 'bold' }} />
                 </PieChart>
               </ResponsiveContainer>
             </div>
@@ -1753,22 +1780,22 @@ function AdminDashboard({
           <button
             type="button"
             onClick={() => setShowMineOnly(true)}
-            className={`px-4 py-2 rounded-xl text-sm font-bold transition-colors ${showMineOnly ? 'bg-black text-white dark:bg-white dark:text-black' : 'bg-gray-100 dark:bg-zinc-900 text-gray-500'}`}
+            className={`px-4 py-2 rounded-xl text-sm font-bold transition-colors ${showMineOnly ? 'bg-industrial-900 text-white dark:bg-industrial-50 dark:text-industrial-900 hover:bg-industrial-800 dark:hover:bg-industrial-200' : 'bg-industrial-100 dark:bg-industrial-900 text-industrial-500 dark:text-industrial-400'}`}
           >
             {dict.myTickets} ({myTickets.length})
           </button>
           <button
             type="button"
             onClick={() => setShowMineOnly(false)}
-            className={`px-4 py-2 rounded-xl text-sm font-bold transition-colors ${!showMineOnly ? 'bg-black text-white dark:bg-white dark:text-black' : 'bg-gray-100 dark:bg-zinc-900 text-gray-500'}`}
+            className={`px-4 py-2 rounded-xl text-sm font-bold transition-colors ${!showMineOnly ? 'bg-industrial-900 text-white dark:bg-industrial-50 dark:text-industrial-900 hover:bg-industrial-800 dark:hover:bg-industrial-200' : 'bg-industrial-100 dark:bg-industrial-900 text-industrial-500 dark:text-industrial-400'}`}
           >
             {dict.allTickets} ({activeTickets.length})
           </button>
         </div>
       )}
 
-      <div className="flex flex-wrap gap-3 mb-4 print:hidden">
-        <select value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })} className="border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-2 text-sm font-medium bg-transparent">
+      <div className="flex flex-wrap items-center gap-3 mb-6 print:hidden">
+        <select value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })} className="border border-industrial-200 dark:border-industrial-800 rounded-2xl px-5 py-3 text-sm font-bold bg-white/50 dark:bg-industrial-900/50 backdrop-blur-xl focus:border-accent-500 outline-none transition-all shadow-sm">
           <option value="">{dict.filterStatus}</option>
           <option value="New">New</option>
           <option value="In Progress">In Progress</option>
@@ -1776,7 +1803,7 @@ function AdminDashboard({
           <option value="Closed">Closed</option>
           <option value="Rejected">Rejected</option>
         </select>
-        <select value={filters.priority} onChange={(e) => setFilters({ ...filters, priority: e.target.value })} className="border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-2 text-sm font-medium bg-transparent">
+        <select value={filters.priority} onChange={(e) => setFilters({ ...filters, priority: e.target.value })} className="border border-industrial-200 dark:border-industrial-800 rounded-2xl px-5 py-3 text-sm font-bold bg-white/50 dark:bg-industrial-900/50 backdrop-blur-xl focus:border-accent-500 outline-none transition-all shadow-sm">
           <option value="">{dict.filterPriority}</option>
           <option value="Low">Low</option>
           <option value="Medium">Medium</option>
@@ -1785,7 +1812,7 @@ function AdminDashboard({
         <select
           value={filters.departmentId}
           onChange={(e) => setFilters({ ...filters, departmentId: e.target.value, roomId: '' })}
-          className="border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-2 text-sm font-medium bg-transparent"
+          className="border border-industrial-200 dark:border-industrial-800 rounded-2xl px-5 py-3 text-sm font-bold bg-white/50 dark:bg-industrial-900/50 backdrop-blur-xl focus:border-accent-500 outline-none transition-all shadow-sm"
         >
           <option value="">{dict.filterDepartment}</option>
           {departments.map((d) => <option key={d.id} value={d.id}>{d.name_en}</option>)}
@@ -1793,7 +1820,7 @@ function AdminDashboard({
         <select
           value={filters.roomId}
           onChange={(e) => setFilters({ ...filters, roomId: e.target.value })}
-          className="border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-2 text-sm font-medium bg-transparent max-w-[200px]"
+          className="border border-industrial-200 dark:border-industrial-800 rounded-2xl px-5 py-3 text-sm font-bold bg-white/50 dark:bg-industrial-900/50 backdrop-blur-xl focus:border-accent-500 outline-none transition-all shadow-sm max-w-[200px]"
         >
           <option value="">{dict.filterLocation}</option>
           {filterRoomOptions.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
@@ -1802,60 +1829,61 @@ function AdminDashboard({
         <select
           value={filters.site}
           onChange={(e) => setFilters({ ...filters, site: e.target.value })}
-          className="border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-2 text-sm font-medium bg-transparent"
+          className="border border-industrial-200 dark:border-industrial-800 rounded-2xl px-5 py-3 text-sm font-bold bg-white/50 dark:bg-industrial-900/50 backdrop-blur-xl focus:border-accent-500 outline-none transition-all shadow-sm"
         >
           <option value="">{dict.filterSite}</option>
           {siteOptions.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
         )}
-        <input type="date" value={filters.dateFrom} onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })} className="border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-2 text-sm bg-transparent" placeholder={dict.filterDateFrom} />
-        <input type="date" value={filters.dateTo} onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })} className="border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-2 text-sm bg-transparent" placeholder={dict.filterDateTo} />
-        <button type="button" onClick={loadTickets} className="bg-black text-white dark:bg-white dark:text-black px-5 py-2 rounded-xl text-sm font-bold">{dict.applyFilters}</button>
+        <input type="date" value={filters.dateFrom} onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })} className="border border-industrial-200 dark:border-industrial-800 rounded-2xl px-5 py-3 text-sm font-bold bg-white/50 dark:bg-industrial-900/50 backdrop-blur-xl focus:border-accent-500 outline-none transition-all shadow-sm" placeholder={dict.filterDateFrom} />
+        <input type="date" value={filters.dateTo} onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })} className="border border-industrial-200 dark:border-industrial-800 rounded-2xl px-5 py-3 text-sm font-bold bg-white/50 dark:bg-industrial-900/50 backdrop-blur-xl focus:border-accent-500 outline-none transition-all shadow-sm" placeholder={dict.filterDateTo} />
+        <button type="button" onClick={loadTickets} className="bg-industrial-900 text-white dark:bg-white dark:text-industrial-900 hover:bg-accent-600 dark:hover:bg-accent-500 hover:text-white px-6 py-3 rounded-2xl text-sm font-extrabold shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5">{dict.applyFilters}</button>
       </div>
 
-      <div className="border border-gray-200 dark:border-zinc-800 bg-white dark:bg-black rounded-[2rem] overflow-hidden print:hidden">
-        <table className="w-full text-start text-sm">
-          <thead className="bg-gray-50 dark:bg-zinc-900/50">
+      <div className="glass-panel rounded-[2.5rem] overflow-hidden print:hidden mb-8">
+        <div className="overflow-x-auto">
+        <table className="w-full text-start text-sm whitespace-nowrap">
+          <thead className="bg-industrial-100/50 dark:bg-industrial-900/30 border-b border-industrial-200/50 dark:border-industrial-800/50">
             <tr>
-              <th className="px-6 py-4 font-bold text-gray-500">{dict.ticketId}</th>
-              <th className="px-6 py-4 font-bold text-gray-500">{dict.location}</th>
-              <th className="px-6 py-4 font-bold text-gray-500">{dict.issueCol}</th>
-              <th className="px-6 py-4 font-bold text-gray-500">{dict.statusCol}</th>
-              {showTicketTrash && <th className="px-6 py-4 font-bold text-gray-500">{dict.actions}</th>}
+              <th className="px-8 py-5 text-[10px] uppercase tracking-widest font-extrabold text-industrial-500 dark:text-industrial-400">{dict.ticketId}</th>
+              <th className="px-8 py-5 text-[10px] uppercase tracking-widest font-extrabold text-industrial-500 dark:text-industrial-400">{dict.location}</th>
+              <th className="px-8 py-5 text-[10px] uppercase tracking-widest font-extrabold text-industrial-500 dark:text-industrial-400">{dict.issueCol}</th>
+              <th className="px-8 py-5 text-[10px] uppercase tracking-widest font-extrabold text-industrial-500 dark:text-industrial-400">{dict.statusCol}</th>
+              {showTicketTrash && <th className="px-8 py-5 text-[10px] uppercase tracking-widest font-extrabold text-industrial-500 dark:text-industrial-400">{dict.actions}</th>}
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100 dark:divide-zinc-800">
+          <tbody className="divide-y divide-industrial-100 dark:divide-industrial-800/50">
             {displayTickets.map((ticket) => (
-              <tr key={ticket.id} onClick={() => !showTicketTrash && setSelectedTicket(ticket)} className={`${showTicketTrash ? '' : 'cursor-pointer'} hover:bg-gray-50 dark:hover:bg-zinc-900/50 transition-colors`}>
-                <td className="px-6 py-4 font-mono font-bold">
+              <tr key={ticket.id} onClick={() => !showTicketTrash && setSelectedTicket(ticket)} className={`${showTicketTrash ? '' : 'cursor-pointer'} hover:bg-industrial-50/80 dark:hover:bg-industrial-900/30 transition-colors group`}>
+                <td className="px-8 py-5 font-mono font-extrabold text-industrial-900 dark:text-white group-hover:text-accent-600 dark:group-hover:text-accent-400 transition-colors">
                   {ticket.id}
                   {!isAdmin && isMine(ticket) && (
-                    <span className="ms-2 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400 align-middle">
+                    <span className="ms-3 px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-accent-100 text-accent-700 dark:bg-accent-900/30 dark:text-accent-400 align-middle">
                       {dict.assignedToYou}
                     </span>
                   )}
                 </td>
-                <td className="px-6 py-4 truncate max-w-[200px]">{ticket.room}</td>
-                <td className="px-6 py-4 font-medium">{ticket.issue}</td>
-                <td className="px-6 py-4">
-                  <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${statusBadgeClass(ticket.status)}`}>
+                <td className="px-8 py-5 truncate max-w-[200px] font-bold text-industrial-700 dark:text-industrial-300">{ticket.room}</td>
+                <td className="px-8 py-5 font-extrabold text-industrial-900 dark:text-white">{ticket.issue}</td>
+                <td className="px-8 py-5">
+                  <span className={`px-3 py-1 rounded-xl text-[11px] font-extrabold uppercase tracking-widest ${statusBadgeClass(ticket.status)}`}>
                     {statusLabel(dict, ticket.status)}
                   </span>
                 </td>
                 {showTicketTrash && (
-                  <td className="px-6 py-4">
-                    <div className="flex flex-wrap items-center gap-3">
+                  <td className="px-8 py-5">
+                    <div className="flex flex-wrap items-center gap-4">
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); handleRestoreTicket(ticket.id); }}
-                        className="flex items-center gap-1.5 text-xs font-bold text-emerald-600 hover:text-emerald-700"
+                        className="flex items-center gap-1.5 text-xs font-bold text-emerald-600 hover:text-emerald-700 hover:underline"
                       >
                         <RotateCcw size={14} /> {dict.restore}
                       </button>
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); handleDeleteTicketForever(ticket.id); }}
-                        className="flex items-center gap-1.5 text-xs font-bold text-red-600 hover:text-red-700"
+                        className="flex items-center gap-1.5 text-xs font-bold text-red-600 hover:text-red-700 hover:underline"
                       >
                         <Trash2 size={14} /> {dict.deleteForever}
                       </button>
@@ -1866,72 +1894,78 @@ function AdminDashboard({
             ))}
           </tbody>
         </table>
+        </div>
       </div>
 
       {selectedTicket && !showTicketTrash && (
         <div className="fixed inset-0 z-50 flex justify-end rtl:justify-start">
-          <div className="absolute inset-0 bg-black/20 backdrop-blur-sm print:hidden" onClick={() => setSelectedTicket(null)} />
-          <div className="w-full max-w-md bg-white dark:bg-black border-s border-gray-200 dark:border-zinc-800 h-full relative z-10 shadow-2xl p-8 overflow-y-auto">
-            <button type="button" onClick={() => window.print()} className="absolute top-8 end-16 p-2 rounded-full hover:bg-gray-100 dark:hover:bg-zinc-900 print:hidden" aria-label={dict.print}>
+          <div className="absolute inset-0 bg-industrial-950/40 dark:bg-black/60 backdrop-blur-sm print:hidden" onClick={() => setSelectedTicket(null)} />
+          <div className="w-full max-w-md bg-white dark:bg-industrial-950 border-s border-industrial-200 dark:border-industrial-800 h-full relative z-10 shadow-[0_0_40px_rgba(0,0,0,0.1)] p-8 overflow-y-auto transform transition-transform">
+            <button type="button" onClick={() => window.print()} className="absolute top-8 end-16 p-2 rounded-xl hover:bg-industrial-50 dark:hover:bg-industrial-900/50 text-industrial-500 hover:text-industrial-900 dark:hover:text-white transition-colors print:hidden" aria-label={dict.print}>
               <Printer size={20} />
             </button>
-            <button type="button" onClick={() => setSelectedTicket(null)} className="absolute top-8 end-6 p-2 rounded-full hover:bg-gray-100 dark:hover:bg-zinc-900 print:hidden" aria-label={dict.cancel}>
+            <button type="button" onClick={() => setSelectedTicket(null)} className="absolute top-8 end-6 p-2 rounded-xl hover:bg-industrial-50 dark:hover:bg-industrial-900/50 text-industrial-500 hover:text-industrial-900 dark:hover:text-white transition-colors print:hidden" aria-label={dict.cancel}>
               <X size={20} />
             </button>
 
-            <div className="mb-8">
-              <BrandLogo className="h-10 w-auto object-contain mb-4 print:block" />
-              <p className="text-sm font-bold text-gray-400 mb-1">{dict.workOrder}</p>
-              <h2 className="text-3xl font-extrabold tracking-tighter">{selectedTicket.id}</h2>
-              <p className="mt-4 font-medium">{selectedTicket.room} — {selectedTicket.asset}</p>
-              <p className="text-gray-500 mt-1">{selectedTicket.issue}</p>
-              <div className="mt-4 bg-gray-50 dark:bg-zinc-900/50 border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-3">
-                <p className="text-xs font-bold text-gray-400 uppercase mb-1.5">{dict.userNotes}</p>
-                <p className={`text-sm whitespace-pre-wrap ${selectedTicket.notes ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 italic'}`}>
+            <div className="mb-8 mt-4">
+              <BrandLogo className="h-10 w-auto object-contain mb-6 print:block" />
+              <p className="text-[10px] font-extrabold text-industrial-400 uppercase tracking-widest mb-2">{dict.workOrder}</p>
+              <h2 className="text-4xl font-mono font-extrabold tracking-tight text-industrial-900 dark:text-white">{selectedTicket.id}</h2>
+              <p className="mt-4 font-bold text-lg text-industrial-800 dark:text-industrial-200">{selectedTicket.room} <span className="text-industrial-400">—</span> {selectedTicket.asset}</p>
+              <p className="text-industrial-500 dark:text-industrial-400 mt-2 font-medium">{selectedTicket.issue}</p>
+              
+              <div className="mt-6 bg-industrial-50 dark:bg-industrial-900/30 border border-industrial-200 dark:border-industrial-800/50 rounded-2xl px-5 py-4 shadow-sm">
+                <p className="text-[10px] font-extrabold text-industrial-400 uppercase tracking-widest mb-2">{dict.userNotes}</p>
+                <p className={`text-sm whitespace-pre-wrap font-medium leading-relaxed ${selectedTicket.notes ? 'text-industrial-700 dark:text-industrial-300' : 'text-industrial-400 italic'}`}>
                   {selectedTicket.notes || dict.noNotes}
                 </p>
               </div>
               {selectedTicket.status === 'Rejected' && selectedTicket.rejectionReason && (
-                <p className="text-sm text-red-600 dark:text-red-400 mt-2">{selectedTicket.rejectionReason}</p>
+                <div className="mt-4 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/50 rounded-2xl px-5 py-4">
+                  <p className="text-[10px] font-extrabold text-red-600/70 dark:text-red-400/70 uppercase tracking-widest mb-2">{dict.reject}</p>
+                  <p className="text-sm text-red-700 dark:text-red-400 font-bold">{selectedTicket.rejectionReason}</p>
+                </div>
               )}
               {(isAdmin || isViewer || adminRole === 'facility') && (
-                <div className="mt-4 bg-gray-50 dark:bg-zinc-900/50 border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-3">
-                  <p className="text-xs font-bold text-gray-400 uppercase mb-2">{dict.reporterInfo}</p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                <div className="mt-4 bg-industrial-50 dark:bg-industrial-900/30 border border-industrial-200 dark:border-industrial-800/50 rounded-2xl p-5 shadow-sm">
+                  <p className="text-[10px] font-extrabold text-industrial-400 uppercase tracking-widest mb-4">{dict.reporterInfo}</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 text-sm">
                     <div>
-                      <p className="text-xs text-gray-400">{dict.name}</p>
-                      <p className="font-semibold">{selectedTicket.name || '—'}</p>
+                      <p className="text-[10px] font-bold text-industrial-400 uppercase tracking-wider mb-1">{dict.name}</p>
+                      <p className="font-extrabold text-industrial-900 dark:text-white">{selectedTicket.name || '—'}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-400">{dict.searchEmployeeId}</p>
-                      <p className="font-semibold">{selectedTicket.employeeId || '—'}</p>
+                      <p className="text-[10px] font-bold text-industrial-400 uppercase tracking-wider mb-1">{dict.searchEmployeeId}</p>
+                      <p className="font-extrabold text-industrial-900 dark:text-white">{selectedTicket.employeeId || '—'}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-400">{dict.reporterPhone}</p>
+                      <p className="text-[10px] font-bold text-industrial-400 uppercase tracking-wider mb-1">{dict.reporterPhone}</p>
                       {selectedTicket.phone ? (
-                        <a href={`tel:${selectedTicket.phone}`} className="font-semibold underline decoration-gray-300 hover:decoration-current" dir="ltr">{selectedTicket.phone}</a>
-                      ) : <p className="font-semibold">—</p>}
+                        <a href={`tel:${selectedTicket.phone}`} className="font-extrabold text-accent-600 hover:text-accent-700 dark:text-accent-500 dark:hover:text-accent-400 underline decoration-accent-500/30 hover:decoration-accent-500" dir="ltr">{selectedTicket.phone}</a>
+                      ) : <p className="font-extrabold text-industrial-900 dark:text-white">—</p>}
                     </div>
                     <div>
-                      <p className="text-xs text-gray-400">{dict.reporterEmail}</p>
+                      <p className="text-[10px] font-bold text-industrial-400 uppercase tracking-wider mb-1">{dict.reporterEmail}</p>
                       {selectedTicket.email ? (
-                        <a href={`mailto:${selectedTicket.email}`} className="font-semibold underline decoration-gray-300 hover:decoration-current break-all" dir="ltr">{selectedTicket.email}</a>
-                      ) : <p className="font-semibold">—</p>}
+                        <a href={`mailto:${selectedTicket.email}`} className="font-extrabold text-accent-600 hover:text-accent-700 dark:text-accent-500 dark:hover:text-accent-400 underline decoration-accent-500/30 hover:decoration-accent-500 break-all" dir="ltr">{selectedTicket.email}</a>
+                      ) : <p className="font-extrabold text-industrial-900 dark:text-white">—</p>}
                     </div>
-                    <div>
-                      <p className="text-xs text-gray-400">{dict.reportedAt}</p>
-                      <p className="font-semibold">{selectedTicket.createdAt ? new Date(selectedTicket.createdAt).toLocaleString() : '—'}</p>
+                    <div className="sm:col-span-2">
+                      <p className="text-[10px] font-bold text-industrial-400 uppercase tracking-wider mb-1">{dict.reportedAt}</p>
+                      <p className="font-extrabold text-industrial-900 dark:text-white">{selectedTicket.createdAt ? new Date(selectedTicket.createdAt).toLocaleString() : '—'}</p>
                     </div>
                   </div>
                   {selectedTicket.imageUrl && (
-                    <div className="mt-3">
-                      <p className="text-xs text-gray-400 mb-1">{dict.reporterPhoto}</p>
-                      <a href={selectedTicket.imageUrl} target="_blank" rel="noreferrer" className="block">
+                    <div className="mt-5">
+                      <p className="text-[10px] font-bold text-industrial-400 uppercase tracking-wider mb-2">{dict.reporterPhoto}</p>
+                      <a href={selectedTicket.imageUrl} target="_blank" rel="noreferrer" className="block relative group overflow-hidden rounded-xl border border-industrial-200 dark:border-industrial-800">
                         <img
                           src={selectedTicket.imageUrl}
                           alt={dict.reporterPhoto}
-                          className="w-full rounded-xl border border-gray-200 dark:border-zinc-800 object-cover max-h-72 hover:opacity-95 transition-opacity"
+                          className="w-full object-cover max-h-72 group-hover:scale-105 transition-transform duration-500"
                         />
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
                       </a>
                     </div>
                   )}
@@ -1942,11 +1976,11 @@ function AdminDashboard({
             <div className="space-y-6 print:hidden">
               {isAdmin ? (
                 <div>
-                  <label className="text-xs font-bold text-gray-400 block mb-2 uppercase">{dict.assign}</label>
+                  <label className="text-[10px] font-extrabold text-industrial-400 block mb-2 uppercase tracking-widest">{dict.assign}</label>
                   <select
                     value={pendingAssignee}
                     onChange={(e) => setPendingAssignee(e.target.value)}
-                    className="w-full border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-3 bg-transparent outline-none"
+                    className="w-full border border-industrial-200 dark:border-industrial-800 rounded-2xl px-5 py-4 bg-white/50 dark:bg-industrial-900/50 backdrop-blur-xl focus:border-accent-500 outline-none transition-all shadow-sm font-bold"
                   >
                     <option value="">{dict.selectPlaceholder}</option>
                     {facilityUsers.map((user) => (
@@ -1957,7 +1991,7 @@ function AdminDashboard({
                     <button
                       type="button"
                       onClick={handleSubmitAssign}
-                      className="mt-3 w-full bg-black text-white dark:bg-white dark:text-black py-3 rounded-xl font-bold hover:opacity-90 transition-opacity"
+                      className="mt-3 w-full bg-industrial-900 text-white dark:bg-white dark:text-industrial-900 py-4 rounded-2xl font-extrabold shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all"
                     >
                       {dict.submitAssign}
                     </button>
@@ -1965,93 +1999,95 @@ function AdminDashboard({
                 </div>
               ) : (
                 <div>
-                  <label className="text-xs font-bold text-gray-400 block mb-2 uppercase">{dict.assignedTo}</label>
-                  <p className="w-full border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-3 font-semibold">
+                  <label className="text-[10px] font-extrabold text-industrial-400 block mb-2 uppercase tracking-widest">{dict.assignedTo}</label>
+                  <div className="w-full border border-industrial-200 dark:border-industrial-800 rounded-2xl px-5 py-4 font-extrabold bg-industrial-50 dark:bg-industrial-900/30">
                     {selectedTicket.assignee || dict.unassigned}
-                  </p>
+                  </div>
                 </div>
               )}
 
               {isAdmin && (
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-xs font-bold text-gray-400 block mb-2 uppercase">{dict.unitPrice}</label>
-                  <input type="number" min="0" step="any" value={selectedTicket.unitPrice || ''} onChange={(e) => updateTicket(selectedTicket.id, { unitPrice: e.target.value })} className="w-full border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-3 bg-transparent outline-none" />
+                  <label className="text-[10px] font-extrabold text-industrial-400 block mb-2 uppercase tracking-widest">{dict.unitPrice}</label>
+                  <input type="number" min="0" step="any" value={selectedTicket.unitPrice || ''} onChange={(e) => updateTicket(selectedTicket.id, { unitPrice: e.target.value })} className="w-full border border-industrial-200 dark:border-industrial-800 rounded-2xl px-5 py-4 bg-white/50 dark:bg-industrial-900/50 backdrop-blur-xl focus:border-accent-500 outline-none transition-all shadow-sm font-bold" />
                 </div>
                 <div>
-                  <label className="text-xs font-bold text-gray-400 block mb-2 uppercase">{dict.units}</label>
-                  <input type="number" min="1" step="1" value={selectedTicket.units || ''} onChange={(e) => updateTicket(selectedTicket.id, { units: e.target.value })} className="w-full border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-3 bg-transparent outline-none" />
+                  <label className="text-[10px] font-extrabold text-industrial-400 block mb-2 uppercase tracking-widest">{dict.units}</label>
+                  <input type="number" min="1" step="1" value={selectedTicket.units || ''} onChange={(e) => updateTicket(selectedTicket.id, { units: e.target.value })} className="w-full border border-industrial-200 dark:border-industrial-800 rounded-2xl px-5 py-4 bg-white/50 dark:bg-industrial-900/50 backdrop-blur-xl focus:border-accent-500 outline-none transition-all shadow-sm font-bold" />
                 </div>
-                <div>
-                  <label className="text-xs font-bold text-gray-400 block mb-2 uppercase">{dict.cost}</label>
-                  <p className="w-full border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-3 font-bold bg-gray-50 dark:bg-zinc-900">
-                    {((Number(selectedTicket.unitPrice) || 0) * (Number(selectedTicket.units) || 1)).toLocaleString()}
-                  </p>
+                <div className="col-span-2">
+                  <label className="text-[10px] font-extrabold text-industrial-400 block mb-2 uppercase tracking-widest">{dict.cost}</label>
+                  <div className="w-full border border-industrial-200 dark:border-industrial-800 rounded-2xl px-5 py-4 font-extrabold text-lg bg-industrial-50 dark:bg-industrial-900/30 flex justify-between items-center">
+                    <span className="text-industrial-500">SAR</span>
+                    <span>{((Number(selectedTicket.unitPrice) || 0) * (Number(selectedTicket.units) || 1)).toLocaleString()}</span>
+                  </div>
                 </div>
               </div>
               )}
 
-              <div className="flex flex-wrap gap-2 pt-4">
+              <div className="flex flex-col gap-3 pt-4">
                 {isAdmin && (selectedTicket.status === 'New' || selectedTicket.status === 'Pending') && (
-                  <>
-                    <button type="button" onClick={() => updateTicket(selectedTicket.id, { status: 'In Progress' })} className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white py-3 rounded-xl font-bold transition-colors">
+                  <div className="flex gap-3">
+                    <button type="button" onClick={() => updateTicket(selectedTicket.id, { status: 'In Progress' })} className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white py-4 rounded-2xl font-extrabold transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5">
                       {dict.accept}
                     </button>
-                    <button type="button" onClick={() => handleReject(selectedTicket.id)} className="flex-1 bg-red-500 hover:bg-red-600 text-white py-3 rounded-xl font-bold transition-colors">
+                    <button type="button" onClick={() => handleReject(selectedTicket.id)} className="flex-1 bg-red-500 hover:bg-red-600 text-white py-4 rounded-2xl font-extrabold transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5">
                       {dict.reject}
                     </button>
-                  </>
+                  </div>
                 )}
 
                 {!isAdmin && !isViewer && isMine(selectedTicket) && selectedTicket.status === 'Resolved' && (
-                  <button type="button" onClick={() => updateTicket(selectedTicket.id, { status: 'Closed' })} className="flex-1 bg-zinc-700 hover:bg-zinc-800 text-white py-3 rounded-xl font-bold transition-colors">
+                  <button type="button" onClick={() => updateTicket(selectedTicket.id, { status: 'Closed' })} className="w-full bg-industrial-900 dark:bg-white text-white dark:text-industrial-900 hover:bg-industrial-800 dark:hover:bg-industrial-100 py-4 rounded-2xl font-extrabold transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5">
                     {dict.markClosed}
                   </button>
                 )}
 
                 {isAdmin && selectedTicket.status === 'Rejected' && (
-                  <button type="button" onClick={() => handleReopenTicket(selectedTicket.id)} className="flex-1 bg-amber-500 hover:bg-amber-600 text-white py-3 rounded-xl font-bold transition-colors">
+                  <button type="button" onClick={() => handleReopenTicket(selectedTicket.id)} className="w-full bg-accent-500 hover:bg-accent-600 text-white py-4 rounded-2xl font-extrabold transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5">
                     {dict.reopenNew}
                   </button>
                 )}
               </div>
 
               {!isAdmin && !isViewer && isMine(selectedTicket) && selectedTicket.status === 'In Progress' && (
-                <div className="border border-gray-200 dark:border-zinc-800 rounded-2xl p-4">
-                  <label className="text-xs font-bold text-gray-400 block mb-3 uppercase">{dict.uploadFixPhoto}</label>
+                <div className="glass-panel border-accent-200 dark:border-accent-900/50 rounded-[2rem] p-6 shadow-sm">
+                  <label className="text-[10px] font-extrabold text-industrial-400 block mb-4 uppercase tracking-widest">{dict.uploadFixPhoto}</label>
                   <input
                     type="file"
                     accept="image/*"
                     onChange={(e) => setResolutionFile(e.target.files?.[0] || null)}
-                    className="w-full text-sm mb-3 file:me-3 file:px-4 file:py-2 file:rounded-xl file:border-0 file:bg-gray-100 dark:file:bg-zinc-900 file:font-bold file:text-sm dark:file:text-white"
+                    className="w-full text-sm mb-4 file:me-4 file:px-6 file:py-3 file:rounded-xl file:border-0 file:bg-industrial-100 dark:file:bg-industrial-800 file:font-extrabold file:text-sm file:text-industrial-900 dark:file:text-white hover:file:bg-industrial-200 dark:hover:file:bg-industrial-700 transition-colors cursor-pointer"
                   />
                   <button
                     type="button"
                     onClick={handleUploadResolution}
                     disabled={uploadingPhoto || !resolutionFile}
-                    className="w-full bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white py-3 rounded-xl font-bold transition-colors flex items-center justify-center gap-2"
+                    className="w-full bg-accent-500 hover:bg-accent-600 disabled:bg-industrial-200 dark:disabled:bg-industrial-800 disabled:text-industrial-400 text-white py-4 rounded-2xl font-extrabold transition-all flex items-center justify-center gap-2 shadow-sm hover:shadow-md disabled:shadow-none hover:-translate-y-0.5 disabled:translate-y-0"
                   >
-                    <Check size={18} /> {uploadingPhoto ? dict.uploading : dict.uploadFixPhoto}
+                    <Check size={20} /> {uploadingPhoto ? dict.uploading : dict.uploadFixPhoto}
                   </button>
                 </div>
               )}
 
               {selectedTicket.resolutionImageUrl && (
-                <div className="border border-emerald-200 dark:border-emerald-900 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-2xl p-4">
-                  <div className="flex items-center gap-2 mb-3">
-                    <div className="w-7 h-7 rounded-full bg-emerald-500 text-white flex items-center justify-center">
-                      <Check size={14} strokeWidth={3} />
+                <div className="bg-emerald-50/80 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/50 rounded-[2rem] p-6">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-sm">
+                      <Check size={16} strokeWidth={3} />
                     </div>
-                    <label className="text-xs font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">{dict.technicianFixPhoto}</label>
+                    <label className="text-[10px] font-extrabold text-emerald-700 dark:text-emerald-400 uppercase tracking-widest">{dict.technicianFixPhoto}</label>
                   </div>
-                  <a href={selectedTicket.resolutionImageUrl} target="_blank" rel="noreferrer" className="block">
+                  <a href={selectedTicket.resolutionImageUrl} target="_blank" rel="noreferrer" className="block relative group overflow-hidden rounded-xl border border-emerald-200 dark:border-emerald-800/50">
                     <img
                       src={selectedTicket.resolutionImageUrl}
                       alt={dict.technicianFixPhoto}
-                      className="w-full rounded-xl border border-emerald-200 dark:border-emerald-900 object-cover max-h-72 hover:opacity-95 transition-opacity"
+                      className="w-full object-cover max-h-72 group-hover:scale-105 transition-transform duration-500"
                     />
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
                   </a>
-                  <p className="text-[11px] text-gray-400 mt-2">{dict.internalOnly}</p>
+                  <p className="text-[10px] font-bold text-emerald-600/70 dark:text-emerald-500/70 mt-3 uppercase tracking-wider">{dict.internalOnly}</p>
                 </div>
               )}
 
@@ -2059,82 +2095,98 @@ function AdminDashboard({
               <button
                 type="button"
                 onClick={() => handleDeleteTicket(selectedTicket.id)}
-                className="w-full flex items-center justify-center gap-2 border border-red-200 dark:border-red-900 text-red-600 hover:bg-red-50 dark:hover:bg-red-950 py-3 rounded-xl font-bold transition-colors"
+                className="w-full flex items-center justify-center gap-2 border-2 border-red-200 dark:border-red-900/50 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 py-4 rounded-2xl font-extrabold transition-colors mt-8"
               >
                 <Trash2 size={18} /> {dict.deleteTicket}
               </button>
               )}
             </div>
 
-            <div className="mt-8 pt-6 border-t border-gray-200 dark:border-zinc-800 print:hidden">
-              <h3 className="text-xs font-bold text-gray-400 uppercase mb-4">{dict.discussion}</h3>
-              <div className="space-y-3 mb-4 max-h-64 overflow-y-auto">
+            <div className="mt-10 pt-8 border-t border-industrial-200 dark:border-industrial-800 print:hidden">
+              <h3 className="text-[10px] font-extrabold text-industrial-400 uppercase tracking-widest mb-6">{dict.discussion}</h3>
+              <div className="space-y-4 mb-6 max-h-[300px] overflow-y-auto pe-2 custom-scrollbar">
                 {comments.length === 0 && (
-                  <p className="text-sm text-gray-400">{dict.noComments}</p>
+                  <div className="text-center py-6 bg-industrial-50 dark:bg-industrial-900/30 rounded-2xl border border-dashed border-industrial-200 dark:border-industrial-800">
+                    <p className="text-sm font-medium text-industrial-400">{dict.noComments}</p>
+                  </div>
                 )}
                 {comments.map((c) => (
-                  <div key={c.id} className="bg-gray-50 dark:bg-zinc-900/50 rounded-xl px-4 py-3">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-sm font-bold">{c.userName}</span>
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${c.role === 'admin' ? 'bg-black text-white dark:bg-white dark:text-black' : 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-400'}`}>
+                  <div key={c.id} className="bg-white dark:bg-industrial-900/50 border border-industrial-100 dark:border-industrial-800/50 shadow-sm rounded-2xl px-5 py-4">
+                    <div className="flex items-center gap-3 mb-2">
+                      <span className="text-sm font-extrabold text-industrial-900 dark:text-white">{c.userName}</span>
+                      <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-widest ${c.role === 'admin' ? 'bg-industrial-900 text-white dark:bg-industrial-50 dark:text-industrial-900' : 'bg-accent-100 text-accent-700 dark:bg-accent-900/30 dark:text-accent-400'}`}>
                         {c.role}
                       </span>
-                      <span className="text-[11px] text-gray-400 ms-auto">{formatHistoryDate(c.createdAt)}</span>
+                      <span className="text-[10px] font-mono text-industrial-400 ms-auto">{formatHistoryDate(c.createdAt)}</span>
                     </div>
-                    <p className="text-sm whitespace-pre-wrap">{c.commentText}</p>
+                    <p className="text-sm whitespace-pre-wrap font-medium text-industrial-700 dark:text-industrial-300 leading-relaxed">{c.commentText}</p>
                   </div>
                 ))}
               </div>
               {!isViewer && (
-                <>
+                <div className="relative">
                   <textarea
                     value={commentDraft}
                     onChange={(e) => setCommentDraft(e.target.value)}
                     placeholder={dict.writeComment}
                     rows={3}
                     maxLength={2000}
-                    className="w-full border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-3 bg-transparent outline-none focus:border-black dark:focus:border-white text-sm resize-none"
+                    className="w-full border border-industrial-200 dark:border-industrial-800 rounded-2xl px-5 py-4 bg-white/50 dark:bg-industrial-900/50 backdrop-blur-xl outline-none focus:border-accent-500 dark:focus:border-accent-400 focus:ring-4 focus:ring-accent-500/10 text-sm font-medium resize-none shadow-sm transition-all pb-14"
                   />
-                  <button
-                    type="button"
-                    onClick={handleSendComment}
-                    disabled={sendingComment || !commentDraft.trim()}
-                    className="mt-2 w-full bg-black text-white dark:bg-white dark:text-black disabled:opacity-50 py-3 rounded-xl font-bold transition-opacity hover:opacity-90"
-                  >
-                    {sendingComment ? dict.sending : dict.sendComment}
-                  </button>
-                </>
+                  <div className="absolute bottom-3 end-3 flex items-center justify-between start-4">
+                    <span className="text-[10px] font-bold text-industrial-400">{commentDraft.length}/2000</span>
+                    <button
+                      type="button"
+                      onClick={handleSendComment}
+                      disabled={sendingComment || !commentDraft.trim()}
+                      className="bg-industrial-900 text-white dark:bg-white dark:text-industrial-900 disabled:opacity-30 disabled:hover:scale-100 px-5 py-2 rounded-xl font-extrabold text-sm transition-all hover:-translate-y-0.5 active:scale-[0.98] shadow-sm flex items-center gap-2"
+                    >
+                      {sendingComment ? dict.sending : dict.sendComment}
+                    </button>
+                  </div>
+                </div>
               )}
             </div>
 
             {ticketHistory.length > 0 && (
-              <div className="mt-8 pt-6 border-t border-gray-200 dark:border-zinc-800 print:hidden">
-                <h3 className="text-xs font-bold text-gray-400 uppercase mb-4">{dict.auditTrail}</h3>
-                <ul className="space-y-3">
-                  {ticketHistory.map((entry) => (
-                    <li key={entry.id} className="text-sm border-s-2 border-gray-200 dark:border-zinc-700 ps-3">
-                      <p className="font-semibold">
-                        {entry.fromStatus ? `${entry.fromStatus} → ${entry.toStatus}` : entry.toStatus}
-                      </p>
-                      <p className="text-gray-500 text-xs mt-0.5">
-                        {entry.changedBy} · {formatHistoryDate(entry.createdAt)}
-                      </p>
-                      {entry.note && (
-                        <p className="text-gray-600 dark:text-gray-400 text-xs mt-1">{entry.note}</p>
-                      )}
-                    </li>
+              <div className="mt-10 pt-8 border-t border-industrial-200 dark:border-industrial-800 print:hidden">
+                <h3 className="text-[10px] font-extrabold text-industrial-400 uppercase tracking-widest mb-6">{dict.auditTrail}</h3>
+                <div className="space-y-0 relative before:absolute before:inset-0 before:ms-[11px] rtl:before:me-[11px] before:-translate-x-px before:w-0.5 before:bg-industrial-200 dark:before:bg-industrial-800">
+                  {ticketHistory.map((entry, idx) => (
+                    <div key={entry.id} className="relative ps-8 rtl:pe-8 py-3">
+                      <div className="absolute start-0 rtl:end-0 top-4 w-6 h-6 -translate-x-1/2 rtl:translate-x-1/2 rounded-full bg-white dark:bg-industrial-950 border-4 border-industrial-200 dark:border-industrial-800 z-10" />
+                      <div className="bg-industrial-50 dark:bg-industrial-900/30 rounded-2xl px-5 py-4 border border-industrial-100 dark:border-industrial-800/50">
+                        <p className="font-extrabold text-sm text-industrial-900 dark:text-white">
+                          {entry.fromStatus ? (
+                            <span className="flex items-center gap-2">
+                              <span className="text-industrial-500 dark:text-industrial-400 line-through">{entry.fromStatus}</span>
+                              <ArrowRight size={14} className="rtl:rotate-180 text-industrial-400" />
+                              <span>{entry.toStatus}</span>
+                            </span>
+                          ) : entry.toStatus}
+                        </p>
+                        <p className="text-industrial-500 dark:text-industrial-400 text-[11px] font-medium mt-1.5 flex items-center gap-2">
+                          <span className="font-bold">{entry.changedBy}</span>
+                          <span className="w-1 h-1 rounded-full bg-industrial-300 dark:bg-industrial-700" />
+                          <span className="font-mono">{formatHistoryDate(entry.createdAt)}</span>
+                        </p>
+                        {entry.note && (
+                          <p className="text-industrial-600 dark:text-industrial-300 text-sm mt-3 font-medium bg-white dark:bg-industrial-950 p-3 rounded-xl border border-industrial-200 dark:border-industrial-800">{entry.note}</p>
+                        )}
+                      </div>
+                    </div>
                   ))}
-                </ul>
+                </div>
               </div>
             )}
 
-            <div className="hidden print:block mt-12 border-t border-black pt-8">
-              <h3 className="font-bold text-lg mb-4">{dict.resolutionNotes}</h3>
-              <div className="h-32 border-b border-dashed border-gray-400 mb-4" />
-              <div className="h-32 border-b border-dashed border-gray-400 mb-4" />
-              <div className="flex justify-between mt-12">
-                <div>{dict.techSign}: ________________</div>
-                <div>{dict.adminSign}: ________________</div>
+            <div className="hidden print:block mt-16 border-t-2 border-black pt-8">
+              <h3 className="font-extrabold text-xl tracking-tight mb-8 uppercase">{dict.resolutionNotes}</h3>
+              <div className="h-32 border-b border-dashed border-gray-400 mb-8" />
+              <div className="h-32 border-b border-dashed border-gray-400 mb-12" />
+              <div className="flex justify-between mt-16 text-lg font-bold">
+                <div>{dict.techSign}: <span className="inline-block w-64 border-b border-black ms-2"></span></div>
+                <div>{dict.adminSign}: <span className="inline-block w-64 border-b border-black ms-2"></span></div>
               </div>
             </div>
           </div>
@@ -2144,7 +2196,7 @@ function AdminDashboard({
       {showRoomModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center print:static print:block print:bg-white">
           <div className="absolute inset-0 bg-black/20 backdrop-blur-sm print:hidden" onClick={() => setShowRoomModal(false)} />
-          <div className="w-full max-w-4xl bg-white dark:bg-black border border-gray-200 dark:border-zinc-800 rounded-[2rem] relative z-10 shadow-2xl p-8 max-h-[90vh] overflow-y-auto print:max-h-none print:max-w-none print:overflow-visible print:shadow-none print:border-none print:p-0">
+          <div className="w-full max-w-4xl bg-white dark:bg-industrial-950 border border-industrial-200 dark:border-industrial-800 rounded-[2rem] relative z-10 shadow-2xl p-8 max-h-[90vh] overflow-y-auto print:max-h-none print:max-w-none print:overflow-visible print:shadow-none print:border-none print:p-0">
             <div className="flex flex-wrap justify-between items-center gap-4 mb-8 print:hidden">
               <div className="flex items-center gap-4">
                 <BrandLogo className="h-12 w-auto object-contain" />
@@ -2169,12 +2221,12 @@ function AdminDashboard({
                 .sort((a, b) => (a.floor || '').localeCompare(b.floor || '') || a.name.localeCompare(b.name, undefined, { numeric: true })),
             })).filter((section) => section.rooms.length > 0 || section.key === 'Dhahran').map((section) => (
             <div key={section.key} className="mb-10 print:mb-0">
-            <h3 className="text-xl font-extrabold tracking-tight mb-4 pb-2 border-b border-gray-200 dark:border-zinc-800 print:text-black print:border-black print:mt-6 print:break-after-avoid">{section.label}</h3>
+            <h3 className="text-xl font-extrabold tracking-tight mb-4 pb-2 border-b border-industrial-200 dark:border-industrial-800 print:text-black print:border-black print:mt-6 print:break-after-avoid">{section.label}</h3>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6 print:block print:gap-0">
               {section.rooms.map((room) => (
-                <div key={room.id} className="border border-gray-200 dark:border-zinc-800 rounded-2xl p-6 flex flex-col items-center text-center print:inline-flex print:w-[30%] print:align-top print:m-[1.5%] print:border-black print:break-inside-avoid">
+                <div key={room.id} className="border border-industrial-200 dark:border-industrial-800 rounded-2xl p-6 flex flex-col items-center text-center print:inline-flex print:w-[30%] print:align-top print:m-[1.5%] print:border-black print:break-inside-avoid">
                   <BrandLogo className="h-10 w-auto object-contain mb-2 print:h-12" />
-                  <p className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-4 print:text-black">{dict.facilityDepartment}</p>
+                  <p className="text-xs font-bold uppercase tracking-wider text-industrial-500 dark:text-industrial-400 mb-4 print:text-black">{dict.facilityDepartment}</p>
                   {room.token && (
                     <QRCodeSVG
                       value={`${baseUrl}?token=${encodeURIComponent(room.token)}`}
@@ -2199,7 +2251,7 @@ function AdminDashboard({
                 </div>
               ))}
               {isManager && (isMainAdmin || section.key === adminSite) && (
-              <button type="button" onClick={() => setShowAddRoomForm(true)} className="print:hidden border-2 border-dashed border-gray-200 dark:border-zinc-800 rounded-2xl p-6 flex flex-col items-center justify-center text-gray-400 hover:text-black dark:hover:text-white min-h-[180px]">
+              <button type="button" onClick={() => setShowAddRoomForm(true)} className="print:hidden border-2 border-dashed border-industrial-200 dark:border-industrial-800 rounded-2xl p-6 flex flex-col items-center justify-center text-industrial-400 hover:text-black dark:hover:text-white min-h-[180px]">
                 <Plus size={32} className="mb-2" />
                 <span className="font-bold text-sm">{dict.addLocation}</span>
               </button>
@@ -2209,21 +2261,21 @@ function AdminDashboard({
             ))}
 
             {showAddRoomForm && (
-              <form onSubmit={handleSaveRoom} className="mt-8 p-6 border border-gray-200 dark:border-zinc-800 rounded-2xl space-y-4 print:hidden">
+              <form onSubmit={handleSaveRoom} className="mt-8 p-6 border border-industrial-200 dark:border-industrial-800 rounded-2xl space-y-4 print:hidden">
                 <h3 className="font-bold text-lg">{dict.addNewLocation}</h3>
-                <input value={newRoomName} onChange={(e) => setNewRoomName(e.target.value)} placeholder={dict.roomName} required className="w-full border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-3 bg-transparent outline-none" />
-                <select value={newRoomDept} onChange={(e) => setNewRoomDept(e.target.value)} required className="w-full border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-3 bg-transparent outline-none">
+                <input value={newRoomName} onChange={(e) => setNewRoomName(e.target.value)} placeholder={dict.roomName} required className="w-full border border-industrial-200 dark:border-industrial-800 rounded-xl px-4 py-3 bg-transparent outline-none" />
+                <select value={newRoomDept} onChange={(e) => setNewRoomDept(e.target.value)} required className="w-full border border-industrial-200 dark:border-industrial-800 rounded-xl px-4 py-3 bg-transparent outline-none">
                   <option value="">{dict.department}</option>
                   {departments.map((d) => <option key={d.id} value={d.id}>{d.name_en}</option>)}
                 </select>
-                <input value={newRoomSite} onChange={(e) => setNewRoomSite(e.target.value)} placeholder={dict.site} list="site-options" className="w-full border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-3 bg-transparent outline-none" />
+                <input value={newRoomSite} onChange={(e) => setNewRoomSite(e.target.value)} placeholder={dict.site} list="site-options" className="w-full border border-industrial-200 dark:border-industrial-800 rounded-xl px-4 py-3 bg-transparent outline-none" />
                 <datalist id="site-options">
                   {siteOptions.map((s) => <option key={s} value={s} />)}
                 </datalist>
-                <textarea value={newRoomAssets} onChange={(e) => setNewRoomAssets(e.target.value)} placeholder={dict.assetsComma} rows={2} className="w-full border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-3 bg-transparent outline-none resize-none" />
+                <textarea value={newRoomAssets} onChange={(e) => setNewRoomAssets(e.target.value)} placeholder={dict.assetsComma} rows={2} className="w-full border border-industrial-200 dark:border-industrial-800 rounded-xl px-4 py-3 bg-transparent outline-none resize-none" />
                 <div className="flex gap-2">
-                  <button type="submit" className="bg-black text-white dark:bg-white dark:text-black px-6 py-2.5 rounded-xl font-bold">{dict.saveRoom}</button>
-                  <button type="button" onClick={() => setShowAddRoomForm(false)} className="px-6 py-2.5 rounded-xl font-bold border border-gray-200 dark:border-zinc-800">{dict.cancel}</button>
+                  <button type="submit" className="bg-industrial-900 text-white dark:bg-industrial-50 dark:text-industrial-900 hover:bg-industrial-800 dark:hover:bg-industrial-200 px-6 py-2.5 rounded-xl font-bold">{dict.saveRoom}</button>
+                  <button type="button" onClick={() => setShowAddRoomForm(false)} className="px-6 py-2.5 rounded-xl font-bold border border-industrial-200 dark:border-industrial-800">{dict.cancel}</button>
                 </div>
               </form>
             )}
@@ -2232,46 +2284,68 @@ function AdminDashboard({
       )}
 
       {editingRoom && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center print:hidden">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setEditingRoom(null)} />
-          <form onSubmit={handleSaveRoomEdit} className="relative z-10 w-full max-w-md bg-white dark:bg-black border border-gray-200 dark:border-zinc-800 rounded-2xl p-8 shadow-2xl space-y-4">
-            <h3 className="text-xl font-extrabold">{dict.editRoom}</h3>
-            <input value={editRoomName} onChange={(e) => setEditRoomName(e.target.value)} placeholder={dict.roomName} required className="w-full border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-3 bg-transparent outline-none" />
-            <input value={editRoomFloor} onChange={(e) => setEditRoomFloor(e.target.value)} placeholder={dict.floor} className="w-full border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-3 bg-transparent outline-none" />
-            <input value={editRoomSite} onChange={(e) => setEditRoomSite(e.target.value)} placeholder={dict.site} list="site-options-edit" className="w-full border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-3 bg-transparent outline-none" />
-            <datalist id="site-options-edit">
-              {siteOptions.map((s) => <option key={s} value={s} />)}
-            </datalist>
-            <div className="flex gap-2 pt-2">
-              <button type="submit" className="flex-1 bg-black text-white dark:bg-white dark:text-black py-3 rounded-xl font-bold">{dict.saveChanges}</button>
-              <button type="button" onClick={() => setEditingRoom(null)} className="px-6 py-3 rounded-xl font-bold border border-gray-200 dark:border-zinc-800">{dict.cancel}</button>
+        <div className="fixed inset-0 z-[70] flex items-center justify-center print:hidden p-4">
+          <div className="absolute inset-0 bg-industrial-950/40 dark:bg-black/60 backdrop-blur-sm" onClick={() => setEditingRoom(null)} />
+          <form onSubmit={handleSaveRoomEdit} className="relative z-10 w-full max-w-md bg-white dark:bg-industrial-950 border border-industrial-200 dark:border-industrial-800 rounded-[2.5rem] p-8 shadow-[0_0_60px_rgba(0,0,0,0.1)] space-y-6 animate-fade-in overflow-hidden">
+            <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-accent-400 to-accent-600" />
+            <h3 className="text-2xl font-extrabold tracking-tight text-industrial-900 dark:text-white mb-2">{dict.editRoom}</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="text-[10px] font-extrabold text-industrial-400 uppercase tracking-widest mb-2 block">{dict.roomName}</label>
+                <input value={editRoomName} onChange={(e) => setEditRoomName(e.target.value)} placeholder={dict.roomName} required className="w-full border border-industrial-200 dark:border-industrial-800 rounded-2xl px-5 py-4 bg-white/50 dark:bg-industrial-900/50 backdrop-blur-xl outline-none focus:border-accent-500 focus:ring-4 focus:ring-accent-500/10 transition-all font-bold shadow-sm text-industrial-900 dark:text-white" />
+              </div>
+              <div>
+                <label className="text-[10px] font-extrabold text-industrial-400 uppercase tracking-widest mb-2 block">{dict.floor}</label>
+                <input value={editRoomFloor} onChange={(e) => setEditRoomFloor(e.target.value)} placeholder={dict.floor} className="w-full border border-industrial-200 dark:border-industrial-800 rounded-2xl px-5 py-4 bg-white/50 dark:bg-industrial-900/50 backdrop-blur-xl outline-none focus:border-accent-500 focus:ring-4 focus:ring-accent-500/10 transition-all font-bold shadow-sm text-industrial-900 dark:text-white" />
+              </div>
+              <div>
+                <label className="text-[10px] font-extrabold text-industrial-400 uppercase tracking-widest mb-2 block">{dict.site}</label>
+                <input value={editRoomSite} onChange={(e) => setEditRoomSite(e.target.value)} placeholder={dict.site} list="site-options-edit" className="w-full border border-industrial-200 dark:border-industrial-800 rounded-2xl px-5 py-4 bg-white/50 dark:bg-industrial-900/50 backdrop-blur-xl outline-none focus:border-accent-500 focus:ring-4 focus:ring-accent-500/10 transition-all font-bold shadow-sm text-industrial-900 dark:text-white" />
+              </div>
+              <datalist id="site-options-edit">
+                {siteOptions.map((s) => <option key={s} value={s} />)}
+              </datalist>
+            </div>
+            <div className="flex gap-3 pt-2">
+              <button type="submit" className="flex-1 bg-industrial-900 text-white dark:bg-white dark:text-industrial-900 hover:bg-industrial-800 dark:hover:bg-industrial-100 py-4 rounded-2xl font-extrabold transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5 active:scale-[0.98]">{dict.saveChanges}</button>
+              <button type="button" onClick={() => setEditingRoom(null)} className="flex-1 py-4 rounded-2xl font-extrabold border-2 border-industrial-200 dark:border-industrial-800 hover:bg-industrial-50 dark:hover:bg-industrial-900/50 text-industrial-700 dark:text-industrial-300 transition-all active:scale-[0.98]">{dict.cancel}</button>
             </div>
           </form>
         </div>
       )}
 
-      {showStaffModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center print:hidden">
-          <div className="absolute inset-0 bg-black/20 backdrop-blur-sm" onClick={() => setShowStaffModal(false)} />
-          <div className="w-full max-w-lg bg-white dark:bg-black border border-gray-200 dark:border-zinc-800 rounded-[2rem] relative z-10 shadow-2xl p-8 max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-extrabold">{dict.staffManager}</h2>
-              <button type="button" onClick={() => setShowStaffModal(false)} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-zinc-900"><X size={20} /></button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center print:hidden p-4">
+          <div className="absolute inset-0 bg-industrial-950/40 dark:bg-black/60 backdrop-blur-sm" onClick={() => setShowStaffModal(false)} />
+          <div className="w-full max-w-lg bg-white dark:bg-industrial-950 border border-industrial-200 dark:border-industrial-800 rounded-[2.5rem] relative z-10 shadow-[0_0_60px_rgba(0,0,0,0.1)] p-8 sm:p-10 max-h-[90vh] overflow-y-auto animate-fade-in custom-scrollbar">
+            <div className="flex justify-between items-center mb-8 shrink-0">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-industrial-50 dark:bg-industrial-900/50 flex items-center justify-center shadow-sm">
+                  <Users size={24} className="text-industrial-700 dark:text-industrial-300" />
+                </div>
+                <h2 className="text-2xl font-extrabold tracking-tight text-industrial-900 dark:text-white">{dict.staffManager}</h2>
+              </div>
+              <button type="button" onClick={() => setShowStaffModal(false)} className="p-3 rounded-2xl bg-industrial-50 dark:bg-industrial-900/50 hover:bg-industrial-100 dark:hover:bg-industrial-900 text-industrial-700 dark:text-industrial-300 transition-colors shadow-sm"><X size={20} /></button>
             </div>
-            <ul className="space-y-2 mb-6">
+            <ul className="space-y-3 mb-8">
               {allStaff.map((user) => (
-                <li key={user.id} className="flex items-center justify-between gap-3 border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-3">
+                <li key={user.id} className="flex items-center justify-between gap-4 border border-industrial-200 dark:border-industrial-800 rounded-2xl px-5 py-4 glass-panel shadow-sm hover:shadow-md transition-shadow">
                   <div className="min-w-0">
-                    <p className="font-bold truncate">
+                    <p className="font-extrabold truncate text-industrial-900 dark:text-white">
                       {user.full_name || user.username}
-                      {user.full_name && <span className="text-gray-400 font-normal"> · {user.username}</span>}
+                      {user.full_name && <span className="text-industrial-400 font-bold"> · {user.username}</span>}
                     </p>
-                    <p className="text-xs text-gray-500">
-                      {dict[`role_${user.role}`] || user.role}
-                      {user.site ? ` · ${user.site}` : ''}
-                    </p>
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      <span className="px-2 py-0.5 rounded-md text-[9px] font-extrabold uppercase tracking-widest bg-industrial-100 text-industrial-700 dark:bg-industrial-900/50 dark:text-industrial-300">
+                        {dict[`role_${user.role}`] || user.role}
+                      </span>
+                      {user.site && user.site !== 'all' && (
+                        <span className="px-2 py-0.5 rounded-md text-[9px] font-extrabold uppercase tracking-widest bg-accent-50 text-accent-700 dark:bg-accent-950/30 dark:text-accent-400">
+                          {user.site}
+                        </span>
+                      )}
+                    </div>
                     {(user.phone || user.email) && (
-                      <p className="text-xs text-gray-400 truncate">
+                      <p className="text-[11px] font-bold text-industrial-500 dark:text-industrial-400 mt-2 truncate flex items-center gap-1">
                         {[user.phone, user.email].filter(Boolean).join(' · ')}
                       </p>
                     )}
@@ -2280,32 +2354,34 @@ function AdminDashboard({
                     && (isMainAdmin
                       ? user.role !== 'admin'
                       : ['sub_admin', 'facility'].includes(user.role)) && (
-                    <button type="button" onClick={() => handleDeleteStaff(user.id, user.username)} className="text-xs font-bold text-red-600 hover:text-red-700 shrink-0">
-                      {dict.deleteStaff}
+                    <button type="button" onClick={() => handleDeleteStaff(user.id, user.username)} className="w-10 h-10 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 dark:bg-red-950/20 dark:hover:bg-red-900/30 dark:text-red-400 flex items-center justify-center shrink-0 transition-colors" aria-label={dict.deleteStaff}>
+                      <Trash2 size={16} />
                     </button>
                   )}
                 </li>
               ))}
             </ul>
-            <form onSubmit={handleCreateStaff} className="space-y-3 border-t border-gray-200 dark:border-zinc-800 pt-6">
-              <h3 className="font-bold">{dict.createStaff}</h3>
-              <input value={newStaffName} onChange={(e) => setNewStaffName(e.target.value)} placeholder={dict.staffFullName} required className="w-full border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-3 bg-transparent outline-none" />
-              <input value={newStaffUser} onChange={(e) => setNewStaffUser(e.target.value)} placeholder={dict.newStaffUser} required className="w-full border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-3 bg-transparent outline-none" />
-              <input type="password" value={newStaffPass} onChange={(e) => setNewStaffPass(e.target.value)} placeholder={dict.staffPassword} required minLength={6} className="w-full border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-3 bg-transparent outline-none" />
-              <input type="tel" value={newStaffPhone} onChange={(e) => setNewStaffPhone(e.target.value)} placeholder={dict.staffPhone} required className="w-full border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-3 bg-transparent outline-none" dir="ltr" />
-              <input type="email" value={newStaffEmail} onChange={(e) => setNewStaffEmail(e.target.value)} placeholder={dict.staffEmail} required className="w-full border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-3 bg-transparent outline-none" dir="ltr" />
-              <select value={newStaffRole} onChange={(e) => setNewStaffRole(e.target.value)} className="w-full border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-3 bg-transparent outline-none">
-                {(isMainAdmin ? ['facility', 'sub_admin', 'site_admin', 'admin'] : ['facility', 'sub_admin']).map((r) => (
-                  <option key={r} value={r}>{dict[`role_${r}`] || r}</option>
-                ))}
-              </select>
-              {isMainAdmin && newStaffRole !== 'admin' && (
-                <select value={newStaffSite} onChange={(e) => setNewStaffSite(e.target.value)} className="w-full border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-3 bg-transparent outline-none">
-                  <option value="">{dict.staffSite}</option>
-                  {siteOptions.map((s) => <option key={s} value={s}>{s}</option>)}
+            <form onSubmit={handleCreateStaff} className="space-y-4 pt-8 relative before:absolute before:inset-x-[-40px] before:top-0 before:border-t before:border-industrial-200 dark:before:border-industrial-800">
+              <h3 className="font-extrabold text-lg text-industrial-900 dark:text-white mb-2">{dict.createStaff}</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <input value={newStaffName} onChange={(e) => setNewStaffName(e.target.value)} placeholder={dict.staffFullName} required className="w-full border border-industrial-200 dark:border-industrial-800 rounded-2xl px-5 py-4 bg-white/50 dark:bg-industrial-900/50 backdrop-blur-xl outline-none focus:border-accent-500 focus:ring-4 focus:ring-accent-500/10 transition-all font-bold shadow-sm text-industrial-900 dark:text-white" />
+                <input value={newStaffUser} onChange={(e) => setNewStaffUser(e.target.value)} placeholder={dict.newStaffUser} required className="w-full border border-industrial-200 dark:border-industrial-800 rounded-2xl px-5 py-4 bg-white/50 dark:bg-industrial-900/50 backdrop-blur-xl outline-none focus:border-accent-500 focus:ring-4 focus:ring-accent-500/10 transition-all font-bold shadow-sm text-industrial-900 dark:text-white" />
+                <input type="password" value={newStaffPass} onChange={(e) => setNewStaffPass(e.target.value)} placeholder={dict.staffPassword} required minLength={6} className="w-full border border-industrial-200 dark:border-industrial-800 rounded-2xl px-5 py-4 bg-white/50 dark:bg-industrial-900/50 backdrop-blur-xl outline-none focus:border-accent-500 focus:ring-4 focus:ring-accent-500/10 transition-all font-bold shadow-sm text-industrial-900 dark:text-white md:col-span-2" />
+                <input type="tel" value={newStaffPhone} onChange={(e) => setNewStaffPhone(e.target.value)} placeholder={dict.staffPhone} required className="w-full border border-industrial-200 dark:border-industrial-800 rounded-2xl px-5 py-4 bg-white/50 dark:bg-industrial-900/50 backdrop-blur-xl outline-none focus:border-accent-500 focus:ring-4 focus:ring-accent-500/10 transition-all font-bold shadow-sm text-industrial-900 dark:text-white" dir="ltr" />
+                <input type="email" value={newStaffEmail} onChange={(e) => setNewStaffEmail(e.target.value)} placeholder={dict.staffEmail} required className="w-full border border-industrial-200 dark:border-industrial-800 rounded-2xl px-5 py-4 bg-white/50 dark:bg-industrial-900/50 backdrop-blur-xl outline-none focus:border-accent-500 focus:ring-4 focus:ring-accent-500/10 transition-all font-bold shadow-sm text-industrial-900 dark:text-white" dir="ltr" />
+                <select value={newStaffRole} onChange={(e) => setNewStaffRole(e.target.value)} className="w-full border border-industrial-200 dark:border-industrial-800 rounded-2xl px-5 py-4 bg-white/50 dark:bg-industrial-900/50 backdrop-blur-xl outline-none focus:border-accent-500 focus:ring-4 focus:ring-accent-500/10 transition-all font-bold shadow-sm text-industrial-900 dark:text-white appearance-none">
+                  {(isMainAdmin ? ['facility', 'sub_admin', 'site_admin', 'admin'] : ['facility', 'sub_admin']).map((r) => (
+                    <option key={r} value={r} className="text-industrial-900">{dict[`role_${r}`] || r}</option>
+                  ))}
                 </select>
-              )}
-              <button type="submit" className="w-full bg-black text-white dark:bg-white dark:text-black py-3 rounded-xl font-bold">{dict.createStaff}</button>
+                {isMainAdmin && newStaffRole !== 'admin' && (
+                  <select value={newStaffSite} onChange={(e) => setNewStaffSite(e.target.value)} className="w-full border border-industrial-200 dark:border-industrial-800 rounded-2xl px-5 py-4 bg-white/50 dark:bg-industrial-900/50 backdrop-blur-xl outline-none focus:border-accent-500 focus:ring-4 focus:ring-accent-500/10 transition-all font-bold shadow-sm text-industrial-900 dark:text-white appearance-none">
+                    <option value="" className="text-industrial-900">{dict.staffSite}</option>
+                    {siteOptions.map((s) => <option key={s} value={s} className="text-industrial-900">{s}</option>)}
+                  </select>
+                )}
+              </div>
+              <button type="submit" className="w-full bg-industrial-900 text-white dark:bg-white dark:text-industrial-900 py-4 rounded-2xl font-extrabold shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 active:scale-[0.98] mt-2">{dict.createStaff}</button>
             </form>
           </div>
         </div>
@@ -2323,62 +2399,62 @@ function PrintableReport({ config, dict }) {
 
   return (
     <div className="hidden print:block absolute top-0 left-0 w-full bg-white text-black p-8 z-[9999]">
-      <div className="flex items-center justify-between border-b-2 border-gray-800 pb-6 mb-6">
-        <img src="/logo.png" alt="Logo" className="h-16 w-auto object-contain" />
+      <div className="flex items-center justify-between border-b-4 border-black pb-6 mb-8">
+        <BrandLogo className="h-16 w-auto object-contain" />
         <div className="text-end">
-          <p className="text-lg font-bold">{dict.reportCompany}</p>
-          <h1 className="text-2xl font-extrabold tracking-tight">{title}</h1>
-          <p className="text-sm text-gray-700 mt-1">{dict.reportGenerated}: {date}</p>
+          <p className="text-xl font-extrabold uppercase tracking-widest">{dict.reportCompany}</p>
+          <h1 className="text-3xl font-black tracking-tighter mt-1">{title}</h1>
+          <p className="text-sm font-bold text-gray-600 mt-2">{dict.reportGenerated}: {date}</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-4 mb-8">
-        <div className="border border-gray-800 rounded-lg p-4 text-center">
-          <p className="text-xs font-bold uppercase tracking-wider">{dict.reportTotal}</p>
-          <p className="text-3xl font-extrabold mt-1">{tickets.length}</p>
+      <div className="grid grid-cols-3 gap-6 mb-10">
+        <div className="border-2 border-black rounded-2xl p-6 text-center">
+          <p className="text-xs font-extrabold uppercase tracking-widest text-gray-600 mb-2">{dict.reportTotal}</p>
+          <p className="text-4xl font-black tracking-tighter">{tickets.length}</p>
         </div>
-        <div className="border border-gray-800 rounded-lg p-4 text-center">
-          <p className="text-xs font-bold uppercase tracking-wider">{dict.reportResolved}</p>
-          <p className="text-3xl font-extrabold mt-1">{resolvedCount}</p>
+        <div className="border-2 border-black rounded-2xl p-6 text-center">
+          <p className="text-xs font-extrabold uppercase tracking-widest text-gray-600 mb-2">{dict.reportResolved}</p>
+          <p className="text-4xl font-black tracking-tighter">{resolvedCount}</p>
         </div>
-        <div className="border border-gray-800 rounded-lg p-4 text-center">
-          <p className="text-xs font-bold uppercase tracking-wider">{dict.reportCost}</p>
-          <p className="text-3xl font-extrabold mt-1">{totalCost.toLocaleString()}</p>
+        <div className="border-2 border-black rounded-2xl p-6 text-center">
+          <p className="text-xs font-extrabold uppercase tracking-widest text-gray-600 mb-2">{dict.reportCost}</p>
+          <p className="text-4xl font-black tracking-tighter">{totalCost.toLocaleString()}</p>
         </div>
       </div>
 
       {tickets.length === 0 ? (
-        <p className="text-sm text-gray-700">{dict.reportNoTickets}</p>
+        <p className="text-sm font-bold text-gray-500 text-center py-10 border-2 border-dashed border-gray-300 rounded-2xl">{dict.reportNoTickets}</p>
       ) : (
         <table className="w-full text-start text-sm border-collapse">
           <thead>
-            <tr>
-              <th className="border border-gray-800 px-3 py-2 font-bold text-start">{dict.ticketId}</th>
-              <th className="border border-gray-800 px-3 py-2 font-bold">{dict.reportDateCol}</th>
-              <th className="border border-gray-800 px-3 py-2 font-bold">{dict.reportLocationAsset}</th>
-              <th className="border border-gray-800 px-3 py-2 font-bold">{dict.issueCol}</th>
-              <th className="border border-gray-800 px-3 py-2 font-bold">{dict.reportAssignee}</th>
-              <th className="border border-gray-800 px-3 py-2 font-bold">{dict.statusCol}</th>
-              <th className="border border-gray-800 px-3 py-2 font-bold">{dict.cost}</th>
+            <tr className="bg-gray-100">
+              <th className="border-2 border-black px-4 py-3 font-extrabold text-start uppercase tracking-wider text-[10px]">{dict.ticketId}</th>
+              <th className="border-2 border-black px-4 py-3 font-extrabold text-start uppercase tracking-wider text-[10px]">{dict.reportDateCol}</th>
+              <th className="border-2 border-black px-4 py-3 font-extrabold text-start uppercase tracking-wider text-[10px]">{dict.reportLocationAsset}</th>
+              <th className="border-2 border-black px-4 py-3 font-extrabold text-start uppercase tracking-wider text-[10px]">{dict.issueCol}</th>
+              <th className="border-2 border-black px-4 py-3 font-extrabold text-start uppercase tracking-wider text-[10px]">{dict.reportAssignee}</th>
+              <th className="border-2 border-black px-4 py-3 font-extrabold text-start uppercase tracking-wider text-[10px]">{dict.statusCol}</th>
+              <th className="border-2 border-black px-4 py-3 font-extrabold text-start uppercase tracking-wider text-[10px]">{dict.cost}</th>
             </tr>
           </thead>
           <tbody>
             {tickets.map((t) => (
               <tr key={t.id} className="print:break-inside-avoid">
-                <td className="border border-gray-800 px-3 py-2 font-mono">{t.id}</td>
-                <td className="border border-gray-800 px-3 py-2">{new Date(t.createdAt).toLocaleDateString()}</td>
-                <td className="border border-gray-800 px-3 py-2">{t.room}{t.asset ? ` / ${t.asset}` : ''}</td>
-                <td className="border border-gray-800 px-3 py-2">{t.issue}</td>
-                <td className="border border-gray-800 px-3 py-2">{t.assignee || '—'}</td>
-                <td className="border border-gray-800 px-3 py-2">{t.status}</td>
-                <td className="border border-gray-800 px-3 py-2">{Number(t.cost) ? Number(t.cost).toLocaleString() : '—'}</td>
+                <td className="border-2 border-black px-4 py-3 font-mono font-bold">{t.id}</td>
+                <td className="border-2 border-black px-4 py-3 font-bold">{new Date(t.createdAt).toLocaleDateString()}</td>
+                <td className="border-2 border-black px-4 py-3 font-bold">{t.room}{t.asset ? ` / ${t.asset}` : ''}</td>
+                <td className="border-2 border-black px-4 py-3 font-bold">{t.issue}</td>
+                <td className="border-2 border-black px-4 py-3 font-bold">{t.assignee || '—'}</td>
+                <td className="border-2 border-black px-4 py-3 font-bold">{t.status}</td>
+                <td className="border-2 border-black px-4 py-3 font-bold">{Number(t.cost) ? Number(t.cost).toLocaleString() : '—'}</td>
               </tr>
             ))}
           </tbody>
         </table>
       )}
 
-      <p className="text-xs text-gray-600 mt-8 pt-4 border-t border-gray-800">
+      <p className="text-[10px] font-bold text-gray-500 mt-12 pt-6 border-t-2 border-black text-center uppercase tracking-widest">
         {dict.reportCompany} — {dict.reportGenerated}: {date}
       </p>
     </div>
@@ -2387,9 +2463,10 @@ function PrintableReport({ config, dict }) {
 
 function MetricCard({ label, value }) {
   return (
-    <div className="border border-gray-200 dark:border-zinc-800 bg-white dark:bg-black rounded-[2rem] p-6">
-      <p className="text-sm font-bold text-gray-500 mb-2">{label}</p>
-      <p className="text-4xl sm:text-5xl font-extrabold tracking-tighter">{value}</p>
+    <div className="glass-panel p-6 sm:p-8 rounded-[2rem] card-hover relative overflow-hidden group">
+      <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-accent-400/0 via-accent-500/0 to-accent-600/0 group-hover:from-accent-400 group-hover:via-accent-500 group-hover:to-accent-600 transition-all duration-500" />
+      <p className="text-xs font-extrabold text-industrial-500 dark:text-industrial-400 mb-2 uppercase tracking-widest">{label}</p>
+      <p className="text-4xl sm:text-5xl font-extrabold tracking-tighter text-industrial-900 dark:text-white">{value}</p>
     </div>
   );
 }
