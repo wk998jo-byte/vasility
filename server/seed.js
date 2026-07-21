@@ -149,8 +149,8 @@ export async function seedDb(db) {
 
     for (const [roomName, assets] of Object.entries(rooms)) {
       const room = await db.query(
-        `INSERT INTO rooms (department_id, name, is_active)
-         VALUES ($1, $2, true)
+        `INSERT INTO rooms (department_id, name, site, is_active)
+         VALUES ($1, $2, 'Dhahran', true)
          RETURNING id`,
         [deptId, roomName],
       );
@@ -259,6 +259,7 @@ export async function fetchAllIssues(db, filters = {}) {
     departmentId,
     roomId,
     priority,
+    site,
     dateFrom,
     dateTo,
   } = filters;
@@ -285,6 +286,10 @@ export async function fetchAllIssues(db, filters = {}) {
   if (priority) {
     conditions.push(`fi.priority = $${n++}`);
     params.push(priority);
+  }
+  if (site) {
+    conditions.push(`r.site = $${n++}`);
+    params.push(site);
   }
   if (dateFrom) {
     conditions.push(`fi.created_at >= $${n++}`);
@@ -424,7 +429,7 @@ export async function fetchIssueHistory(db, issueId) {
 
 export async function fetchAdminRooms(db) {
   const { rows } = await db.query(
-    `SELECT r.id, r.name, r.floor, r.is_active, r.department_id,
+    `SELECT r.id, r.name, r.floor, r.site, r.is_active, r.department_id,
             t.token,
             d.name_en AS department_name_en
      FROM rooms r
@@ -443,6 +448,7 @@ export async function fetchAdminRooms(db) {
       id: row.id,
       name: row.name,
       floor: row.floor,
+      site: row.site,
       departmentId: row.department_id,
       departmentName: row.department_name_en,
       isActive: row.is_active,

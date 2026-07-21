@@ -168,6 +168,8 @@ function parseIssueFilters(query) {
       ? query.room_id.trim() : undefined,
     priority: typeof query.priority === 'string' && query.priority.trim()
       ? query.priority.trim() : undefined,
+    site: typeof query.site === 'string' && query.site.trim()
+      ? query.site.trim() : undefined,
     dateFrom: typeof query.date_from === 'string' && query.date_from.trim()
       ? query.date_from.trim() : undefined,
     dateTo: typeof query.date_to === 'string' && query.date_to.trim()
@@ -356,6 +358,7 @@ app.post('/api/rooms', requireDb, authenticateToken, requireAdmin, async (req, r
   const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
   const departmentId = typeof req.body?.departmentId === 'string' ? req.body.departmentId.trim() : '';
   const floor = typeof req.body?.floor === 'string' ? req.body.floor.trim() : null;
+  const site = typeof req.body?.site === 'string' && req.body.site.trim() ? req.body.site.trim() : 'Dhahran';
   const assets = Array.isArray(req.body?.assets)
     ? req.body.assets.map((a) => String(a).trim()).filter(Boolean)
     : [];
@@ -376,10 +379,10 @@ app.post('/api/rooms', requireDb, authenticateToken, requireAdmin, async (req, r
     }
 
     const room = await req.db.query(
-      `INSERT INTO rooms (department_id, name, floor, is_active)
-       VALUES ($1, $2, $3, true)
-       RETURNING id, name, floor, department_id`,
-      [departmentId, name, floor],
+      `INSERT INTO rooms (department_id, name, floor, site, is_active)
+       VALUES ($1, $2, $3, $4, true)
+       RETURNING id, name, floor, site, department_id`,
+      [departmentId, name, floor, site],
     );
     const roomId = room.rows[0].id;
     const token = generateQrToken();
@@ -403,6 +406,7 @@ app.post('/api/rooms', requireDb, authenticateToken, requireAdmin, async (req, r
         id: roomId,
         name,
         floor,
+        site,
         departmentId,
         token,
         assets: assetList,
@@ -424,15 +428,18 @@ app.put('/api/rooms/:id', requireDb, authenticateToken, requireAdmin, async (req
   const floor = req.body?.floor !== undefined
     ? (typeof req.body.floor === 'string' ? req.body.floor.trim() || null : null)
     : undefined;
+  const site = req.body?.site !== undefined
+    ? (typeof req.body.site === 'string' ? req.body.site.trim() || null : null)
+    : undefined;
 
-  if (name === undefined && floor === undefined) {
-    res.status(400).json({ error: 'name or floor required' });
+  if (name === undefined && floor === undefined && site === undefined) {
+    res.status(400).json({ error: 'name, floor or site required' });
     return;
   }
 
   try {
     const existing = await req.db.query(
-      'SELECT id, name, floor, department_id FROM rooms WHERE id = $1 AND is_active = true',
+      'SELECT id, name, floor, site, department_id FROM rooms WHERE id = $1 AND is_active = true',
       [roomId],
     );
     if (!existing.rowCount) {
@@ -443,11 +450,12 @@ app.put('/api/rooms/:id', requireDb, authenticateToken, requireAdmin, async (req
     const current = existing.rows[0];
     const newName = name ?? current.name;
     const newFloor = floor !== undefined ? floor : current.floor;
+    const newSite = site !== undefined ? site : current.site;
 
     const { rows } = await req.db.query(
-      `UPDATE rooms SET name = $1, floor = $2 WHERE id = $3
-       RETURNING id, name, floor, department_id`,
-      [newName, newFloor, roomId],
+      `UPDATE rooms SET name = $1, floor = $2, site = $3 WHERE id = $4
+       RETURNING id, name, floor, site, department_id`,
+      [newName, newFloor, newSite, roomId],
     );
 
     res.status(200).json({
@@ -456,6 +464,7 @@ app.put('/api/rooms/:id', requireDb, authenticateToken, requireAdmin, async (req
         id: rows[0].id,
         name: rows[0].name,
         floor: rows[0].floor,
+        site: rows[0].site,
         departmentId: rows[0].department_id,
       },
     });

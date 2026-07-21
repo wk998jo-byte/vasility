@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS rooms (
   department_id UUID REFERENCES departments(id),
   name TEXT NOT NULL,
   floor TEXT,
+  site TEXT,
   is_active BOOLEAN NOT NULL DEFAULT true,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (department_id, name)
@@ -27,6 +28,14 @@ CREATE TABLE IF NOT EXISTS rooms (
 
 CREATE INDEX IF NOT EXISTS idx_rooms_department ON rooms (department_id);
 CREATE INDEX IF NOT EXISTS idx_rooms_active ON rooms (is_active) WHERE is_active = true;
+
+-- Migration: add site column to existing rooms and backfill from floor
+ALTER TABLE rooms ADD COLUMN IF NOT EXISTS site TEXT;
+ALTER TABLE rooms ALTER COLUMN site SET DEFAULT 'Dhahran';
+UPDATE rooms SET site = CASE
+  WHEN floor IN ('A Block', 'B Block', 'C Block', 'Mess Hall', 'Gym Hall') THEN 'MGS'
+  ELSE 'Dhahran'
+END WHERE site IS NULL;
 
 -- ─── QR tokens ───────────────────────────────────────────────────────────────
 

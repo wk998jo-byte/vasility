@@ -136,6 +136,7 @@ const t = {
     deleteLocation: 'Delete Location',
     facilityDepartment: 'Facility Department',
     dhahranRooms: 'Dhahran Rooms', mgsRooms: 'MGS Rooms',
+    filterSite: 'All Sites', site: 'Site (e.g. Dhahran, MGS)', roomsSuffix: 'Rooms',
     manageLocations: 'Manage Locations', locationManager: 'Location Manager',
     addLocation: 'Add Location', addNewLocation: 'Add New Location',
     roomName: 'Room Name', floor: 'Floor', assetsComma: 'Assets (comma separated)',
@@ -222,6 +223,7 @@ const t = {
     deleteLocation: 'حذف الموقع',
     facilityDepartment: 'إدارة المرافق',
     dhahranRooms: 'غرف الظهران', mgsRooms: 'غرف MGS',
+    filterSite: 'كل المواقع', site: 'الموقع (مثال: الظهران، MGS)', roomsSuffix: 'غرف',
     manageLocations: 'إدارة المواقع', locationManager: 'مدير المواقع',
     addLocation: 'إضافة موقع', addNewLocation: 'إضافة موقع جديد',
     roomName: 'اسم الغرفة', floor: 'الطابق', assetsComma: 'الأصول (مفصولة بفاصلة)',
@@ -1147,6 +1149,7 @@ function AdminDashboard({
   const [editingRoom, setEditingRoom] = useState(null);
   const [editRoomName, setEditRoomName] = useState('');
   const [editRoomFloor, setEditRoomFloor] = useState('');
+  const [editRoomSite, setEditRoomSite] = useState('');
   const [allStaff, setAllStaff] = useState([]);
   const [newStaffUser, setNewStaffUser] = useState('');
   const [newStaffPass, setNewStaffPass] = useState('');
@@ -1157,8 +1160,9 @@ function AdminDashboard({
   const [newRoomName, setNewRoomName] = useState('');
   const [newRoomAssets, setNewRoomAssets] = useState('');
   const [newRoomDept, setNewRoomDept] = useState('');
+  const [newRoomSite, setNewRoomSite] = useState('');
   const [filters, setFilters] = useState({
-    status: '', priority: '', departmentId: '', roomId: '', dateFrom: '', dateTo: '',
+    status: '', priority: '', departmentId: '', roomId: '', site: '', dateFrom: '', dateTo: '',
   });
 
   const baseUrl = import.meta.env.VITE_PUBLIC_BASE_URL || window.location.origin;
@@ -1169,6 +1173,7 @@ function AdminDashboard({
     if (filters.priority) params.set('priority', filters.priority);
     if (filters.departmentId) params.set('department_id', filters.departmentId);
     if (filters.roomId) params.set('room_id', filters.roomId);
+    if (filters.site) params.set('site', filters.site);
     if (filters.dateFrom) params.set('date_from', filters.dateFrom);
     if (filters.dateTo) params.set('date_to', filters.dateTo);
     fetch(`${API_BASE}/issues?${params}`, { headers: { Authorization: `Bearer ${adminToken}` } })
@@ -1250,6 +1255,9 @@ function AdminDashboard({
   const filterRoomOptions = filters.departmentId
     ? adminRooms.filter((r) => r.departmentId === filters.departmentId)
     : adminRooms;
+
+  const roomSite = (r) => r.site || (MGS_FLOORS.has(r.floor) ? 'MGS' : 'Dhahran');
+  const siteOptions = [...new Set(adminRooms.map(roomSite))].sort();
 
   useEffect(() => {
     const onAfterPrint = () => setPrintReportConfig(null);
@@ -1476,11 +1484,12 @@ function AdminDashboard({
       const res = await fetch(`${API_BASE}/rooms`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken}` },
-        body: JSON.stringify({ name, departmentId: newRoomDept, assets }),
+        body: JSON.stringify({ name, departmentId: newRoomDept, assets, site: newRoomSite.trim() || undefined }),
       });
       if (res.ok) {
         setNewRoomName('');
         setNewRoomAssets('');
+        setNewRoomSite('');
         setShowAddRoomForm(false);
         loadRooms();
       } else {
@@ -1513,6 +1522,7 @@ function AdminDashboard({
     setEditingRoom(room);
     setEditRoomName(room.name);
     setEditRoomFloor(room.floor || '');
+    setEditRoomSite(room.site || (MGS_FLOORS.has(room.floor) ? 'MGS' : 'Dhahran'));
   };
 
   const handleSaveRoomEdit = async (e) => {
@@ -1524,12 +1534,12 @@ function AdminDashboard({
       const res = await fetch(`${API_BASE}/rooms/${editingRoom.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken}` },
-        body: JSON.stringify({ name, floor: editRoomFloor.trim() || null }),
+        body: JSON.stringify({ name, floor: editRoomFloor.trim() || null, site: editRoomSite.trim() || null }),
       });
       if (res.ok) {
         const data = await res.json();
         setAdminRooms((prev) => prev.map((r) => (
-          r.id === editingRoom.id ? { ...r, name: data.room.name, floor: data.room.floor } : r
+          r.id === editingRoom.id ? { ...r, name: data.room.name, floor: data.room.floor, site: data.room.site } : r
         )));
         setEditingRoom(null);
       } else {
@@ -1739,6 +1749,14 @@ function AdminDashboard({
         >
           <option value="">{dict.filterLocation}</option>
           {filterRoomOptions.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+        </select>
+        <select
+          value={filters.site}
+          onChange={(e) => setFilters({ ...filters, site: e.target.value })}
+          className="border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-2 text-sm font-medium bg-transparent"
+        >
+          <option value="">{dict.filterSite}</option>
+          {siteOptions.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
         <input type="date" value={filters.dateFrom} onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })} className="border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-2 text-sm bg-transparent" placeholder={dict.filterDateFrom} />
         <input type="date" value={filters.dateTo} onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })} className="border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-2 text-sm bg-transparent" placeholder={dict.filterDateTo} />
@@ -2043,17 +2061,14 @@ function AdminDashboard({
               <BrandLogo className="h-16 w-auto object-contain" />
             </div>
 
-            {[
-              { key: 'dhahran', label: dict.dhahranRooms, rooms: adminRooms.filter((r) => !MGS_FLOORS.has(r.floor)) },
-              {
-                key: 'mgs',
-                label: dict.mgsRooms,
-                rooms: adminRooms
-                  .filter((r) => MGS_FLOORS.has(r.floor))
-                  .slice()
-                  .sort((a, b) => (a.floor || '').localeCompare(b.floor || '') || a.name.localeCompare(b.name, undefined, { numeric: true })),
-              },
-            ].filter((section) => section.rooms.length > 0 || section.key === 'dhahran').map((section) => (
+            {[...new Set(['Dhahran', ...adminRooms.map(roomSite)])].map((siteName) => ({
+              key: siteName,
+              label: siteName === 'Dhahran' ? dict.dhahranRooms : siteName === 'MGS' ? dict.mgsRooms : `${siteName} ${dict.roomsSuffix}`,
+              rooms: adminRooms
+                .filter((r) => roomSite(r) === siteName)
+                .slice()
+                .sort((a, b) => (a.floor || '').localeCompare(b.floor || '') || a.name.localeCompare(b.name, undefined, { numeric: true })),
+            })).filter((section) => section.rooms.length > 0 || section.key === 'Dhahran').map((section) => (
             <div key={section.key} className="mb-10 print:mb-0">
             <h3 className="text-xl font-extrabold tracking-tight mb-4 pb-2 border-b border-gray-200 dark:border-zinc-800 print:text-black print:border-black print:mt-6 print:break-after-avoid">{section.label}</h3>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6 print:block print:gap-0">
@@ -2084,7 +2099,7 @@ function AdminDashboard({
                   )}
                 </div>
               ))}
-              {isAdmin && section.key === 'dhahran' && (
+              {isAdmin && section.key === 'Dhahran' && (
               <button type="button" onClick={() => setShowAddRoomForm(true)} className="print:hidden border-2 border-dashed border-gray-200 dark:border-zinc-800 rounded-2xl p-6 flex flex-col items-center justify-center text-gray-400 hover:text-black dark:hover:text-white min-h-[180px]">
                 <Plus size={32} className="mb-2" />
                 <span className="font-bold text-sm">{dict.addLocation}</span>
@@ -2102,6 +2117,10 @@ function AdminDashboard({
                   <option value="">{dict.department}</option>
                   {departments.map((d) => <option key={d.id} value={d.id}>{d.name_en}</option>)}
                 </select>
+                <input value={newRoomSite} onChange={(e) => setNewRoomSite(e.target.value)} placeholder={dict.site} list="site-options" className="w-full border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-3 bg-transparent outline-none" />
+                <datalist id="site-options">
+                  {siteOptions.map((s) => <option key={s} value={s} />)}
+                </datalist>
                 <textarea value={newRoomAssets} onChange={(e) => setNewRoomAssets(e.target.value)} placeholder={dict.assetsComma} rows={2} className="w-full border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-3 bg-transparent outline-none resize-none" />
                 <div className="flex gap-2">
                   <button type="submit" className="bg-black text-white dark:bg-white dark:text-black px-6 py-2.5 rounded-xl font-bold">{dict.saveRoom}</button>
@@ -2120,6 +2139,10 @@ function AdminDashboard({
             <h3 className="text-xl font-extrabold">{dict.editRoom}</h3>
             <input value={editRoomName} onChange={(e) => setEditRoomName(e.target.value)} placeholder={dict.roomName} required className="w-full border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-3 bg-transparent outline-none" />
             <input value={editRoomFloor} onChange={(e) => setEditRoomFloor(e.target.value)} placeholder={dict.floor} className="w-full border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-3 bg-transparent outline-none" />
+            <input value={editRoomSite} onChange={(e) => setEditRoomSite(e.target.value)} placeholder={dict.site} list="site-options-edit" className="w-full border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-3 bg-transparent outline-none" />
+            <datalist id="site-options-edit">
+              {siteOptions.map((s) => <option key={s} value={s} />)}
+            </datalist>
             <div className="flex gap-2 pt-2">
               <button type="submit" className="flex-1 bg-black text-white dark:bg-white dark:text-black py-3 rounded-xl font-bold">{dict.saveChanges}</button>
               <button type="button" onClick={() => setEditingRoom(null)} className="px-6 py-3 rounded-xl font-bold border border-gray-200 dark:border-zinc-800">{dict.cancel}</button>
