@@ -147,6 +147,10 @@ const t = {
     manageStaff: 'Manage Staff', staffManager: 'Staff Manager',
     newStaffUser: 'New Username', staffPassword: 'Password', createStaff: 'Add Staff',
     deleteStaff: 'Remove', staffRole: 'Role',
+    staffFullName: 'Full Name', staffPhone: 'Phone (WhatsApp)', staffEmail: 'Email',
+    staffSite: 'Site',
+    role_admin: 'Main Admin', role_site_admin: 'Site Admin', role_sub_admin: 'Sub Admin',
+    role_facility: 'Facility Staff', role_viewer: 'Viewer',
     saveRoom: 'Save Room', cancel: 'Cancel',
     activeRooms: 'Active Rooms', deletedRooms: 'Deleted Rooms',
     workOrder: 'Work Order', ticketId: 'Ticket ID', location: 'Location',
@@ -237,6 +241,10 @@ const t = {
     manageStaff: 'إدارة الموظفين', staffManager: 'مدير الموظفين',
     newStaffUser: 'اسم المستخدم', staffPassword: 'كلمة المرور', createStaff: 'إضافة موظف',
     deleteStaff: 'إزالة', staffRole: 'الدور',
+    staffFullName: 'الاسم الكامل', staffPhone: 'رقم الجوال (واتساب)', staffEmail: 'البريد الإلكتروني',
+    staffSite: 'الموقع',
+    role_admin: 'مدير رئيسي', role_site_admin: 'مدير موقع', role_sub_admin: 'مدير فرعي',
+    role_facility: 'موظف صيانة', role_viewer: 'مشاهد',
     saveRoom: 'حفظ الغرفة', cancel: 'إلغاء',
     activeRooms: 'الغرف النشطة', deletedRooms: 'الغرف المحذوفة',
     workOrder: 'أمر العمل', ticketId: 'رقم التذكرة', location: 'الموقع',
@@ -316,6 +324,7 @@ export default function App() {
   const [tickets, setTickets] = useState([]);
   const [adminToken, setAdminToken] = useState(localStorage.getItem('ssc_admin_token') || '');
   const [adminRole, setAdminRole] = useState(localStorage.getItem('ssc_admin_role') || '');
+  const [adminSite, setAdminSite] = useState(localStorage.getItem('ssc_admin_site') || '');
   const [focusTicketId, setFocusTicketId] = useState('');
 
   const tokenPayload = adminToken ? decodeJwtPayload(adminToken) : null;
@@ -342,6 +351,7 @@ export default function App() {
   const handleLogout = () => {
     localStorage.removeItem('ssc_admin_token');
     localStorage.removeItem('ssc_admin_role');
+    localStorage.removeItem('ssc_admin_site');
     localStorage.removeItem('ssc_admin_user');
     setAdminToken('');
     setAdminRole('');
@@ -403,12 +413,13 @@ export default function App() {
                 setTickets={setTickets}
                 adminToken={adminToken}
                 adminRole={adminRole}
+                adminSite={adminSite}
                 adminUser={adminUser}
                 focusTicketId={focusTicketId}
                 onFocusHandled={() => setFocusTicketId('')}
               />
             )
-            : <AdminLogin dict={dict} setToken={setAdminToken} setRole={setAdminRole} />
+            : <AdminLogin dict={dict} setToken={setAdminToken} setRole={setAdminRole} setSite={setAdminSite} />
         )}
       </main>
     </div>
@@ -517,7 +528,7 @@ function NavBtn({ active, onClick, children }) {
   );
 }
 
-function AdminLogin({ setToken, setRole, dict }) {
+function AdminLogin({ setToken, setRole, setSite, dict }) {
   const [user, setUser] = useState('');
   const [pass, setPass] = useState('');
 
@@ -533,9 +544,11 @@ function AdminLogin({ setToken, setRole, dict }) {
         const data = await res.json();
         localStorage.setItem('ssc_admin_token', data.token);
         localStorage.setItem('ssc_admin_role', data.role || 'admin');
+        localStorage.setItem('ssc_admin_site', data.site || '');
         localStorage.setItem('ssc_admin_user', decodeJwtPayload(data.token)?.user || '');
         setToken(data.token);
         setRole(data.role || 'admin');
+        setSite(data.site || '');
       } else {
         alert(dict.invalidCredentials);
       }
@@ -1132,10 +1145,15 @@ function Step({ label, active, done, rejected }) {
 }
 
 function AdminDashboard({
-  dict, tickets, setTickets, adminToken, adminRole, adminUser,
+  dict, tickets, setTickets, adminToken, adminRole, adminSite, adminUser,
   focusTicketId, onFocusHandled,
 }) {
-  const isAdmin = adminRole === 'admin';
+  // Role tiers: 'admin' = main admin (all sites), 'site_admin' = admin of one
+  // site, 'sub_admin' = limited admin of one site (tickets only).
+  const isMainAdmin = adminRole === 'admin';
+  const isManager = adminRole === 'admin' || adminRole === 'site_admin';
+  const isAdmin = isManager || adminRole === 'sub_admin';
+  const isSiteScoped = adminRole === 'site_admin' || adminRole === 'sub_admin';
   const isViewer = adminRole === 'viewer';
   const [printReportConfig, setPrintReportConfig] = useState(null);
   const [selectedTicket, setSelectedTicket] = useState(null);
@@ -1159,6 +1177,11 @@ function AdminDashboard({
   const [allStaff, setAllStaff] = useState([]);
   const [newStaffUser, setNewStaffUser] = useState('');
   const [newStaffPass, setNewStaffPass] = useState('');
+  const [newStaffName, setNewStaffName] = useState('');
+  const [newStaffPhone, setNewStaffPhone] = useState('');
+  const [newStaffEmail, setNewStaffEmail] = useState('');
+  const [newStaffRole, setNewStaffRole] = useState('facility');
+  const [newStaffSite, setNewStaffSite] = useState('');
   const [adminRooms, setAdminRooms] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [facilityUsers, setFacilityUsers] = useState([]);
@@ -1464,7 +1487,7 @@ function AdminDashboard({
   };
 
   const handleDeleteTicketForever = async (id) => {
-    if (!isAdmin) return;
+    if (!isManager) return;
     if (!window.confirm(dict.deleteForeverConfirm)) return;
     setTickets(tickets.filter((ticket) => ticket.id !== id));
     if (selectedTicket?.id === id) setSelectedTicket(null);
@@ -1509,7 +1532,7 @@ function AdminDashboard({
   };
 
   const handleRotateQr = async (roomId) => {
-    if (!isAdmin) return;
+    if (!isManager) return;
     if (!window.confirm('Regenerate QR token? Old printed codes will stop working.')) return;
     try {
       const res = await fetch(`${API_BASE}/rooms/${roomId}/qr/regenerate`, {
@@ -1562,15 +1585,31 @@ function AdminDashboard({
     e.preventDefault();
     const username = newStaffUser.trim();
     if (!username || !newStaffPass) return;
+    const role = newStaffRole || 'facility';
+    const needsSite = role === 'site_admin' || role === 'sub_admin' || role === 'facility';
+    const site = isSiteScoped ? adminSite : (needsSite ? (newStaffSite.trim() || 'Dhahran') : undefined);
     try {
       const res = await fetch(`${API_BASE}/users`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken}` },
-        body: JSON.stringify({ username, password: newStaffPass, role: 'facility' }),
+        body: JSON.stringify({
+          username,
+          password: newStaffPass,
+          role,
+          site,
+          fullName: newStaffName.trim(),
+          phone: newStaffPhone.trim(),
+          email: newStaffEmail.trim(),
+        }),
       });
       if (res.ok) {
         setNewStaffUser('');
         setNewStaffPass('');
+        setNewStaffName('');
+        setNewStaffPhone('');
+        setNewStaffEmail('');
+        setNewStaffRole('facility');
+        setNewStaffSite('');
         loadStaff();
         fetch(`${API_BASE}/users?role=facility`, { headers: { Authorization: `Bearer ${adminToken}` } })
           .then((r) => r.json())
@@ -1605,7 +1644,7 @@ function AdminDashboard({
   };
 
   const handleDeleteRoom = async (roomId, roomName) => {
-    if (!isAdmin) return;
+    if (!isManager) return;
     if (!window.confirm(dict.deleteRoomNamedConfirm.replace('{name}', roomName))) return;
     try {
       const res = await fetch(`${API_BASE}/rooms/${roomId}`, {
@@ -1634,7 +1673,7 @@ function AdminDashboard({
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          {isAdmin && (
+          {isManager && (
           <button
             type="button"
             onClick={() => setShowTicketTrash((v) => !v)}
@@ -1643,10 +1682,12 @@ function AdminDashboard({
             <Trash2 size={18} /> {showTicketTrash ? dict.hideTrash : dict.viewTrash}
           </button>
           )}
+          {isManager && (
           <button type="button" onClick={() => setShowRoomModal(true)} className="flex items-center gap-2 bg-gray-100 hover:bg-gray-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-black dark:text-white px-4 py-2.5 rounded-xl font-bold transition-colors">
             <LayoutGrid size={18} /> {dict.manageLocations}
           </button>
-          {isAdmin && (
+          )}
+          {isManager && (
           <button type="button" onClick={() => { setShowStaffModal(true); loadStaff(); }} className="flex items-center gap-2 bg-gray-100 hover:bg-gray-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-black dark:text-white px-4 py-2.5 rounded-xl font-bold transition-colors">
             <Users size={18} /> {dict.manageStaff}
           </button>
@@ -1757,6 +1798,7 @@ function AdminDashboard({
           <option value="">{dict.filterLocation}</option>
           {filterRoomOptions.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
         </select>
+        {!isSiteScoped && (
         <select
           value={filters.site}
           onChange={(e) => setFilters({ ...filters, site: e.target.value })}
@@ -1765,6 +1807,7 @@ function AdminDashboard({
           <option value="">{dict.filterSite}</option>
           {siteOptions.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
+        )}
         <input type="date" value={filters.dateFrom} onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })} className="border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-2 text-sm bg-transparent" placeholder={dict.filterDateFrom} />
         <input type="date" value={filters.dateTo} onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })} className="border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-2 text-sm bg-transparent" placeholder={dict.filterDateTo} />
         <button type="button" onClick={loadTickets} className="bg-black text-white dark:bg-white dark:text-black px-5 py-2 rounded-xl text-sm font-bold">{dict.applyFilters}</button>
@@ -2012,7 +2055,7 @@ function AdminDashboard({
                 </div>
               )}
 
-              {isAdmin && (
+              {isManager && (
               <button
                 type="button"
                 onClick={() => handleDeleteTicket(selectedTicket.id)}
@@ -2140,7 +2183,7 @@ function AdminDashboard({
                     />
                   )}
                   <p className="font-bold text-sm tracking-tight mb-2">{room.name}</p>
-                  {isAdmin && (
+                  {isManager && (
                     <div className="print:hidden flex flex-col gap-2 w-full">
                       <button type="button" onClick={() => openEditRoom(room)} className="text-xs font-bold flex items-center justify-center gap-1 text-gray-600 hover:text-black dark:hover:text-white">
                         <Pencil size={12} /> {dict.editRoom}
@@ -2155,7 +2198,7 @@ function AdminDashboard({
                   )}
                 </div>
               ))}
-              {isAdmin && section.key === 'Dhahran' && (
+              {isManager && (isMainAdmin || section.key === adminSite) && (
               <button type="button" onClick={() => setShowAddRoomForm(true)} className="print:hidden border-2 border-dashed border-gray-200 dark:border-zinc-800 rounded-2xl p-6 flex flex-col items-center justify-center text-gray-400 hover:text-black dark:hover:text-white min-h-[180px]">
                 <Plus size={32} className="mb-2" />
                 <span className="font-bold text-sm">{dict.addLocation}</span>
@@ -2217,13 +2260,27 @@ function AdminDashboard({
             </div>
             <ul className="space-y-2 mb-6">
               {allStaff.map((user) => (
-                <li key={user.id} className="flex items-center justify-between border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-3">
-                  <div>
-                    <p className="font-bold">{user.username}</p>
-                    <p className="text-xs text-gray-500">{user.role}</p>
+                <li key={user.id} className="flex items-center justify-between gap-3 border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-3">
+                  <div className="min-w-0">
+                    <p className="font-bold truncate">
+                      {user.full_name || user.username}
+                      {user.full_name && <span className="text-gray-400 font-normal"> · {user.username}</span>}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {dict[`role_${user.role}`] || user.role}
+                      {user.site ? ` · ${user.site}` : ''}
+                    </p>
+                    {(user.phone || user.email) && (
+                      <p className="text-xs text-gray-400 truncate">
+                        {[user.phone, user.email].filter(Boolean).join(' · ')}
+                      </p>
+                    )}
                   </div>
-                  {user.role === 'facility' && (
-                    <button type="button" onClick={() => handleDeleteStaff(user.id, user.username)} className="text-xs font-bold text-red-600 hover:text-red-700">
+                  {user.username !== adminUser
+                    && (isMainAdmin
+                      ? user.role !== 'admin'
+                      : ['sub_admin', 'facility'].includes(user.role)) && (
+                    <button type="button" onClick={() => handleDeleteStaff(user.id, user.username)} className="text-xs font-bold text-red-600 hover:text-red-700 shrink-0">
                       {dict.deleteStaff}
                     </button>
                   )}
@@ -2232,8 +2289,22 @@ function AdminDashboard({
             </ul>
             <form onSubmit={handleCreateStaff} className="space-y-3 border-t border-gray-200 dark:border-zinc-800 pt-6">
               <h3 className="font-bold">{dict.createStaff}</h3>
+              <input value={newStaffName} onChange={(e) => setNewStaffName(e.target.value)} placeholder={dict.staffFullName} required className="w-full border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-3 bg-transparent outline-none" />
               <input value={newStaffUser} onChange={(e) => setNewStaffUser(e.target.value)} placeholder={dict.newStaffUser} required className="w-full border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-3 bg-transparent outline-none" />
               <input type="password" value={newStaffPass} onChange={(e) => setNewStaffPass(e.target.value)} placeholder={dict.staffPassword} required minLength={6} className="w-full border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-3 bg-transparent outline-none" />
+              <input type="tel" value={newStaffPhone} onChange={(e) => setNewStaffPhone(e.target.value)} placeholder={dict.staffPhone} required className="w-full border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-3 bg-transparent outline-none" dir="ltr" />
+              <input type="email" value={newStaffEmail} onChange={(e) => setNewStaffEmail(e.target.value)} placeholder={dict.staffEmail} required className="w-full border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-3 bg-transparent outline-none" dir="ltr" />
+              <select value={newStaffRole} onChange={(e) => setNewStaffRole(e.target.value)} className="w-full border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-3 bg-transparent outline-none">
+                {(isMainAdmin ? ['facility', 'sub_admin', 'site_admin', 'admin'] : ['facility', 'sub_admin']).map((r) => (
+                  <option key={r} value={r}>{dict[`role_${r}`] || r}</option>
+                ))}
+              </select>
+              {isMainAdmin && newStaffRole !== 'admin' && (
+                <select value={newStaffSite} onChange={(e) => setNewStaffSite(e.target.value)} className="w-full border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-3 bg-transparent outline-none">
+                  <option value="">{dict.staffSite}</option>
+                  {siteOptions.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+              )}
               <button type="submit" className="w-full bg-black text-white dark:bg-white dark:text-black py-3 rounded-xl font-bold">{dict.createStaff}</button>
             </form>
           </div>

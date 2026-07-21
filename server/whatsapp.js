@@ -265,11 +265,11 @@ export async function sendWhatsAppNotification(phone, ticketNumber, status) {
 }
 
 /**
- * Alert sent to the admin's WhatsApp (ADMIN_WHATSAPP env var) whenever a new
- * ticket is created. Silently skipped when ADMIN_WHATSAPP is unset.
+ * Alert sent to an admin's WhatsApp whenever a new ticket is created.
+ * `phone` defaults to the ADMIN_WHATSAPP env var; silently skipped when unset.
  */
-export async function sendWhatsAppAdminAlert(ticketNumber, details) {
-  const adminPhone = (process.env.ADMIN_WHATSAPP || '').trim();
+export async function sendWhatsAppAdminAlert(ticketNumber, details, phone) {
+  const adminPhone = (phone || process.env.ADMIN_WHATSAPP || '').trim();
   if (!adminPhone) return { sent: false, skipped: true, reason: 'no-admin-phone' };
 
   const summary = String(details || '').slice(0, 200);

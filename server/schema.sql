@@ -67,8 +67,12 @@ CREATE TABLE IF NOT EXISTS users (
   username TEXT UNIQUE NOT NULL,
   -- see CREATE UNIQUE INDEX users_username_lower_idx below (case-insensitive uniqueness)
   password_hash VARCHAR(255),
-  role VARCHAR(50) NOT NULL CHECK (role IN ('admin', 'facility', 'viewer')),
+  role VARCHAR(50) NOT NULL CHECK (role IN ('admin', 'site_admin', 'sub_admin', 'facility', 'viewer')),
   is_active BOOLEAN NOT NULL DEFAULT true,
+  full_name TEXT NOT NULL DEFAULT '',
+  phone TEXT NOT NULL DEFAULT '',
+  email TEXT NOT NULL DEFAULT '',
+  site TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -116,8 +120,16 @@ ALTER TABLE facility_issues ADD COLUMN IF NOT EXISTS units INTEGER NOT NULL DEFA
 UPDATE facility_issues SET unit_price = cost WHERE unit_price = 0 AND cost > 0;
 
 -- Migration: allow the read-only 'viewer' role on existing databases.
+-- Migration: role hierarchy — 'admin' = main admin (all sites),
+-- 'site_admin' = admin of one site, 'sub_admin' = limited admin of one site.
 ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
-ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('admin', 'facility', 'viewer'));
+ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('admin', 'site_admin', 'sub_admin', 'facility', 'viewer'));
+
+-- Migration: full user profile (name, phone, email) + site assignment.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS full_name TEXT NOT NULL DEFAULT '';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS phone TEXT NOT NULL DEFAULT '';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT NOT NULL DEFAULT '';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS site TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_facility_issues_status ON facility_issues (status);
 CREATE INDEX IF NOT EXISTS idx_facility_issues_room ON facility_issues (room_id);

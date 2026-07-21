@@ -365,7 +365,7 @@ export async function fetchPublicRooms(db) {
 
 export async function fetchUsers(db, { role } = {}) {
   const params = [];
-  let sql = 'SELECT id, username, role, is_active, created_at FROM users WHERE is_active = true';
+  let sql = 'SELECT id, username, role, is_active, full_name, phone, email, site, created_at FROM users WHERE is_active = true';
   if (role) {
     sql += ' AND role = $1';
     params.push(role);

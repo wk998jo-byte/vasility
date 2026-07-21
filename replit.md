@@ -7,6 +7,20 @@ Facilities QR Room Reporting MVP. Staff scan a room QR code to report facility
 issues; admins and facility users manage rooms, users, and tickets via a
 dashboard.
 
+## Roles
+
+- `admin` — main admin: all sites, full control, gets WhatsApp new-ticket alerts.
+- `site_admin` — one site: manages that site's rooms/tickets, can create/delete
+  `sub_admin`/`facility` users of own site, gets WhatsApp alerts for own-site
+  tickets.
+- `sub_admin` — one site: ticket updates only (status/cost), no user/room
+  management, no WhatsApp alerts.
+- `facility` / `viewer` — unchanged (staff working tickets / read-only).
+
+All users have a full profile (full_name, phone, email, site). New-ticket
+WhatsApp alerts fan out to all main admins + the ticket site's site admins
+(+ legacy `ADMIN_WHATSAPP`), deduplicated by phone digits.
+
 ## Architecture
 
 - **Backend**: Node.js + Express (`server/index.js`). Serves the REST API under

@@ -129,6 +129,14 @@ function authenticateToken(req, res, next) {
   }
 }
 
+// Role hierarchy:
+//   'admin'      → main admin, all sites, full control
+//   'site_admin' → admin of a single site (manages rooms/users of that site, gets WhatsApp alerts)
+//   'sub_admin'  → limited admin of a single site (updates tickets only)
+const ADMIN_ROLES = new Set(['admin', 'site_admin', 'sub_admin']);
+const SITE_SCOPED_ROLES = new Set(['site_admin', 'sub_admin']);
+
+// Main admin only.
 function requireAdmin(req, res, next) {
   if (req.user?.role !== 'admin') {
     res.status(403).json({ error: 'Admin access required' });
@@ -137,16 +145,66 @@ function requireAdmin(req, res, next) {
   next();
 }
 
-// Admin or facility staff — blocks read-only 'viewer' accounts from mutations.
+// Main admin or site admin — may manage rooms/users (site admins: own site only).
+function requireManager(req, res, next) {
+  if (req.user?.role !== 'admin' && req.user?.role !== 'site_admin') {
+    res.status(403).json({ error: 'Admin access required' });
+    return;
+  }
+  next();
+}
+
+// Any staff — blocks read-only 'viewer' accounts from mutations.
 function requireStaff(req, res, next) {
-  if (req.user?.role !== 'admin' && req.user?.role !== 'facility') {
+  if (!ADMIN_ROLES.has(req.user?.role) && req.user?.role !== 'facility') {
     res.status(403).json({ error: 'Staff access required' });
     return;
   }
   next();
 }
 
+// Returns the site a user is restricted to, or null for global roles.
+function userSite(user) {
+  return SITE_SCOPED_ROLES.has(user?.role) ? (user?.site || null) : null;
+}
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// WhatsApp alert fan-out for a new ticket: every main admin with a phone,
+// the site admins of the ticket's site, plus the legacy ADMIN_WHATSAPP env
+// number (deduplicated). Sub-admins do not receive alerts.
+async function notifyAdminsOfNewTicket(db, roomId, ticketNumber, summary) {
+  let site = null;
+  try {
+    const { rows } = await db.query('SELECT site FROM rooms WHERE id = $1', [roomId]);
+    site = rows[0]?.site || null;
+  } catch { /* fall through — still alert main admins */ }
+
+  const { rows: admins } = await db.query(
+    `SELECT phone FROM users
+     WHERE is_active = true AND phone <> ''
+       AND (role = 'admin' OR (role = 'site_admin' AND site = $1))`,
+    [site],
+  );
+
+  const phones = new Set(admins.map((a) => a.phone.trim()).filter(Boolean));
+  const envPhone = (process.env.ADMIN_WHATSAPP || '').trim();
+  if (envPhone) phones.add(envPhone);
+
+  // Normalize for dedupe (digits only) while keeping the original strings.
+  const seen = new Set();
+  const results = [];
+  for (const phone of phones) {
+    const digits = phone.replace(/\D/g, '');
+    if (!digits || seen.has(digits)) continue;
+    seen.add(digits);
+    results.push(
+      sendWhatsAppAdminAlert(ticketNumber, summary, phone)
+        .catch((err) => console.error(`[whatsapp] admin alert to ${phone} failed:`, err?.message || err)),
+    );
+  }
+  await Promise.all(results);
+}
 
 async function createNotification(db, {
   userId = null, role = null, message, ticketNumber = null,
@@ -207,7 +265,7 @@ app.post('/api/auth/login', loginLimiter, requireDb, async (req, res) => {
 
   try {
     const { rows } = await req.db.query(
-      'SELECT id, username, password_hash, role FROM users WHERE LOWER(username) = LOWER($1) AND is_active = true',
+      'SELECT id, username, password_hash, role, site, full_name FROM users WHERE LOWER(username) = LOWER($1) AND is_active = true',
       [username],
     );
     const user = rows[0];
@@ -225,11 +283,13 @@ app.post('/api/auth/login', loginLimiter, requireDb, async (req, res) => {
     }
 
     const token = jwt.sign(
-      { sub: user.id, user: user.username, role: user.role },
+      { sub: user.id, user: user.username, role: user.role, site: user.site || null },
       JWT_SECRET,
       { expiresIn: '30d' },
     );
-    res.status(200).json({ token, role: user.role });
+    res.status(200).json({
+      token, role: user.role, site: user.site || null, fullName: user.full_name || '',
+    });
   } catch {
     res.status(500).json({ error: 'Login failed' });
   }
@@ -242,20 +302,31 @@ app.get('/api/users', requireDb, authenticateToken, async (req, res) => {
 
   try {
     const users = await fetchUsers(req.db, { role });
-    const isAdmin = req.user?.role === 'admin';
-    const sanitized = isAdmin
-      ? users
-      : users.map(({ id, username }) => ({ id, username }));
+    const isManager = req.user?.role === 'admin' || req.user?.role === 'site_admin';
+    const mySite = userSite(req.user);
+    const scoped = mySite
+      ? users.filter((u) => !u.site || u.site === mySite || u.role === 'admin')
+      : users;
+    const sanitized = isManager
+      ? scoped
+      : scoped.map(({ id, username }) => ({ id, username }));
     res.status(200).json({ users: sanitized });
   } catch {
     res.status(500).json({ error: 'Failed to fetch users' });
   }
 });
 
-app.post('/api/users', requireDb, authenticateToken, requireAdmin, async (req, res) => {
+const CREATABLE_ROLES = new Set(['admin', 'site_admin', 'sub_admin', 'facility', 'viewer']);
+
+app.post('/api/users', requireDb, authenticateToken, requireManager, async (req, res) => {
   const username = typeof req.body?.username === 'string' ? req.body.username.trim().toLowerCase() : '';
   const password = req.body?.password;
-  const role = req.body?.role === 'admin' ? 'admin' : 'facility';
+  const role = typeof req.body?.role === 'string' && CREATABLE_ROLES.has(req.body.role)
+    ? req.body.role : 'facility';
+  const fullName = typeof req.body?.fullName === 'string' ? req.body.fullName.trim().slice(0, 120) : '';
+  const phone = typeof req.body?.phone === 'string' ? req.body.phone.trim().slice(0, 30) : '';
+  const email = typeof req.body?.email === 'string' ? req.body.email.trim().slice(0, 254) : '';
+  let site = typeof req.body?.site === 'string' && req.body.site.trim() ? req.body.site.trim() : null;
 
   if (!username || !password) {
     res.status(400).json({ error: 'username and password required' });
@@ -267,13 +338,39 @@ app.post('/api/users', requireDb, authenticateToken, requireAdmin, async (req, r
     return;
   }
 
+  if (!fullName || !phone || !email) {
+    res.status(400).json({ error: 'fullName, phone and email are required' });
+    return;
+  }
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    res.status(400).json({ error: 'A valid email address is required' });
+    return;
+  }
+
+  // Site admins may only create sub-admins / facility staff for their own site.
+  const mySite = userSite(req.user);
+  if (req.user?.role === 'site_admin') {
+    if (role !== 'sub_admin' && role !== 'facility') {
+      res.status(403).json({ error: 'Site admins can only create sub-admins or facility staff' });
+      return;
+    }
+    site = mySite;
+  }
+
+  if ((role === 'site_admin' || role === 'sub_admin') && !site) {
+    res.status(400).json({ error: 'site is required for site admins and sub-admins' });
+    return;
+  }
+  if (role === 'admin') site = null;
+
   try {
     const passwordHash = await bcrypt.hash(password, 12);
     const { rows } = await req.db.query(
-      `INSERT INTO users (username, password_hash, role, is_active)
-       VALUES ($1, $2, $3, true)
-       RETURNING id, username, role`,
-      [username, passwordHash, role],
+      `INSERT INTO users (username, password_hash, role, is_active, full_name, phone, email, site)
+       VALUES ($1, $2, $3, true, $4, $5, $6, $7)
+       RETURNING id, username, role, full_name, phone, email, site`,
+      [username, passwordHash, role, fullName, phone, email, site],
     );
     res.status(201).json({ ok: true, user: rows[0] });
   } catch (err) {
@@ -285,7 +382,7 @@ app.post('/api/users', requireDb, authenticateToken, requireAdmin, async (req, r
   }
 });
 
-app.delete('/api/users/:id', requireDb, authenticateToken, requireAdmin, async (req, res) => {
+app.delete('/api/users/:id', requireDb, authenticateToken, requireManager, async (req, res) => {
   const userId = req.params.id;
 
   if (req.user?.sub === userId) {
@@ -294,6 +391,21 @@ app.delete('/api/users/:id', requireDb, authenticateToken, requireAdmin, async (
   }
 
   try {
+    // Site admins may only delete sub-admins / facility staff of their own site.
+    if (req.user?.role === 'site_admin') {
+      const { rows } = await req.db.query('SELECT role, site FROM users WHERE id = $1', [userId]);
+      const target = rows[0];
+      if (!target) {
+        res.status(404).json({ error: 'User not found' });
+        return;
+      }
+      const mySite = userSite(req.user);
+      const allowedRole = target.role === 'sub_admin' || target.role === 'facility';
+      if (!allowedRole || target.site !== mySite) {
+        res.status(403).json({ error: 'Not allowed to delete this user' });
+        return;
+      }
+    }
     const { rowCount } = await req.db.query(
       'DELETE FROM users WHERE id = $1',
       [userId],
@@ -354,11 +466,13 @@ app.get('/api/rooms/admin', requireDb, authenticateToken, async (req, res) => {
   }
 });
 
-app.post('/api/rooms', requireDb, authenticateToken, requireAdmin, async (req, res) => {
+app.post('/api/rooms', requireDb, authenticateToken, requireManager, async (req, res) => {
   const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
   const departmentId = typeof req.body?.departmentId === 'string' ? req.body.departmentId.trim() : '';
   const floor = typeof req.body?.floor === 'string' ? req.body.floor.trim() : null;
-  const site = typeof req.body?.site === 'string' && req.body.site.trim() ? req.body.site.trim() : 'Dhahran';
+  const mySiteCreate = userSite(req.user);
+  const site = mySiteCreate
+    || (typeof req.body?.site === 'string' && req.body.site.trim() ? req.body.site.trim() : 'Dhahran');
   const assets = Array.isArray(req.body?.assets)
     ? req.body.assets.map((a) => String(a).trim()).filter(Boolean)
     : [];
@@ -422,7 +536,7 @@ app.post('/api/rooms', requireDb, authenticateToken, requireAdmin, async (req, r
   }
 });
 
-app.put('/api/rooms/:id', requireDb, authenticateToken, requireAdmin, async (req, res) => {
+app.put('/api/rooms/:id', requireDb, authenticateToken, requireManager, async (req, res) => {
   const roomId = req.params.id;
   const name = typeof req.body?.name === 'string' ? req.body.name.trim() : undefined;
   const floor = req.body?.floor !== undefined
@@ -448,9 +562,14 @@ app.put('/api/rooms/:id', requireDb, authenticateToken, requireAdmin, async (req
     }
 
     const current = existing.rows[0];
+    const mySiteEdit = userSite(req.user);
+    if (mySiteEdit && current.site !== mySiteEdit) {
+      res.status(403).json({ error: 'Not allowed to manage rooms of another site' });
+      return;
+    }
     const newName = name ?? current.name;
     const newFloor = floor !== undefined ? floor : current.floor;
-    const newSite = site !== undefined ? site : current.site;
+    const newSite = mySiteEdit || (site !== undefined ? site : current.site);
 
     const { rows } = await req.db.query(
       `UPDATE rooms SET name = $1, floor = $2, site = $3 WHERE id = $4
@@ -477,16 +596,21 @@ app.put('/api/rooms/:id', requireDb, authenticateToken, requireAdmin, async (req
   }
 });
 
-app.post('/api/rooms/:id/qr/regenerate', requireDb, authenticateToken, requireAdmin, async (req, res) => {
+app.post('/api/rooms/:id/qr/regenerate', requireDb, authenticateToken, requireManager, async (req, res) => {
   const roomId = req.params.id;
 
   try {
     const roomCheck = await req.db.query(
-      'SELECT id FROM rooms WHERE id = $1 AND is_active = true',
+      'SELECT id, site FROM rooms WHERE id = $1 AND is_active = true',
       [roomId],
     );
     if (!roomCheck.rowCount) {
       res.status(404).json({ error: 'Room not found' });
+      return;
+    }
+    const mySiteQr = userSite(req.user);
+    if (mySiteQr && roomCheck.rows[0].site !== mySiteQr) {
+      res.status(403).json({ error: 'Not allowed to manage rooms of another site' });
       return;
     }
 
@@ -509,16 +633,21 @@ app.post('/api/rooms/:id/qr/regenerate', requireDb, authenticateToken, requireAd
   }
 });
 
-app.delete('/api/rooms/:id', requireDb, authenticateToken, requireAdmin, async (req, res) => {
+app.delete('/api/rooms/:id', requireDb, authenticateToken, requireManager, async (req, res) => {
   const roomId = req.params.id;
 
   try {
     const roomCheck = await req.db.query(
-      'SELECT id FROM rooms WHERE id = $1 AND is_active = true',
+      'SELECT id, site FROM rooms WHERE id = $1 AND is_active = true',
       [roomId],
     );
     if (!roomCheck.rowCount) {
       res.status(404).json({ error: 'Room not found' });
+      return;
+    }
+    const mySiteDel = userSite(req.user);
+    if (mySiteDel && roomCheck.rows[0].site !== mySiteDel) {
+      res.status(403).json({ error: 'Not allowed to manage rooms of another site' });
       return;
     }
 
@@ -653,7 +782,8 @@ app.post('/api/issues', issueSubmitLimiter, requireDb, async (req, res) => {
 
     const adminSummary = [issue?.roomName || issue?.room_name, assetName, issueType]
       .filter(Boolean).join(' — ');
-    sendWhatsAppAdminAlert(ticketNumber, adminSummary)
+    // WhatsApp alert fan-out: every main admin + the site admins of this ticket's site.
+    notifyAdminsOfNewTicket(req.db, resolvedRoomId, ticketNumber, adminSummary)
       .catch((err) => console.error('[whatsapp] admin alert failed:', err?.message || err));
 
     res.status(201).json({ ok: true, issue: toPublicIssue(issue) });
@@ -919,6 +1049,8 @@ app.get('/api/issues/track', requireDb, async (req, res) => {
 app.get('/api/issues', requireDb, authenticateToken, async (req, res) => {
   try {
     const filters = parseIssueFilters(req.query);
+    const mySite = userSite(req.user);
+    if (mySite) filters.site = mySite;
     const issues = await fetchAllIssues(req.db, filters);
     res.status(200).json({ issues });
   } catch {
@@ -963,14 +1095,25 @@ app.put('/api/issues/:ticketNumber', requireDb, authenticateToken, requireStaff,
 
     const current = existing.rows[0];
     const newStatus = body.status ?? current.status;
-    const isAdmin = req.user?.role === 'admin';
+    // Any admin tier may manage ticket status/cost; site-scoped roles only within their site.
+    const isAdmin = ADMIN_ROLES.has(req.user?.role);
+    const canDelete = req.user?.role === 'admin' || req.user?.role === 'site_admin';
+
+    const mySite = userSite(req.user);
+    if (mySite) {
+      const roomSite = await req.db.query('SELECT site FROM rooms WHERE id = $1', [current.room_id]);
+      if (roomSite.rows[0]?.site !== mySite) {
+        res.status(403).json({ error: 'Not allowed to manage tickets of another site' });
+        return;
+      }
+    }
 
     if (!VALID_STATUSES.has(newStatus)) {
       res.status(400).json({ error: 'Invalid status' });
       return;
     }
 
-    if (!isAdmin && body.isDeleted !== undefined && Boolean(body.isDeleted) !== current.is_deleted) {
+    if (!canDelete && body.isDeleted !== undefined && Boolean(body.isDeleted) !== current.is_deleted) {
       res.status(403).json({ error: 'Admin access required to delete tickets' });
       return;
     }
@@ -988,7 +1131,7 @@ app.put('/api/issues/:ticketNumber', requireDb, authenticateToken, requireStaff,
       : (isAdmin && body.cost !== undefined ? Number(body.cost) || 0 : current.cost);
     const newParts = isAdmin && body.parts !== undefined ? body.parts : current.parts;
     const newAssignee = isAdmin && body.assignee !== undefined ? String(body.assignee).trim() : current.assignee;
-    const newIsDeleted = isAdmin && body.isDeleted !== undefined
+    const newIsDeleted = canDelete && body.isDeleted !== undefined
       ? Boolean(body.isDeleted)
       : current.is_deleted;
     const newRejection = body.rejectionReason !== undefined
@@ -1152,6 +1295,8 @@ app.delete('/api/issues/:ticketNumber', requireDb, authenticateToken, requireAdm
 app.get('/api/tickets', requireDb, authenticateToken, async (req, res) => {
   try {
     const filters = parseIssueFilters(req.query);
+    const mySite = userSite(req.user);
+    if (mySite) filters.site = mySite;
     const issues = await fetchAllIssues(req.db, filters);
     res.status(200).json({ tickets: issues });
   } catch {
