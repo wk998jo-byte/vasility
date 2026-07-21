@@ -109,7 +109,8 @@ const t = {
     low: 'Low', medium: 'Medium', high: 'High',
     statusNew: 'New', inProgress: 'In Progress', resolved: 'Resolved', closed: 'Closed', rejected: 'Rejected',
     total: 'Total Tickets', active: 'Active Issues', breached: 'SLA Breached', spend: 'Total Spend (SAR)',
-    print: 'Print', assign: 'Assign Technician', cost: 'Cost (SAR)', parts: 'Parts Used',
+    print: 'Print', assign: 'Assign Technician', cost: 'Total Cost (SAR)', parts: 'Parts Used',
+    unitPrice: 'Unit Price (SAR)', units: 'Units',
     markResolved: 'Mark Resolved', markClosed: 'Close Ticket',
     search: 'Enter exact Ticket Number (e.g., FMC-2026-0001)',
     searchEmployeeId: 'Employee ID (Badge Number)',
@@ -196,7 +197,8 @@ const t = {
     low: 'منخفض', medium: 'متوسط', high: 'عالي',
     statusNew: 'جديد', inProgress: 'قيد التنفيذ', resolved: 'تم الحل', closed: 'مغلق', rejected: 'مرفوض',
     total: 'إجمالي التذاكر', active: 'الطلبات النشطة', breached: 'تجاوز الوقت', spend: 'إجمالي التكلفة (ريال)',
-    print: 'طباعة', assign: 'تعيين فني', cost: 'التكلفة (ريال)', parts: 'القطع المستخدمة',
+    print: 'طباعة', assign: 'تعيين فني', cost: 'التكلفة الإجمالية (ريال)', parts: 'القطع المستخدمة',
+    unitPrice: 'سعر الوحدة (ريال)', units: 'عدد الوحدات',
     markResolved: 'تم الحل', markClosed: 'إغلاق التذكرة',
     search: 'أدخل رقم التذكرة بالضبط (مثال: FMC-2026-0001)',
     searchEmployeeId: 'الرقم الوظيفي (رقم البطاقة)',
@@ -1326,7 +1328,8 @@ function AdminDashboard({
       rejectionReason: merged.rejectionReason,
     };
     if (isAdmin) {
-      payload.cost = merged.cost;
+      payload.unitPrice = merged.unitPrice;
+      payload.units = merged.units;
       payload.parts = merged.parts;
       payload.assignee = merged.assignee || '';
       payload.isDeleted = merged.isDeleted;
@@ -1882,8 +1885,18 @@ function AdminDashboard({
               {isAdmin && (
               <div className="grid grid-cols-2 gap-4">
                 <div>
+                  <label className="text-xs font-bold text-gray-400 block mb-2 uppercase">{dict.unitPrice}</label>
+                  <input type="number" min="0" step="any" value={selectedTicket.unitPrice || ''} onChange={(e) => updateTicket(selectedTicket.id, { unitPrice: e.target.value })} className="w-full border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-3 bg-transparent outline-none" />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-gray-400 block mb-2 uppercase">{dict.units}</label>
+                  <input type="number" min="1" step="1" value={selectedTicket.units || ''} onChange={(e) => updateTicket(selectedTicket.id, { units: e.target.value })} className="w-full border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-3 bg-transparent outline-none" />
+                </div>
+                <div>
                   <label className="text-xs font-bold text-gray-400 block mb-2 uppercase">{dict.cost}</label>
-                  <input type="number" value={selectedTicket.cost || ''} onChange={(e) => updateTicket(selectedTicket.id, { cost: e.target.value })} className="w-full border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-3 bg-transparent outline-none" />
+                  <p className="w-full border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-3 font-bold bg-gray-50 dark:bg-zinc-900">
+                    {((Number(selectedTicket.unitPrice) || 0) * (Number(selectedTicket.units) || 1)).toLocaleString()}
+                  </p>
                 </div>
                 <div>
                   <label className="text-xs font-bold text-gray-400 block mb-2 uppercase">{dict.parts}</label>

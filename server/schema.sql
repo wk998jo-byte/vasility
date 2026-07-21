@@ -93,6 +93,8 @@ CREATE TABLE IF NOT EXISTS facility_issues (
   reporter_email TEXT NOT NULL DEFAULT '',
   rejection_reason TEXT,
   cost NUMERIC(12, 2) NOT NULL DEFAULT 0,
+  unit_price NUMERIC(12, 2) NOT NULL DEFAULT 0,
+  units INTEGER NOT NULL DEFAULT 1,
   parts TEXT NOT NULL DEFAULT '',
   assignee TEXT NOT NULL DEFAULT '',
   image_url TEXT,
@@ -107,6 +109,11 @@ ALTER TABLE facility_issues ADD COLUMN IF NOT EXISTS image_url TEXT;
 ALTER TABLE facility_issues ADD COLUMN IF NOT EXISTS resolution_image_url TEXT;
 ALTER TABLE facility_issues ADD COLUMN IF NOT EXISTS reporter_phone TEXT NOT NULL DEFAULT '';
 ALTER TABLE facility_issues ADD COLUMN IF NOT EXISTS reporter_email TEXT NOT NULL DEFAULT '';
+
+-- Migration: split cost into unit price × units (total kept in cost)
+ALTER TABLE facility_issues ADD COLUMN IF NOT EXISTS unit_price NUMERIC(12, 2) NOT NULL DEFAULT 0;
+ALTER TABLE facility_issues ADD COLUMN IF NOT EXISTS units INTEGER NOT NULL DEFAULT 1;
+UPDATE facility_issues SET unit_price = cost WHERE unit_price = 0 AND cost > 0;
 
 -- Migration: allow the read-only 'viewer' role on existing databases.
 ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;

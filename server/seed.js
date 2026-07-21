@@ -211,6 +211,8 @@ export function mapIssueRow(row) {
     status: row.status,
     createdAt: row.created_at,
     cost: Number(row.cost) || 0,
+    unitPrice: Number(row.unit_price) || 0,
+    units: Number(row.units) || 1,
     parts: row.parts || '',
     assignee: row.assignee || '',
     imageUrl: row.image_url || null,

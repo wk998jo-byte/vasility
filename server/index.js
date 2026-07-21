@@ -971,7 +971,16 @@ app.put('/api/issues/:ticketNumber', requireDb, authenticateToken, requireStaff,
     }
 
     const statusNote = body.statusNote ?? body.rejectionReason ?? null;
-    const newCost = isAdmin && body.cost !== undefined ? Number(body.cost) || 0 : current.cost;
+    const newUnitPrice = isAdmin && body.unitPrice !== undefined
+      ? Number(body.unitPrice) || 0
+      : Number(current.unit_price) || 0;
+    const newUnits = isAdmin && body.units !== undefined
+      ? Math.max(1, Math.round(Number(body.units)) || 1)
+      : Number(current.units) || 1;
+    const costFieldsChanged = isAdmin && (body.unitPrice !== undefined || body.units !== undefined);
+    const newCost = costFieldsChanged
+      ? newUnitPrice * newUnits
+      : (isAdmin && body.cost !== undefined ? Number(body.cost) || 0 : current.cost);
     const newParts = isAdmin && body.parts !== undefined ? body.parts : current.parts;
     const newAssignee = isAdmin && body.assignee !== undefined ? String(body.assignee).trim() : current.assignee;
     const newIsDeleted = isAdmin && body.isDeleted !== undefined
@@ -987,15 +996,19 @@ app.put('/api/issues/:ticketNumber', requireDb, authenticateToken, requireStaff,
          SET status = $1,
              rejection_reason = $2,
              cost = $3,
-             parts = $4,
-             assignee = $5,
-             is_deleted = $6,
+             unit_price = $4,
+             units = $5,
+             parts = $6,
+             assignee = $7,
+             is_deleted = $8,
              updated_at = now()
-         WHERE ticket_number = $7`,
+         WHERE ticket_number = $9`,
         [
           newStatus,
           newRejection,
           newCost,
+          newUnitPrice,
+          newUnits,
           newParts,
           newAssignee,
           newIsDeleted,
