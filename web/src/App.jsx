@@ -1945,10 +1945,6 @@ function AdminDashboard({
                     {((Number(selectedTicket.unitPrice) || 0) * (Number(selectedTicket.units) || 1)).toLocaleString()}
                   </p>
                 </div>
-                <div>
-                  <label className="text-xs font-bold text-gray-400 block mb-2 uppercase">{dict.parts}</label>
-                  <input type="text" value={selectedTicket.parts || ''} onChange={(e) => updateTicket(selectedTicket.id, { parts: e.target.value })} className="w-full border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-3 bg-transparent outline-none" />
-                </div>
               </div>
               )}
 
