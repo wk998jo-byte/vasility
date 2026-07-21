@@ -4,7 +4,7 @@ import { Scanner } from '@yudiel/react-qr-scanner';
 import {
   Check, QrCode, Search, LayoutGrid, LogOut, Trash2, RotateCcw,
   X, Plus, Printer, Moon, Sun, Globe, ArrowRight, RefreshCw, Pencil, Users,
-  Bell,
+  Bell, Camera, ImagePlus,
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import {
@@ -19,6 +19,33 @@ const API_BASE = (import.meta.env.DEV && window.location.port === '5173')
 function parseIssuesResponse(data) {
   const list = Array.isArray(data) ? data : (data.issues || data.tickets || []);
   return list.map((item) => item.payload || item);
+}
+
+// Compresses an image client-side before upload: resizes to max 1280px on the
+// longest side and re-encodes as JPEG (quality 0.72). Keeps uploads small.
+async function compressImage(file, maxDim = 1280, quality = 0.72) {
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((resolve, reject) => {
+      const el = new Image();
+      el.onload = () => resolve(el);
+      el.onerror = () => reject(new Error('Invalid image'));
+      el.src = objectUrl;
+    });
+    const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+    const width = Math.max(1, Math.round(img.width * scale));
+    const height = Math.max(1, Math.round(img.height * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality));
+    if (!blob) throw new Error('Compression failed');
+    // If compression somehow made it bigger (tiny files), keep the original.
+    return blob.size < file.size ? blob : file;
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
 }
 
 async function resolveQrToken(token) {
@@ -142,6 +169,10 @@ const t = {
     uploadFixPhoto: 'Upload Fix Photo & Resolve',
     uploading: 'Uploading...', photoRequired: 'Please choose a photo first.',
     uploadFailed: 'Photo upload failed.',
+    issuePhoto: 'Issue Photo (optional)', takePhoto: 'Take Photo', choosePhoto: 'Choose from Gallery',
+    removePhoto: 'Remove photo', photoUploadNote: 'The photo helps the technician understand the issue faster.',
+    photoTooLarge: 'Photo is too large. Please choose a smaller one.',
+    photoUploadWarn: 'Your ticket was created, but the photo could not be uploaded.',
     updatesComments: 'Updates & Comments',
     technicianFixPhoto: 'Technician Fix Photo', internalOnly: 'Internal — not visible to the requester.',
     noUpdates: 'No updates yet. Check back soon.',
@@ -224,6 +255,10 @@ const t = {
     uploadFixPhoto: 'رفع صورة الإصلاح وإغلاق البلاغ',
     uploading: 'جاري الرفع...', photoRequired: 'يرجى اختيار صورة أولاً.',
     uploadFailed: 'فشل رفع الصورة.',
+    issuePhoto: 'صورة المشكلة (اختياري)', takePhoto: 'التقاط صورة', choosePhoto: 'اختيار من الاستوديو',
+    removePhoto: 'إزالة الصورة', photoUploadNote: 'الصورة تساعد الفني على فهم المشكلة بشكل أسرع.',
+    photoTooLarge: 'الصورة كبيرة جداً. يرجى اختيار صورة أصغر.',
+    photoUploadWarn: 'تم إنشاء التذكرة، لكن تعذّر رفع الصورة.',
     updatesComments: 'التحديثات والتعليقات',
     technicianFixPhoto: 'صورة الإصلاح من الفني', internalOnly: 'داخلي — غير مرئي لمقدم الطلب.',
     noUpdates: 'لا توجد تحديثات بعد. تحقق لاحقاً.',
@@ -559,6 +594,41 @@ function RequestForm({ dict, lang }) {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [successTicket, setSuccessTicket] = useState(null);
+  const [photoFile, setPhotoFile] = useState(null);
+  const [photoPreview, setPhotoPreview] = useState('');
+  const [photoWarning, setPhotoWarning] = useState('');
+  const cameraInputRef = useRef(null);
+  const galleryInputRef = useRef(null);
+  const photoSelectionRef = useRef(0);
+
+  useEffect(() => () => {
+    if (photoPreview) URL.revokeObjectURL(photoPreview);
+  }, [photoPreview]);
+
+  const handlePhotoSelected = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    const selectionId = ++photoSelectionRef.current;
+    try {
+      const compressed = await compressImage(file);
+      if (selectionId !== photoSelectionRef.current) return;
+      if (compressed.size > 5 * 1024 * 1024) {
+        alert(dict.photoTooLarge);
+        return;
+      }
+      setPhotoFile(compressed);
+      setPhotoPreview(URL.createObjectURL(compressed));
+    } catch {
+      if (selectionId === photoSelectionRef.current) alert(dict.uploadFailed);
+    }
+  };
+
+  const clearPhoto = () => {
+    photoSelectionRef.current += 1;
+    setPhotoFile(null);
+    setPhotoPreview('');
+  };
 
   const isOther = form.issue === 'Other';
   const isValid = hasValidToken && form.name && form.employeeId && form.phoneNumber.trim() !== ''
@@ -647,7 +717,27 @@ function RequestForm({ dict, lang }) {
       }
 
       const ticket = data.issue;
+
+      let photoFailed = false;
+      if (photoFile && ticket?.id) {
+        try {
+          const photoForm = new FormData();
+          photoForm.append('image', photoFile, 'issue-photo.jpg');
+          photoForm.append('qrToken', qrToken);
+          const upRes = await fetch(`${API_BASE}/issues/${encodeURIComponent(ticket.id)}/attachments`, {
+            method: 'POST',
+            body: photoForm,
+          });
+          if (!upRes.ok) photoFailed = true;
+        } catch {
+          // Ticket is already created — photo upload failure should not block success.
+          photoFailed = true;
+        }
+      }
+
+      setPhotoWarning(photoFailed ? dict.photoUploadWarn : '');
       setSuccessTicket(ticket);
+      clearPhoto();
       setForm({ name: '', employeeId: '', countryCode: '+966', phoneNumber: '', email: '', roomId: form.roomId, asset: '', issue: '', priority: '', notes: '' });
     } catch {
       setSubmitError(dict.backendError);
@@ -667,6 +757,9 @@ function RequestForm({ dict, lang }) {
           <h2 className="text-3xl font-extrabold tracking-tighter mb-2">{dict.submitSuccess}</h2>
           <p className="text-gray-500 mb-4">{dict.ticketCreated}</p>
           <p className="text-4xl font-mono font-extrabold mb-8">{successTicket.id}</p>
+          {photoWarning && (
+            <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded-2xl p-4 text-amber-700 dark:text-amber-400 text-sm font-semibold mb-6">{photoWarning}</div>
+          )}
           <button type="button" onClick={() => setSuccessTicket(null)} className="w-full bg-black text-white dark:bg-white dark:text-black py-4 rounded-2xl font-extrabold hover:bg-gray-900 dark:hover:bg-gray-100 transition-colors">
             {dict.submitAnother}
           </button>
@@ -772,6 +865,43 @@ function RequestForm({ dict, lang }) {
           <label className="text-sm font-bold text-gray-900 dark:text-gray-100 block mb-2">{dict.notes}</label>
           <textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} maxLength={250} rows={3} className={`w-full border rounded-2xl px-5 py-4 bg-transparent outline-none transition-all ${isOther && !form.notes ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-200 dark:border-zinc-800 focus:border-black dark:focus:border-white'}`} />
           {isOther && !form.notes && <p className="text-red-500 text-xs mt-2 font-semibold" aria-live="polite">{dict.otherRequired}</p>}
+        </div>
+
+        <div>
+          <label className="text-sm font-bold text-gray-900 dark:text-gray-100 block mb-2">{dict.issuePhoto}</label>
+          <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handlePhotoSelected} className="hidden" />
+          <input ref={galleryInputRef} type="file" accept="image/*" onChange={handlePhotoSelected} className="hidden" />
+          {photoPreview ? (
+            <div className="relative rounded-2xl overflow-hidden border border-gray-200 dark:border-zinc-800">
+              <img src={photoPreview} alt={dict.issuePhoto} className="w-full max-h-64 object-cover" />
+              <button
+                type="button"
+                onClick={clearPhoto}
+                className="absolute top-3 end-3 bg-black/70 text-white rounded-full p-2 hover:bg-black transition-colors"
+                aria-label={dict.removePhoto}
+              >
+                <X size={16} />
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => cameraInputRef.current?.click()}
+                className="border border-gray-200 dark:border-zinc-800 rounded-2xl px-4 py-4 font-bold text-sm flex items-center justify-center gap-2 hover:border-black dark:hover:border-white transition-colors"
+              >
+                <Camera size={18} /> {dict.takePhoto}
+              </button>
+              <button
+                type="button"
+                onClick={() => galleryInputRef.current?.click()}
+                className="border border-gray-200 dark:border-zinc-800 rounded-2xl px-4 py-4 font-bold text-sm flex items-center justify-center gap-2 hover:border-black dark:hover:border-white transition-colors"
+              >
+                <ImagePlus size={18} /> {dict.choosePhoto}
+              </button>
+            </div>
+          )}
+          <p className="text-xs text-gray-500 mt-2">{dict.photoUploadNote}</p>
         </div>
 
         {submitError && (
