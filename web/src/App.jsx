@@ -111,6 +111,7 @@ const t = {
     total: 'Total Tickets', active: 'Active Issues', breached: 'SLA Breached', spend: 'Total Spend (SAR)',
     print: 'Print', assign: 'Assign Technician', cost: 'Total Cost (SAR)', parts: 'Parts Used',
     unitPrice: 'Unit Price (SAR)', units: 'Units',
+    reporterInfo: 'Reporter Details', reporterPhone: 'Phone Number', reporterEmail: 'Email', reportedAt: 'Reported At',
     markResolved: 'Mark Resolved', markClosed: 'Close Ticket',
     search: 'Enter exact Ticket Number (e.g., FMC-2026-0001)',
     searchEmployeeId: 'Employee ID (Badge Number)',
@@ -199,6 +200,7 @@ const t = {
     total: 'إجمالي التذاكر', active: 'الطلبات النشطة', breached: 'تجاوز الوقت', spend: 'إجمالي التكلفة (ريال)',
     print: 'طباعة', assign: 'تعيين فني', cost: 'التكلفة الإجمالية (ريال)', parts: 'القطع المستخدمة',
     unitPrice: 'سعر الوحدة (ريال)', units: 'عدد الوحدات',
+    reporterInfo: 'بيانات مقدم البلاغ', reporterPhone: 'رقم الجوال', reporterEmail: 'البريد الإلكتروني', reportedAt: 'تاريخ البلاغ',
     markResolved: 'تم الحل', markClosed: 'إغلاق التذكرة',
     search: 'أدخل رقم التذكرة بالضبط (مثال: FMC-2026-0001)',
     searchEmployeeId: 'الرقم الوظيفي (رقم البطاقة)',
@@ -1846,6 +1848,37 @@ function AdminDashboard({
               </div>
               {selectedTicket.status === 'Rejected' && selectedTicket.rejectionReason && (
                 <p className="text-sm text-red-600 dark:text-red-400 mt-2">{selectedTicket.rejectionReason}</p>
+              )}
+              {(isAdmin || isViewer || adminRole === 'facility') && (
+                <div className="mt-4 bg-gray-50 dark:bg-zinc-900/50 border border-gray-200 dark:border-zinc-800 rounded-xl px-4 py-3">
+                  <p className="text-xs font-bold text-gray-400 uppercase mb-2">{dict.reporterInfo}</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                    <div>
+                      <p className="text-xs text-gray-400">{dict.name}</p>
+                      <p className="font-semibold">{selectedTicket.name || '—'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-400">{dict.searchEmployeeId}</p>
+                      <p className="font-semibold">{selectedTicket.employeeId || '—'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-400">{dict.reporterPhone}</p>
+                      {selectedTicket.phone ? (
+                        <a href={`tel:${selectedTicket.phone}`} className="font-semibold underline decoration-gray-300 hover:decoration-current" dir="ltr">{selectedTicket.phone}</a>
+                      ) : <p className="font-semibold">—</p>}
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-400">{dict.reporterEmail}</p>
+                      {selectedTicket.email ? (
+                        <a href={`mailto:${selectedTicket.email}`} className="font-semibold underline decoration-gray-300 hover:decoration-current break-all" dir="ltr">{selectedTicket.email}</a>
+                      ) : <p className="font-semibold">—</p>}
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-400">{dict.reportedAt}</p>
+                      <p className="font-semibold">{selectedTicket.createdAt ? new Date(selectedTicket.createdAt).toLocaleString() : '—'}</p>
+                    </div>
+                  </div>
+                </div>
               )}
             </div>
 
