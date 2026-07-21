@@ -562,6 +562,11 @@ app.post('/api/issues', issueSubmitLimiter, requireDb, async (req, res) => {
     return;
   }
 
+  if (!reporterEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(reporterEmail)) {
+    res.status(400).json({ error: 'A valid email address is required' });
+    return;
+  }
+
   if (!qrToken) {
     res.status(400).json({ error: 'qrToken required — scan a valid Room QR code' });
     return;

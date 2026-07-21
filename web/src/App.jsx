@@ -102,7 +102,7 @@ const t = {
     request: 'Request', track: 'Track', admin: 'Command Center', adminLogin: 'Admin Login',
     submit: 'Submit Request', scanning: 'Scanning...', scan: 'Scan QR',
     employeeId: 'Employee ID', name: 'Full Name', room: 'Select Location', asset: 'Select Asset',
-    phoneNumber: 'Phone Number', emailAddress: 'Email (optional)',
+    phoneNumber: 'Phone Number', emailAddress: 'Email',
     phoneRequired: 'Phone number is required so we can notify you on WhatsApp.',
     duplicateTicket: 'An active ticket already exists for this issue in this location.',
     issue: 'Issue Type', priority: 'Priority', notes: 'Additional Notes',
@@ -112,6 +112,7 @@ const t = {
     print: 'Print', assign: 'Assign Technician', cost: 'Total Cost (SAR)', parts: 'Parts Used',
     unitPrice: 'Unit Price (SAR)', units: 'Units',
     reporterInfo: 'Reporter Details', reporterPhone: 'Phone Number', reporterEmail: 'Email', reportedAt: 'Reported At',
+    reporterPhoto: 'Photo Attached by Reporter', emailRequired: 'Email is required.',
     markResolved: 'Mark Resolved', markClosed: 'Close Ticket',
     search: 'Enter exact Ticket Number (e.g., FMC-2026-0001)',
     searchEmployeeId: 'Employee ID (Badge Number)',
@@ -191,7 +192,7 @@ const t = {
     request: 'طلب صيانة', track: 'تتبع', admin: 'لوحة القيادة', adminLogin: 'دخول الإدارة',
     submit: 'إرسال الطلب', scanning: 'جاري المسح...', scan: 'مسح الباركود',
     employeeId: 'الرقم الوظيفي', name: 'الاسم الكامل', room: 'اختر الموقع', asset: 'اختر الأصل',
-    phoneNumber: 'رقم الهاتف', emailAddress: 'البريد الإلكتروني (اختياري)',
+    phoneNumber: 'رقم الهاتف', emailAddress: 'البريد الإلكتروني',
     phoneRequired: 'رقم الهاتف مطلوب حتى نتمكن من إشعارك عبر واتساب.',
     duplicateTicket: 'توجد تذكرة نشطة بالفعل لهذه المشكلة في هذا الموقع.',
     issue: 'نوع المشكلة', priority: 'الأولوية', notes: 'ملاحظات إضافية',
@@ -201,6 +202,7 @@ const t = {
     print: 'طباعة', assign: 'تعيين فني', cost: 'التكلفة الإجمالية (ريال)', parts: 'القطع المستخدمة',
     unitPrice: 'سعر الوحدة (ريال)', units: 'عدد الوحدات',
     reporterInfo: 'بيانات مقدم البلاغ', reporterPhone: 'رقم الجوال', reporterEmail: 'البريد الإلكتروني', reportedAt: 'تاريخ البلاغ',
+    reporterPhoto: 'الصورة المرفقة من مقدم البلاغ', emailRequired: 'البريد الإلكتروني مطلوب.',
     markResolved: 'تم الحل', markClosed: 'إغلاق التذكرة',
     search: 'أدخل رقم التذكرة بالضبط (مثال: FMC-2026-0001)',
     searchEmployeeId: 'الرقم الوظيفي (رقم البطاقة)',
@@ -834,7 +836,7 @@ function RequestForm({ dict, lang }) {
             </div>
             <p className="text-xs text-gray-500 mt-2">{dict.phoneRequired}</p>
           </div>
-          <Input label={dict.emailAddress} type="email" required={false} value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+          <Input label={dict.emailAddress} type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
         </div>
 
         <hr className="border-gray-100 dark:border-zinc-900" />
@@ -1878,6 +1880,18 @@ function AdminDashboard({
                       <p className="font-semibold">{selectedTicket.createdAt ? new Date(selectedTicket.createdAt).toLocaleString() : '—'}</p>
                     </div>
                   </div>
+                  {selectedTicket.imageUrl && (
+                    <div className="mt-3">
+                      <p className="text-xs text-gray-400 mb-1">{dict.reporterPhoto}</p>
+                      <a href={selectedTicket.imageUrl} target="_blank" rel="noreferrer" className="block">
+                        <img
+                          src={selectedTicket.imageUrl}
+                          alt={dict.reporterPhoto}
+                          className="w-full rounded-xl border border-gray-200 dark:border-zinc-800 object-cover max-h-72 hover:opacity-95 transition-opacity"
+                        />
+                      </a>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
