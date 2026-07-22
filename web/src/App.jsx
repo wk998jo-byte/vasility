@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { countSlaBreached } from './sla';
 import { Scanner } from '@yudiel/react-qr-scanner';
 import {
   Check, QrCode, Search, LayoutGrid, LogOut, Trash2, RotateCcw,
-  X, Plus, Printer, Moon, Sun, Globe, ArrowRight, RefreshCw, Pencil, Users,
+  X, Plus, Printer, Globe, ArrowRight, Pencil, Users,
   Bell, Camera, ImagePlus,
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
@@ -11,10 +11,164 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell,
 } from 'recharts';
+import { USERS as GENERATED_USERS } from './campUsersData';
+import { ROOM_DATA } from './data/roomsData';
+import { DHAHRAN_OFFICE_ROOMS } from './data/dhahranOfficeRooms';
 
-const API_BASE = (import.meta.env.DEV && window.location.port === '5173')
-  ? 'http://localhost:8080/api'
-  : '/api';
+/** Official staff directory — Excel camp technicians + seeded admins/sub-admins (RBAC enforced). */
+export const USERS = {
+  ...GENERATED_USERS,
+};
+
+/** Room → assets map. Keys: "{Camp Name} - {Room Name}" for SubAdmin RBAC filtering. */
+export const INITIAL_ROOM_DATA = {
+  ...ROOM_DATA,
+  ...DHAHRAN_OFFICE_ROOMS,
+};
+
+/** All camp/project labels — matches SubAdmin assignments (show every site in Location Manager). */
+export const ALL_CAMP_LABELS = [
+  'MGS Camp',
+  'Madina Camp 1',
+  'Madina Camp 2',
+  'Khurais Camp',
+  'Juaymah Camp',
+  'Dhahran Camp',
+  'Jubail Camp',
+];
+
+/** Keeps camp constants in the client bundle (counts also useful for admin diagnostics). */
+export const CAMP_DATA_STATS = {
+  users: Object.keys(USERS).length,
+  rooms: Object.keys(INITIAL_ROOM_DATA).length,
+  camps: ALL_CAMP_LABELS.length,
+};
+
+/** Camp label → DB site value (inverse of siteToCampLabel). */
+function campLabelToSite(camp) {
+  const c = String(camp || '').trim();
+  if (c === 'MGS Camp') return 'MGS';
+  if (c === 'Dhahran Camp') return 'Dhahran';
+  if (c === 'Khurais Camp') return 'Khurais';
+  if (c === 'Juaymah Camp') return 'Juaymah';
+  if (c === 'Jubail Camp') return 'Jubail';
+  if (c === 'Madina Camp 1') return 'Madina Camp 1';
+  if (c === 'Madina Camp 2') return 'Madina Camp 2';
+  return c.replace(/\s+Camp$/i, '').trim() || c;
+}
+
+/** Map DB site values → camp prefix used in "{Camp} - {Room}" keys (matches ROOM_DATA / RBAC). */
+function siteToCampLabel(site) {
+  const s = String(site || '').trim();
+  if (!s || /^dhahran$/i.test(s)) return 'Dhahran Camp';
+  if (/^mgs$/i.test(s)) return 'MGS Camp';
+  if (/^khurais$/i.test(s)) return 'Khurais Camp';
+  if (/^juaymah$/i.test(s) || /^juyamah$/i.test(s)) return 'Juaymah Camp';
+  if (/^madina camp 1$/i.test(s) || /^tcf-?1$/i.test(s)) return 'Madina Camp 1';
+  if (/^madina camp 2$/i.test(s) || /^tcf-?2$/i.test(s)) return 'Madina Camp 2';
+  if (/camp$/i.test(s)) return s;
+  return `${s} Camp`;
+}
+
+/** Sticker headline (e.g. "Dhahran Camp" → "Dhahran"). */
+function campDisplayName(camp) {
+  return String(camp || '').replace(/\s+Camp$/i, '').trim() || camp;
+}
+
+function parseLocationKey(key) {
+  const raw = String(key || '').trim();
+  const splitAt = raw.indexOf(' - ');
+  if (splitAt === -1) {
+    return { camp: 'Other', roomName: raw, qrValue: raw };
+  }
+  return {
+    camp: raw.slice(0, splitAt).trim(),
+    roomName: raw.slice(splitAt + 3).trim(),
+    qrValue: raw,
+  };
+}
+
+/** Group INITIAL_ROOM_DATA / ROOM_DATA keys by camp prefix (split on " - "). */
+function groupRoomDataKeys(roomDataKeys) {
+  const groups = new Map();
+  for (const key of roomDataKeys) {
+    const { camp } = parseLocationKey(key);
+    if (!groups.has(camp)) groups.set(camp, []);
+    groups.get(camp).push(key);
+  }
+  return [...groups.entries()]
+    .sort(([a], [b]) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
+    .map(([camp, keys]) => ({
+      camp,
+      locations: keys.sort((a, b) => (
+        parseLocationKey(a).roomName.localeCompare(parseLocationKey(b).roomName, undefined, { numeric: true })
+      )),
+    }));
+}
+
+/** Merge ROOM_DATA groups with the full camp list so every project/site appears. */
+function buildLocationSections(roomDataKeys) {
+  const grouped = groupRoomDataKeys(roomDataKeys);
+  const byCamp = new Map(grouped.map((section) => [section.camp, section.locations]));
+  const allCamps = [...new Set([...ALL_CAMP_LABELS, ...grouped.map((s) => s.camp)])];
+  return allCamps
+    .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
+    .map((camp) => ({
+      camp,
+      locations: byCamp.get(camp) || [],
+    }));
+}
+
+function getRoomLocationParts(room, resolveSite) {
+  const rawName = String(room?.name || '').trim();
+  if (rawName.includes(' - ')) {
+    const splitAt = rawName.indexOf(' - ');
+    const camp = rawName.slice(0, splitAt).trim();
+    const roomName = rawName.slice(splitAt + 3).trim();
+    return { camp, roomName, qrValue: rawName };
+  }
+  const camp = siteToCampLabel(resolveSite(room));
+  const roomName = rawName;
+  const qrValue = `${camp} - ${roomName}`;
+  return { camp, roomName, qrValue };
+}
+
+function campMatchesAdminSite(camp, adminSite) {
+  if (!adminSite) return true;
+  const c = camp.trim().toLowerCase();
+  const s = adminSite.trim().toLowerCase();
+  if (s === c) return true;
+  if (siteToCampLabel(adminSite).toLowerCase() === c) return true;
+  if (s === campDisplayName(camp).toLowerCase()) return true;
+  if (campLabelToSite(camp).toLowerCase() === s) return true;
+  return false;
+}
+
+/** Resolve a ticket's camp label for RBAC (room DB site, "Camp - Room" key, or ticket.site). */
+function resolveTicketCamp(ticket, roomCampByRoomId) {
+  if (ticket.camp) return ticket.camp;
+  if (ticket.roomId && roomCampByRoomId?.has(ticket.roomId)) {
+    return roomCampByRoomId.get(ticket.roomId);
+  }
+  const roomName = String(ticket.room || '');
+  if (roomName.includes(' - ')) return parseLocationKey(roomName).camp;
+  if (ticket.site) return siteToCampLabel(ticket.site);
+  return 'Dhahran Camp';
+}
+
+function resolveApiBase() {
+  const raw = import.meta.env.VITE_API_URL;
+  if (raw) {
+    const base = String(raw).replace(/\/$/, '');
+    return base.endsWith('/api') ? base : `${base}/api`;
+  }
+  if (import.meta.env.DEV && window.location.port === '5173') {
+    return `${window.location.protocol}//${window.location.hostname}:8081/api`;
+  }
+  return '/api';
+}
+
+const API_BASE = resolveApiBase();
 
 function parseIssuesResponse(data) {
   const list = Array.isArray(data) ? data : (data.issues || data.tickets || []);
@@ -122,12 +276,11 @@ const t = {
     department: 'Department',
     filterStatus: 'Status', filterPriority: 'Priority', filterDepartment: 'Department', filterLocation: 'Location / Room',
     filterDateFrom: 'From', filterDateTo: 'To', applyFilters: 'Apply',
-    rotateQr: 'Rotate QR',
     otherRequired: 'Notes are required when "Other" is selected.',
     scanCancel: 'Cancel Scan', scanNotFound: 'QR code does not match a known room.', scanError: 'Camera unavailable. Allow camera access or select the room manually.',
     scanSuccess: 'Room selected',
     loginTitle: 'Command Center', loginSubtitle: 'Authorized personnel only',
-    username: 'Admin Username', password: 'Password', loginBtn: 'Access OS',
+    username: 'Username', password: 'Password', loginBtn: 'Login',
     logout: 'Logout',
     requestSubtitle: 'Submit a facility maintenance request.',
     trackSubtitle: 'Real-time status tracking for facility maintenance.',
@@ -164,7 +317,9 @@ const t = {
     deleteRoomNamedConfirm: 'Move "{name}" to trash?',
     deleteRoomNamedForeverConfirm: 'Permanently delete "{name}"? This cannot be undone.',
     roomExists: 'A room with this name already exists.',
-    invalidCredentials: 'Invalid credentials', backendError: 'Backend not reachable',
+    invalidCredentials: 'Invalid username or password',
+    loginRateLimited: 'Too many login attempts. Wait 15 minutes or restart the server.',
+    backendError: 'Backend not reachable',
     submitSuccess: 'Request Submitted', submitError: 'Submission Failed',
     ticketCreated: 'Your ticket number is', tryAgain: 'Try Again', submitAnother: 'Submit Another',
     roomLocked: 'Room locked via QR scan',
@@ -216,7 +371,6 @@ const t = {
     department: 'القسم',
     filterStatus: 'الحالة', filterPriority: 'الأولوية', filterDepartment: 'القسم', filterLocation: 'الموقع / الغرفة',
     filterDateFrom: 'من', filterDateTo: 'إلى', applyFilters: 'تطبيق',
-    rotateQr: 'تدوير QR',
     otherRequired: 'الملاحظات مطلوبة عند اختيار "أخرى".',
     scanCancel: 'إلغاء المسح', scanNotFound: 'رمز QR لا يطابق أي موقع معروف.', scanError: 'الكاميرا غير متاحة. اسمح بالوصول أو اختر الموقع يدوياً.',
     scanSuccess: 'تم تحديد الموقع',
@@ -310,17 +464,16 @@ function formatHistoryDate(iso) {
 }
 
 function statusBadgeClass(status) {
-  if (status === 'Resolved' || status === 'Completed') return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400';
-  if (status === 'In Progress') return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400';
-  if (status === 'Rejected') return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400';
-  if (status === 'Closed') return 'bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300';
-  return 'bg-gray-100 text-gray-700 dark:bg-zinc-800 dark:text-gray-300';
+  if (status === 'Resolved' || status === 'Completed') return 'bg-emerald-50 text-emerald-600';
+  if (status === 'In Progress') return 'bg-amber-50 text-amber-600';
+  if (status === 'Rejected') return 'bg-red-50 text-red-700';
+  if (status === 'Closed') return 'bg-neutral-100 text-neutral-600';
+  return 'bg-amber-50 text-amber-600';
 }
 
 export default function App() {
   const [view, setView] = useState('request');
   const [lang, setLang] = useState('en');
-  const [theme, setTheme] = useState('light');
   const [tickets, setTickets] = useState([]);
   const [adminToken, setAdminToken] = useState(localStorage.getItem('ssc_admin_token') || '');
   const [adminRole, setAdminRole] = useState(localStorage.getItem('ssc_admin_role') || '');
@@ -331,7 +484,7 @@ export default function App() {
   const adminUser = tokenPayload?.user || localStorage.getItem('ssc_admin_user') || '';
 
   const dict = t[lang];
-  const fontClass = lang === 'ar' ? 'font-[Cairo]' : 'font-[Inter]';
+  const fontClass = lang === 'ar' ? 'font-[Cairo]' : 'font-sans';
 
   useEffect(() => {
     const tokenParam = new URLSearchParams(window.location.search).get('token');
@@ -341,8 +494,8 @@ export default function App() {
   useEffect(() => {
     document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
     document.documentElement.lang = lang === 'ar' ? 'ar' : 'en';
-    document.documentElement.classList.toggle('dark', theme === 'dark');
-  }, [lang, theme]);
+    document.documentElement.classList.remove('dark');
+  }, [lang]);
 
   useEffect(() => {
     if (!adminToken) setTickets([]);
@@ -359,20 +512,20 @@ export default function App() {
   };
 
   return (
-    <div className={`min-h-[100dvh] bg-industrial-50 dark:bg-industrial-950 text-industrial-950 dark:text-industrial-50 transition-colors duration-300 ${fontClass}`}>
-      <nav className="fixed top-0 inset-x-0 z-40 bg-white/80 dark:bg-industrial-950/80 backdrop-blur-xl border-b border-industrial-200/50 dark:border-industrial-800/50 shadow-sm print:hidden">
+    <div className={`min-h-[100dvh] bg-white text-neutral-900 ${fontClass}`}>
+      <nav className="fixed top-0 inset-x-0 z-40 bg-white border-b border-neutral-200 shadow-sm print:hidden">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
           <button type="button" onClick={() => setView('request')} className="flex items-center gap-4 group">
-            <div className="bg-white dark:bg-industrial-900 p-2 rounded-xl shadow-premium group-hover:scale-105 transition-transform duration-300">
+            <div className="bg-white p-2 rounded-xl border border-neutral-200 shadow-sm group-hover:scale-105 transition-transform duration-300">
               <BrandLogo className="h-10 w-auto object-contain" />
             </div>
             <div className="flex flex-col items-start hidden sm:flex">
-              <span className="font-extrabold tracking-tight text-xl leading-none text-industrial-900 dark:text-white">FMC</span>
-              <span className="text-[10px] font-bold uppercase tracking-widest text-accent-600 dark:text-accent-500">Bin Quraya</span>
+              <span className="font-extrabold tracking-tight text-xl leading-none text-neutral-900">FMC</span>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-red-700">Bin Quraya</span>
             </div>
           </button>
 
-          <div className="flex items-center bg-industrial-100/50 dark:bg-industrial-900/50 p-1.5 rounded-2xl border border-industrial-200/50 dark:border-industrial-800/50">
+          <div className="flex items-center bg-neutral-50 p-1.5 rounded-2xl border border-neutral-200">
             <NavBtn active={view === 'request'} onClick={() => setView('request')}>{dict.request}</NavBtn>
             <NavBtn active={view === 'track'} onClick={() => setView('track')}>{dict.track}</NavBtn>
             <NavBtn active={view === 'admin'} onClick={() => setView('admin')}>
@@ -392,16 +545,13 @@ export default function App() {
               />
             )}
             {adminToken && (
-              <button type="button" onClick={handleLogout} className="p-2.5 rounded-xl hover:bg-red-50 dark:hover:bg-red-950/30 text-industrial-500 hover:text-red-600 transition-colors" aria-label={dict.logout}>
+              <button type="button" onClick={handleLogout} className="p-2.5 rounded-xl hover:bg-red-50 text-neutral-600 hover:text-red-700 transition-colors" aria-label={dict.logout}>
                 <LogOut size={18} />
               </button>
             )}
-            <div className="w-px h-6 bg-industrial-200 dark:bg-industrial-800 mx-1 hidden sm:block" />
-            <button type="button" onClick={() => setLang((l) => (l === 'en' ? 'ar' : 'en'))} className="p-2.5 rounded-xl hover:bg-industrial-100 dark:hover:bg-industrial-900 transition-colors text-industrial-600 dark:text-industrial-400">
+            <div className="w-px h-6 bg-neutral-200 mx-1 hidden sm:block" />
+            <button type="button" onClick={() => setLang((l) => (l === 'en' ? 'ar' : 'en'))} className="p-2.5 rounded-xl text-neutral-600 hover:text-red-700 hover:bg-neutral-50 transition-colors">
               <Globe size={18} />
-            </button>
-            <button type="button" onClick={() => setTheme((th) => (th === 'light' ? 'dark' : 'light'))} className="p-2.5 rounded-xl hover:bg-industrial-100 dark:hover:bg-industrial-900 transition-colors text-industrial-600 dark:text-industrial-400">
-              {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
             </button>
           </div>
         </div>
@@ -486,12 +636,12 @@ function NotificationBell({ adminToken, dict, onOpenTicket }) {
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="relative p-2.5 rounded-xl hover:bg-white/50 dark:hover:bg-industrial-800/50 transition-colors text-industrial-600 dark:text-industrial-400 group"
+        className="relative p-2.5 rounded-xl hover:bg-neutral-50 transition-colors text-neutral-600 group"
         aria-label={dict.notifications}
       >
-        <Bell size={18} className="group-hover:text-industrial-900 dark:group-hover:text-white transition-colors" />
+        <Bell size={18} className="group-hover:text-neutral-900 transition-colors" />
         {unread > 0 && (
-          <span className="absolute -top-1 -end-1 min-w-[20px] h-[20px] px-1 rounded-full bg-accent-500 text-white text-[10px] font-extrabold flex items-center justify-center border-2 border-white dark:border-industrial-950 shadow-sm">
+          <span className="absolute -top-1 -end-1 min-w-[20px] h-[20px] px-1 rounded-full bg-red-700 text-white text-[10px] font-extrabold flex items-center justify-center border-2 border-white shadow-sm">
             {unread > 9 ? '9+' : unread}
           </span>
         )}
@@ -499,22 +649,22 @@ function NotificationBell({ adminToken, dict, onOpenTicket }) {
 
       {open && (
         <div className="absolute end-0 mt-3 w-80 max-h-96 overflow-y-auto glass-panel rounded-2xl p-2 animate-fade-in origin-top-right">
-          <p className="text-[10px] font-extrabold text-industrial-400 uppercase tracking-widest px-3 py-2">{dict.notifications}</p>
+          <p className="text-[10px] font-extrabold text-neutral-400 uppercase tracking-widest px-3 py-2">{dict.notifications}</p>
           {notifications.length === 0 ? (
-            <p className="text-sm text-industrial-400 px-3 pb-3 font-medium">{dict.noNotifications}</p>
+            <p className="text-sm text-neutral-400 px-3 pb-3 font-medium">{dict.noNotifications}</p>
           ) : (
             notifications.map((n) => (
               <button
                 key={n.id}
                 type="button"
                 onClick={() => handleNotificationClick(n)}
-                className={`w-full text-start px-3 py-3 rounded-xl hover:bg-industrial-50 dark:hover:bg-industrial-900/50 transition-colors group ${n.isRead ? 'opacity-60' : ''}`}
+                className={`w-full text-start px-3 py-3 rounded-xl hover:bg-neutral-50 transition-colors group ${n.isRead ? 'opacity-60' : ''}`}
               >
                 <div className="flex items-start gap-3">
-                  {!n.isRead && <span className="mt-1.5 w-2 h-2 rounded-full bg-accent-500 shrink-0 shadow-[0_0_8px_rgba(249,140,7,0.5)]" />}
+                  {!n.isRead && <span className="mt-1.5 w-2 h-2 rounded-full bg-red-700 shrink-0 shadow-[0_0_8px_rgba(185,28,28,0.35)]" />}
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold leading-snug break-words text-industrial-900 dark:text-industrial-50 group-hover:text-accent-600 dark:group-hover:text-accent-400 transition-colors">{n.message}</p>
-                    <p className="text-[10px] font-mono text-industrial-400 mt-1">{formatHistoryDate(n.createdAt)}</p>
+                    <p className="text-sm font-semibold leading-snug break-words text-neutral-900 group-hover:text-red-700 transition-colors">{n.message}</p>
+                    <p className="text-[10px] font-mono text-neutral-400 mt-1">{formatHistoryDate(n.createdAt)}</p>
                   </div>
                 </div>
               </button>
@@ -528,7 +678,7 @@ function NotificationBell({ adminToken, dict, onOpenTicket }) {
 
 function NavBtn({ active, onClick, children }) {
   return (
-    <button type="button" onClick={onClick} className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all duration-300 ${active ? 'bg-white dark:bg-industrial-800 text-accent-600 dark:text-accent-400 shadow-sm' : 'text-industrial-600 dark:text-industrial-400 hover:text-industrial-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-industrial-800/50'}`}>
+    <button type="button" onClick={onClick} className={`px-5 py-2.5 rounded-xl text-sm font-bold transition-all duration-300 ${active ? 'bg-white text-red-700 shadow-sm border border-neutral-200' : 'text-neutral-600 hover:text-red-700 hover:bg-white'}`}>
       {children}
     </button>
   );
@@ -537,52 +687,67 @@ function NavBtn({ active, onClick, children }) {
 function AdminLogin({ setToken, setRole, setSite, dict }) {
   const [user, setUser] = useState('');
   const [pass, setPass] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const handleLogin = async (e) => {
     e.preventDefault();
+    setError('');
+    setLoading(true);
     try {
       const res = await fetch(`${API_BASE}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: user, password: pass }),
+        body: JSON.stringify({ username: user.trim(), password: pass }),
       });
-      if (res.ok) {
-        const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.token) {
         localStorage.setItem('ssc_admin_token', data.token);
         localStorage.setItem('ssc_admin_role', data.role || 'admin');
         localStorage.setItem('ssc_admin_site', data.site || '');
-        localStorage.setItem('ssc_admin_user', decodeJwtPayload(data.token)?.user || '');
+        localStorage.setItem('ssc_admin_user', decodeJwtPayload(data.token)?.user || user.trim());
         setToken(data.token);
         setRole(data.role || 'admin');
         setSite(data.site || '');
+      } else if (res.status === 429) {
+        setError(dict.loginRateLimited);
       } else {
-        alert(dict.invalidCredentials);
+        setError(data.error || dict.invalidCredentials);
       }
     } catch {
-      alert(dict.backendError);
+      setError(dict.backendError);
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
     <div className="max-w-md mx-auto mt-12 lg:mt-24 glass-panel p-8 sm:p-10 rounded-[2.5rem] animate-slide-up relative overflow-hidden">
-      <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-accent-400 to-accent-600" />
+      <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-red-600 to-red-700" />
       <div className="text-center mb-10">
-        <div className="bg-white dark:bg-industrial-900 w-20 h-20 mx-auto rounded-2xl shadow-premium flex items-center justify-center mb-6">
+        <div className="bg-white w-20 h-20 mx-auto rounded-2xl shadow-sm flex items-center justify-center mb-6">
           <BrandLogo className="h-12 w-auto object-contain" />
         </div>
-        <h2 className="text-3xl font-extrabold tracking-tighter text-industrial-900 dark:text-white">{dict.loginTitle}</h2>
-        <p className="text-industrial-500 text-sm mt-2 font-medium">{dict.loginSubtitle}</p>
+        <h2 className="text-3xl font-extrabold tracking-tighter text-neutral-900">{dict.loginTitle}</h2>
+        <p className="text-neutral-500 text-sm mt-2 font-medium">{dict.loginSubtitle}</p>
       </div>
       <form onSubmit={handleLogin} className="space-y-5">
+        {error && (
+          <p className="text-sm font-bold text-red-700 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-center" role="alert">
+            {error}
+          </p>
+        )}
         <div className="space-y-1.5">
-          <label className="text-xs font-bold text-industrial-500 uppercase tracking-wider ms-1">{dict.username}</label>
-          <input type="text" placeholder={dict.username} required value={user} onChange={(e) => setUser(e.target.value)} autoCapitalize="none" autoCorrect="off" spellCheck={false} autoComplete="username" className="w-full border border-industrial-200 dark:border-industrial-800 rounded-2xl px-5 py-4 bg-white/50 dark:bg-industrial-900/50 focus:border-accent-500 dark:focus:border-accent-400 outline-none focus:ring-4 focus:ring-accent-500/10 transition-all font-medium" />
+          <label htmlFor="admin-login-username" className="text-xs font-bold text-neutral-500 uppercase tracking-wider ms-1">{dict.username}</label>
+          <input id="admin-login-username" type="text" placeholder={dict.username} required value={user} onChange={(e) => { setUser(e.target.value); setError(''); }} autoCapitalize="none" autoCorrect="off" spellCheck={false} autoComplete="username" className="w-full border border-neutral-200 rounded-2xl px-5 py-4 bg-white focus:border-red-700 outline-none focus:ring-4 focus:ring-red-700/10 transition-all font-medium text-neutral-900" />
         </div>
         <div className="space-y-1.5">
-          <label className="text-xs font-bold text-industrial-500 uppercase tracking-wider ms-1">{dict.password}</label>
-          <input type="password" placeholder={dict.password} required value={pass} onChange={(e) => setPass(e.target.value)} className="w-full border border-industrial-200 dark:border-industrial-800 rounded-2xl px-5 py-4 bg-white/50 dark:bg-industrial-900/50 focus:border-accent-500 dark:focus:border-accent-400 outline-none focus:ring-4 focus:ring-accent-500/10 transition-all font-medium" />
+          <label htmlFor="admin-login-password" className="text-xs font-bold text-neutral-500 uppercase tracking-wider ms-1">{dict.password}</label>
+          <input id="admin-login-password" type="password" placeholder={dict.password} required value={pass} onChange={(e) => { setPass(e.target.value); setError(''); }} autoComplete="current-password" className="w-full border border-neutral-200 rounded-2xl px-5 py-4 bg-white focus:border-red-700 outline-none focus:ring-4 focus:ring-red-700/10 transition-all font-medium text-neutral-900" />
         </div>
-        <button type="submit" className="w-full bg-industrial-900 text-white dark:bg-white dark:text-industrial-900 font-bold py-4 rounded-2xl mt-8 hover:bg-accent-600 dark:hover:bg-accent-500 hover:text-white transition-all duration-300 shadow-premium hover:shadow-premium-hover hover:-translate-y-0.5">{dict.loginBtn}</button>
+        <button type="submit" disabled={loading} className="w-full bg-red-700 text-white font-bold py-4 rounded-2xl mt-8 hover:bg-red-800 hover:text-white transition-all duration-300 shadow-sm hover:shadow-md hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed">
+          {loading ? '...' : dict.loginBtn}
+        </button>
       </form>
     </div>
   );
@@ -590,10 +755,11 @@ function AdminLogin({ setToken, setRole, setSite, dict }) {
 
 function QRScannerModal({ onScan, onClose }) {
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 print:hidden">
-      <div className="bg-white dark:bg-industrial-950 p-6 rounded-2xl w-full max-w-md shadow-2xl">
-        <h3 className="text-xl font-extrabold mb-4 text-center">Scan Room QR</h3>
-        <div className="w-full overflow-hidden rounded-xl border border-industrial-200 dark:border-industrial-800 bg-black aspect-square flex items-center justify-center">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 print:hidden">
+      <div className="modal-backdrop" onClick={onClose} />
+      <div className="modal-panel max-w-md p-6 sm:p-8 animate-slide-up">
+        <h3 className="text-xl font-extrabold mb-5 text-center tracking-tight text-neutral-900">Scan Room QR</h3>
+        <div className="w-full overflow-hidden rounded-2xl border border-neutral-200 bg-black aspect-square flex items-center justify-center">
           <Scanner
             formats={['qr_code', 'micro_qr_code']}
             constraints={{ facingMode: { ideal: 'environment' } }}
@@ -609,7 +775,7 @@ function QRScannerModal({ onScan, onClose }) {
             onError={(error) => console.log(error?.message)}
           />
         </div>
-        <button type="button" onClick={onClose} className="mt-6 w-full bg-red-500 hover:bg-red-600 text-white py-3 rounded-xl font-bold transition-colors">
+        <button type="button" onClick={onClose} className="mt-6 w-full bg-red-700 hover:bg-red-800 text-white py-3.5 rounded-xl font-bold transition-colors">
           Cancel
         </button>
       </div>
@@ -788,18 +954,18 @@ function RequestForm({ dict, lang }) {
         <BrandLogo className="h-14 w-auto drop-shadow-sm object-contain mx-auto mb-8" />
         <div className="glass-panel p-10 sm:p-12 relative overflow-hidden rounded-[2.5rem]">
           <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-emerald-400 to-emerald-600" />
-          <div className="w-20 h-20 rounded-2xl bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center mx-auto mb-8 shadow-sm">
-            <Check size={40} className="text-emerald-600 dark:text-emerald-400" />
+          <div className="w-20 h-20 rounded-2xl bg-emerald-100 flex items-center justify-center mx-auto mb-8 shadow-sm">
+            <Check size={40} className="text-emerald-600" />
           </div>
-          <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tighter mb-3 text-industrial-900 dark:text-white">{dict.submitSuccess}</h2>
-          <p className="text-industrial-500 dark:text-industrial-400 mb-6 font-medium text-lg">{dict.ticketCreated}</p>
-          <div className="bg-industrial-50 dark:bg-industrial-900/50 py-6 px-8 rounded-2xl border border-industrial-100 dark:border-industrial-800 mb-8 inline-block">
-            <p className="text-5xl font-mono font-extrabold text-industrial-900 dark:text-white tracking-tight">{successTicket.id}</p>
+          <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tighter mb-3 text-neutral-900">{dict.submitSuccess}</h2>
+          <p className="text-neutral-500 mb-6 font-medium text-lg">{dict.ticketCreated}</p>
+          <div className="bg-neutral-50 py-6 px-8 rounded-2xl border border-neutral-100 mb-8 inline-block">
+            <p className="text-5xl font-mono font-extrabold text-neutral-900 tracking-tight">{successTicket.id}</p>
           </div>
           {photoWarning && (
-            <div className="bg-accent-50 dark:bg-accent-950/30 border border-accent-200 dark:border-accent-900 rounded-2xl p-4 text-accent-700 dark:text-accent-400 text-sm font-bold mb-8">{photoWarning}</div>
+            <div className="bg-red-50 border border-red-200 rounded-2xl p-4 text-red-800 text-sm font-bold mb-8">{photoWarning}</div>
           )}
-          <button type="button" onClick={() => setSuccessTicket(null)} className="w-full bg-industrial-900 text-white dark:bg-white dark:text-industrial-900 py-4 rounded-2xl font-extrabold text-lg transition-all shadow-premium hover:shadow-premium-hover hover:-translate-y-0.5">
+          <button type="button" onClick={() => setSuccessTicket(null)} className="w-full bg-red-700 text-white py-4 rounded-2xl font-extrabold text-lg transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5">
             {dict.submitAnother}
           </button>
         </div>
@@ -812,12 +978,12 @@ function RequestForm({ dict, lang }) {
       <div className="max-w-2xl mx-auto print:hidden text-center animate-fade-in">
         <BrandLogo className="h-14 w-auto drop-shadow-sm object-contain mx-auto mb-8" />
         <div className="glass-panel p-10 sm:p-12 relative overflow-hidden rounded-[2.5rem]">
-          <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-accent-400 to-accent-600" />
-          <div className="w-24 h-24 rounded-3xl bg-accent-100/50 dark:bg-accent-900/30 flex items-center justify-center mx-auto mb-8 shadow-sm">
-            <QrCode size={48} className="text-accent-600 dark:text-accent-500" />
+          <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-red-600 to-red-700" />
+          <div className="w-24 h-24 rounded-3xl bg-red-50/50 flex items-center justify-center mx-auto mb-8 shadow-sm">
+            <QrCode size={48} className="text-red-700" />
           </div>
-          <h2 className="text-3xl font-extrabold tracking-tighter mb-4 text-industrial-900 dark:text-white">{dict.scanQrRequired}</h2>
-          <button type="button" onClick={() => setShowScanner(true)} className="mt-6 w-full sm:w-auto bg-industrial-900 text-white dark:bg-white dark:text-industrial-900 px-10 py-5 rounded-2xl font-extrabold text-lg inline-flex items-center justify-center gap-3 transition-all shadow-premium hover:shadow-premium-hover hover:-translate-y-0.5">
+          <h2 className="text-3xl font-extrabold tracking-tighter mb-4 text-neutral-900">{dict.scanQrRequired}</h2>
+          <button type="button" onClick={() => setShowScanner(true)} className="mt-6 w-full sm:w-auto bg-red-700 text-white px-10 py-5 rounded-2xl font-extrabold text-lg inline-flex items-center justify-center gap-3 transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5">
             <QrCode size={24} /> {dict.scan}
           </button>
         </div>
@@ -830,19 +996,19 @@ function RequestForm({ dict, lang }) {
     <div className="max-w-2xl mx-auto print:hidden animate-fade-in">
       {showScanner && <QRScannerModal onClose={() => setShowScanner(false)} onScan={handleScanSuccess} />}
       <div className="mb-12 text-center">
-        <div className="bg-white dark:bg-industrial-900 w-20 h-20 mx-auto rounded-2xl shadow-premium flex items-center justify-center mb-6">
+        <div className="bg-white w-20 h-20 mx-auto rounded-2xl shadow-sm flex items-center justify-center mb-6">
           <BrandLogo className="h-12 w-auto object-contain" />
         </div>
-        <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tighter mb-3 text-industrial-900 dark:text-white">{dict.request}</h1>
-        <p className="text-industrial-500 dark:text-industrial-400 font-medium">{dict.requestSubtitle}</p>
+        <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tighter mb-3 text-neutral-900">{dict.request}</h1>
+        <p className="text-neutral-500 font-medium">{dict.requestSubtitle}</p>
       </div>
 
       <form onSubmit={submit} className="glass-panel rounded-[2.5rem] p-6 sm:p-12 space-y-8 relative overflow-hidden">
-        <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-industrial-900 to-industrial-700 dark:from-white dark:to-industrial-200" />
+        <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-red-700 to-red-800" />
 
         {departmentName && (
-          <div className="inline-flex items-center gap-2 bg-industrial-100 dark:bg-industrial-900 px-4 py-2 rounded-full text-sm font-bold">
-            <span className="text-industrial-500 dark:text-industrial-400">{dict.department}:</span> {departmentName}
+          <div className="inline-flex items-center gap-2 bg-neutral-100 px-4 py-2 rounded-full text-sm font-bold">
+            <span className="text-neutral-500">{dict.department}:</span> {departmentName}
           </div>
         )}
 
@@ -853,12 +1019,12 @@ function RequestForm({ dict, lang }) {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
           <div>
-            <label className="text-sm font-bold text-industrial-900 dark:text-industrial-50 block mb-2">{dict.phoneNumber}</label>
+            <label className="text-sm font-bold text-neutral-900 block mb-2">{dict.phoneNumber}</label>
             <div className="flex gap-2" dir="ltr">
               <select
                 value={form.countryCode}
                 onChange={(e) => setForm({ ...form, countryCode: e.target.value })}
-                className="border border-industrial-200 dark:border-industrial-800 rounded-2xl px-3 py-4 bg-transparent focus:border-industrial-900 dark:focus:border-industrial-50 outline-none appearance-none transition-all font-medium shrink-0"
+                className="border border-neutral-200 rounded-2xl px-3 py-4 bg-transparent focus:border-neutral-900 outline-none appearance-none transition-all font-medium shrink-0"
               >
                 {COUNTRY_CODES.map((c) => <option key={c.code} value={c.code} className="text-black">{c.flag} {c.code}</option>)}
               </select>
@@ -869,37 +1035,37 @@ function RequestForm({ dict, lang }) {
                 placeholder="5X XXX XXXX"
                 value={form.phoneNumber}
                 onChange={(e) => setForm({ ...form, phoneNumber: e.target.value })}
-                className="w-full border border-industrial-200 dark:border-industrial-800 rounded-2xl px-5 py-4 bg-transparent focus:border-industrial-900 dark:focus:border-industrial-50 focus:ring-1 focus:ring-accent-500/20 outline-none transition-all"
+                className="w-full border border-neutral-200 rounded-2xl px-5 py-4 bg-transparent focus:border-neutral-900 focus:ring-1 focus:ring-red-700/20 outline-none transition-all"
               />
             </div>
-            <p className="text-xs text-industrial-500 dark:text-industrial-400 mt-2">{dict.phoneRequired}</p>
+            <p className="text-xs text-neutral-500 mt-2">{dict.phoneRequired}</p>
           </div>
           <Input label={dict.emailAddress} type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
         </div>
 
-        <hr className="border-gray-100 dark:border-zinc-900" />
+        <hr className="section-divider" />
 
-        <div className="space-y-6 bg-industrial-50 dark:bg-industrial-900/50 p-6 rounded-3xl border border-industrial-100 dark:border-industrial-800/50">
+        <div className="space-y-6 bg-neutral-50 p-6 rounded-3xl border border-neutral-100">
           <div>
-            <label className="text-sm font-bold text-industrial-900 dark:text-industrial-50 block mb-2">{dict.room}</label>
-            <div className="w-full border border-industrial-200 dark:border-industrial-800 rounded-2xl px-5 py-4 bg-industrial-100 dark:bg-industrial-900 font-medium">
+            <label className="text-sm font-bold text-neutral-900 block mb-2">{dict.room}</label>
+            <div className="w-full border border-neutral-200 rounded-2xl px-5 py-4 bg-neutral-100 font-medium">
               {resolvedRoomName}
-              <p className="text-xs text-industrial-500 dark:text-industrial-400 mt-1">{dict.roomLocked}</p>
+              <p className="text-xs text-neutral-500 mt-1">{dict.roomLocked}</p>
             </div>
           </div>
           <div>
-            <label className="text-sm font-bold text-industrial-900 dark:text-industrial-50 block mb-2">{dict.asset}</label>
+            <label className="text-sm font-bold text-neutral-900 block mb-2">{dict.asset}</label>
             <Select value={form.asset} onChange={(e) => setForm({ ...form, asset: e.target.value })} options={assets} placeholder={dict.selectPlaceholder} />
           </div>
         </div>
 
         <div>
-          <label className="text-sm font-bold text-industrial-900 dark:text-industrial-50 block mb-2">{dict.issue}</label>
+          <label className="text-sm font-bold text-neutral-900 block mb-2">{dict.issue}</label>
           <Select disabled={!form.asset} value={form.issue} onChange={(e) => setForm({ ...form, issue: e.target.value })} options={ISSUES} placeholder={dict.selectPlaceholder} />
         </div>
 
         <div>
-          <label className="text-sm font-bold text-industrial-900 dark:text-industrial-50 block mb-3">{dict.priority}</label>
+          <label className="text-sm font-bold text-neutral-900 block mb-3">{dict.priority}</label>
           <div className="grid grid-cols-3 gap-3">
             <RadioCard label={dict.low} active={form.priority === 'Low'} onClick={() => setForm({ ...form, priority: 'Low' })} />
             <RadioCard label={dict.medium} active={form.priority === 'Medium'} onClick={() => setForm({ ...form, priority: 'Medium' })} />
@@ -908,22 +1074,22 @@ function RequestForm({ dict, lang }) {
         </div>
 
         <div>
-          <label className="text-sm font-bold text-industrial-900 dark:text-industrial-50 block mb-2">{dict.notes}</label>
-          <textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} maxLength={250} rows={3} className={`w-full border rounded-2xl px-5 py-4 bg-transparent outline-none transition-all ${isOther && !form.notes ? 'border-red-500 ring-1 ring-red-500' : 'border-industrial-200 dark:border-industrial-800 focus:border-industrial-900 dark:focus:border-industrial-50'}`} />
-          {isOther && !form.notes && <p className="text-red-500 text-xs mt-2 font-semibold" aria-live="polite">{dict.otherRequired}</p>}
+          <label className="text-sm font-bold text-neutral-900 block mb-2">{dict.notes}</label>
+          <textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} maxLength={250} rows={3} className={`w-full border rounded-2xl px-5 py-4 bg-transparent outline-none transition-all ${isOther && !form.notes ? 'border-red-700 ring-1 ring-red-700' : 'border-neutral-200 focus:border-neutral-900'}`} />
+          {isOther && !form.notes && <p className="text-red-700 text-xs mt-2 font-semibold" aria-live="polite">{dict.otherRequired}</p>}
         </div>
 
         <div>
-          <label className="text-sm font-bold text-industrial-900 dark:text-industrial-50 block mb-2">{dict.issuePhoto}</label>
+          <label className="text-sm font-bold text-neutral-900 block mb-2">{dict.issuePhoto}</label>
           <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handlePhotoSelected} className="hidden" />
           <input ref={galleryInputRef} type="file" accept="image/*" onChange={handlePhotoSelected} className="hidden" />
           {photoPreview ? (
-            <div className="relative rounded-2xl overflow-hidden border border-industrial-200 dark:border-industrial-800">
+            <div className="relative rounded-2xl overflow-hidden border border-neutral-200">
               <img src={photoPreview} alt={dict.issuePhoto} className="w-full max-h-64 object-cover" />
               <button
                 type="button"
                 onClick={clearPhoto}
-                className="absolute top-3 end-3 bg-black/70 text-white rounded-full p-2 hover:bg-black transition-colors"
+                className="absolute top-3 end-3 bg-neutral-900/75 text-white rounded-full p-2 hover:bg-neutral-900 transition-colors"
                 aria-label={dict.removePhoto}
               >
                 <X size={16} />
@@ -934,27 +1100,27 @@ function RequestForm({ dict, lang }) {
               <button
                 type="button"
                 onClick={() => cameraInputRef.current?.click()}
-                className="border border-industrial-200 dark:border-industrial-800 rounded-2xl px-4 py-4 font-bold text-sm flex items-center justify-center gap-2 hover:border-black dark:hover:border-white transition-colors"
+                className="border border-neutral-200 rounded-2xl px-4 py-4 font-bold text-sm flex items-center justify-center gap-2 hover:border-red-700 hover:text-red-700 transition-colors"
               >
                 <Camera size={18} /> {dict.takePhoto}
               </button>
               <button
                 type="button"
                 onClick={() => galleryInputRef.current?.click()}
-                className="border border-industrial-200 dark:border-industrial-800 rounded-2xl px-4 py-4 font-bold text-sm flex items-center justify-center gap-2 hover:border-black dark:hover:border-white transition-colors"
+                className="border border-neutral-200 rounded-2xl px-4 py-4 font-bold text-sm flex items-center justify-center gap-2 hover:border-red-700 hover:text-red-700 transition-colors"
               >
                 <ImagePlus size={18} /> {dict.choosePhoto}
               </button>
             </div>
           )}
-          <p className="text-xs text-industrial-500 dark:text-industrial-400 mt-2">{dict.photoUploadNote}</p>
+          <p className="text-xs text-neutral-500 mt-2">{dict.photoUploadNote}</p>
         </div>
 
         {submitError && (
-          <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 rounded-2xl p-4 text-red-700 dark:text-red-400 text-sm font-semibold">{submitError}</div>
+          <div className="bg-red-50 border border-red-200 rounded-2xl p-4 text-red-700 text-sm font-semibold">{submitError}</div>
         )}
 
-        <button type="submit" disabled={!isValid || submitting} className="w-full bg-industrial-900 text-white dark:bg-industrial-50 dark:text-industrial-900 hover:bg-industrial-800 dark:hover:bg-industrial-200 py-4 rounded-2xl font-extrabold text-lg flex items-center justify-center gap-2 hover:bg-gray-900 dark:hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-all active:scale-[0.98]">
+        <button type="submit" disabled={!isValid || submitting} className="w-full bg-red-700 text-white py-4 rounded-2xl font-extrabold text-lg flex items-center justify-center gap-2 hover:bg-red-800 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5 active:scale-[0.98]">
           {submitting ? dict.scanning : dict.submit} {!submitting && <ArrowRight size={20} className="rtl:rotate-180" />}
         </button>
       </form>
@@ -965,24 +1131,24 @@ function RequestForm({ dict, lang }) {
 function Input({ label, value, onChange, type = 'text', required }) {
   return (
     <div>
-      <label className="text-xs font-extrabold text-industrial-500 dark:text-industrial-400 block mb-2 uppercase tracking-widest">{label}</label>
-      <input type={type} required={required} value={value} onChange={onChange} className="w-full border border-industrial-200 dark:border-industrial-800 rounded-2xl px-5 py-4 bg-white/50 dark:bg-industrial-900/50 backdrop-blur-xl focus:border-accent-500 dark:focus:border-accent-400 outline-none transition-all shadow-sm focus:ring-4 focus:ring-accent-500/10 font-bold text-industrial-900 dark:text-white" />
+      <label className="text-xs font-extrabold text-neutral-500 block mb-2 uppercase tracking-widest">{label}</label>
+      <input type={type} required={required} value={value} onChange={onChange} className="w-full border border-neutral-200 rounded-2xl px-5 py-4 bg-neutral-50 backdrop-blur-xl focus:border-red-700 outline-none transition-all shadow-sm focus:ring-4 focus:ring-red-700/10 font-bold text-neutral-900" />
     </div>
   );
 }
 
 function Select({ value, onChange, options, disabled, placeholder }) {
   return (
-    <select disabled={disabled} value={value} onChange={onChange} className="w-full border border-industrial-200 dark:border-industrial-800 rounded-2xl px-5 py-4 bg-white/50 dark:bg-industrial-900/50 backdrop-blur-xl focus:border-accent-500 dark:focus:border-accent-400 outline-none appearance-none disabled:opacity-40 transition-all font-bold shadow-sm focus:ring-4 focus:ring-accent-500/10 text-industrial-900 dark:text-white">
+    <select disabled={disabled} value={value} onChange={onChange} className="w-full border border-neutral-200 rounded-2xl px-5 py-4 bg-neutral-50 backdrop-blur-xl focus:border-red-700 outline-none appearance-none disabled:opacity-40 transition-all font-bold shadow-sm focus:ring-4 focus:ring-red-700/10 text-neutral-900">
       <option value="" disabled>{placeholder}</option>
-      {options.map((o) => <option key={o} value={o} className="text-industrial-900">{o}</option>)}
+      {options.map((o) => <option key={o} value={o} className="text-neutral-900">{o}</option>)}
     </select>
   );
 }
 
 function RadioCard({ label, active, onClick }) {
-  const activeClass = 'bg-accent-500 text-white border-accent-500 shadow-[0_0_20px_rgba(249,140,7,0.3)] ring-2 ring-accent-500/20';
-  const inactiveClass = 'border-industrial-200 bg-white/50 dark:bg-industrial-900/50 dark:border-industrial-800 text-industrial-500 dark:text-industrial-400 hover:border-industrial-300 dark:hover:border-industrial-700 hover:bg-white dark:hover:bg-industrial-800';
+  const activeClass = 'bg-red-700 text-white border-red-700 shadow-sm ring-2 ring-red-700/20';
+  const inactiveClass = 'border-neutral-200 bg-neutral-50 text-neutral-500 hover:border-neutral-300 hover:bg-white';
 
   return (
     <button type="button" onClick={onClick} className={`py-4 px-2 rounded-2xl border font-extrabold text-sm text-center transition-all shadow-sm active:scale-[0.98] ${active ? activeClass : inactiveClass}`}>
@@ -1001,6 +1167,12 @@ function TrackingPortal({ dict }) {
   const searchRequestIdRef = useRef(0);
 
   const canSearch = search.trim() && employeeId.trim();
+
+  useEffect(() => {
+    setSearched(false);
+    setResults([]);
+    setComments([]);
+  }, [search, employeeId]);
 
   const runSearch = async () => {
     const ticketNumber = search.trim();
@@ -1050,23 +1222,23 @@ function TrackingPortal({ dict }) {
   return (
     <div className="max-w-3xl mx-auto print:hidden">
       <div className="text-center mb-10">
-        <div className="bg-white dark:bg-industrial-900 w-20 h-20 mx-auto rounded-2xl shadow-premium flex items-center justify-center mb-6">
+        <div className="bg-white w-20 h-20 mx-auto rounded-2xl shadow-sm flex items-center justify-center mb-6">
           <BrandLogo className="h-12 w-auto object-contain" />
         </div>
-        <h2 className="text-3xl font-extrabold tracking-tighter mb-2 text-industrial-900 dark:text-white">{dict.track}</h2>
-        <p className="text-industrial-500 dark:text-industrial-400 text-sm font-medium">{dict.trackSubtitle}</p>
-        <p className="text-accent-600 dark:text-accent-500 text-sm font-bold mt-4 max-w-md mx-auto">{dict.trackVerifyHint}</p>
+        <h2 className="text-3xl font-extrabold tracking-tighter mb-2 text-neutral-900">{dict.track}</h2>
+        <p className="text-neutral-500 text-sm font-medium">{dict.trackSubtitle}</p>
+        <p className="text-red-700 text-sm font-bold mt-4 max-w-md mx-auto">{dict.trackVerifyHint}</p>
       </div>
       <div className="space-y-4 mb-12">
         <div className="relative group">
-          <Search className="absolute start-6 top-1/2 -translate-y-1/2 text-industrial-400 group-focus-within:text-accent-500 transition-colors" size={24} />
+          <Search className="absolute start-6 top-1/2 -translate-y-1/2 text-neutral-400 group-focus-within:text-red-700 transition-colors" size={24} />
           <input
             type="text"
             placeholder={dict.search}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && canSearch && !loading) runSearch(); }}
-            className="w-full ps-16 pe-6 py-5 text-lg font-bold bg-white/80 dark:bg-industrial-900/80 border border-industrial-200 dark:border-industrial-800 rounded-3xl outline-none focus:border-accent-500 dark:focus:border-accent-400 focus:ring-4 focus:ring-accent-500/10 transition-all shadow-sm backdrop-blur-xl"
+            className="w-full ps-16 pe-6 py-5 text-lg font-bold bg-white border border-neutral-200 rounded-3xl outline-none focus:border-red-700 focus:ring-4 focus:ring-red-700/10 transition-all shadow-sm backdrop-blur-xl"
           />
         </div>
         <input
@@ -1075,13 +1247,13 @@ function TrackingPortal({ dict }) {
           value={employeeId}
           onChange={(e) => setEmployeeId(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter' && canSearch && !loading) runSearch(); }}
-          className="w-full px-6 py-5 text-lg font-bold bg-white/80 dark:bg-industrial-900/80 border border-industrial-200 dark:border-industrial-800 rounded-3xl outline-none focus:border-accent-500 dark:focus:border-accent-400 focus:ring-4 focus:ring-accent-500/10 transition-all shadow-sm backdrop-blur-xl"
+          className="w-full px-6 py-5 text-lg font-bold bg-white border border-neutral-200 rounded-3xl outline-none focus:border-red-700 focus:ring-4 focus:ring-red-700/10 transition-all shadow-sm backdrop-blur-xl"
         />
         <button
           type="button"
           onClick={runSearch}
           disabled={loading || !canSearch}
-          className="w-full bg-industrial-900 text-white dark:bg-white dark:text-industrial-900 py-4 rounded-2xl text-lg font-extrabold disabled:opacity-40 transition-all hover:bg-accent-600 dark:hover:bg-accent-500 hover:text-white shadow-premium hover:-translate-y-0.5"
+          className="w-full bg-red-700 text-white py-4 rounded-2xl text-lg font-extrabold disabled:opacity-40 transition-all hover:bg-red-800 hover:text-white shadow-sm hover:-translate-y-0.5"
         >
           {loading ? '...' : dict.track}
         </button>
@@ -1089,19 +1261,19 @@ function TrackingPortal({ dict }) {
 
       <div className="space-y-6">
         {searched && !loading && results.length === 0 && (
-          <p className="text-center text-industrial-500 dark:text-industrial-400 font-medium">{dict.trackNotFound}</p>
+          <p className="text-center text-neutral-500 font-medium">{dict.trackNotFound}</p>
         )}
-        {results.map((ticket) => (
-          <div key={ticket.id} className={`glass-panel rounded-[2rem] p-8 ${ticket.status === 'Rejected' ? 'border-red-300 dark:border-red-900' : ''}`}>
+        {searched && !loading && results.map((ticket) => (
+          <div key={ticket.id} className={`glass-panel rounded-[2rem] p-8 ${ticket.status === 'Rejected' ? 'border-red-300' : ''}`}>
             <div className="flex justify-between items-start mb-8">
               <div>
-                <h3 className="text-2xl font-extrabold tracking-tight mb-1 text-industrial-900 dark:text-white">{ticket.issue}</h3>
-                <p className="text-industrial-500 dark:text-industrial-400 font-medium">{ticket.room} — {ticket.asset}</p>
+                <h3 className="text-2xl font-extrabold tracking-tight mb-1 text-neutral-900">{ticket.issue}</h3>
+                <p className="text-neutral-500 font-medium">{ticket.room} — {ticket.asset}</p>
                 {ticket.status === 'Rejected' && ticket.rejectionReason && (
-                  <p className="text-sm text-red-600 dark:text-red-400 mt-2 font-bold">{ticket.rejectionReason}</p>
+                  <p className="text-sm text-red-700 mt-2 font-bold">{ticket.rejectionReason}</p>
                 )}
               </div>
-              <span className={`font-mono font-bold px-3 py-1 rounded-lg shadow-sm ${ticket.status === 'Rejected' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : 'text-industrial-600 bg-industrial-100 dark:bg-industrial-900 dark:text-industrial-300'}`}>
+              <span className={`font-mono font-bold px-3 py-1 rounded-lg shadow-sm ${ticket.status === 'Rejected' ? 'bg-red-100 text-red-700' : 'text-neutral-600 bg-neutral-100'}`}>
                 {ticket.id}
               </span>
             </div>
@@ -1109,34 +1281,34 @@ function TrackingPortal({ dict }) {
             {ticket.status === 'Rejected' ? (
               <div className="flex items-center justify-center gap-6 py-2">
                 <Step label={dict.statusNew} active done />
-                <div className="h-0.5 w-12 sm:w-20 bg-red-200 dark:bg-red-900" />
+                <div className="h-0.5 w-12 sm:w-20 bg-red-200" />
                 <Step label={dict.rejected} rejected />
               </div>
             ) : (
               <div className="relative flex justify-between items-center">
-                <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-0.5 bg-industrial-100 dark:bg-industrial-800 -z-10" />
+                <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-0.5 bg-neutral-100 -z-10" />
                 <Step label={dict.statusNew} active done={ticket.status !== 'New'} />
                 <Step label={dict.inProgress} active={['In Progress', 'Resolved', 'Completed', 'Closed'].includes(ticket.status)} done={['Resolved', 'Completed', 'Closed'].includes(ticket.status)} />
                 <Step label={dict.resolved} active={['Resolved', 'Completed', 'Closed'].includes(ticket.status)} done={['Completed', 'Closed'].includes(ticket.status)} />
               </div>
             )}
 
-            <div className="mt-10 pt-6 border-t border-industrial-100 dark:border-industrial-800">
-              <h4 className="text-xs font-bold text-industrial-400 uppercase tracking-wider mb-4">{dict.updatesComments}</h4>
+            <div className="mt-10 pt-6 border-t border-neutral-100">
+              <h4 className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-4">{dict.updatesComments}</h4>
               {comments.length === 0 ? (
-                <p className="text-sm text-industrial-400 font-medium">{dict.noUpdates}</p>
+                <p className="text-sm text-neutral-400 font-medium">{dict.noUpdates}</p>
               ) : (
                 <div className="space-y-3">
                   {comments.map((c) => (
-                    <div key={c.id} className="bg-industrial-50 dark:bg-industrial-900/50 rounded-2xl px-5 py-4 border border-industrial-100 dark:border-industrial-800/50">
+                    <div key={c.id} className="bg-neutral-50 rounded-2xl px-5 py-4 border border-neutral-100">
                       <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                        <span className="text-sm font-bold text-industrial-900 dark:text-white">{c.userName}</span>
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase shadow-sm ${c.role === 'admin' ? 'bg-accent-500 text-white' : 'bg-industrial-200 text-industrial-800 dark:bg-industrial-800 dark:text-industrial-300'}`}>
+                        <span className="text-sm font-bold text-neutral-900">{c.userName}</span>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase shadow-sm ${c.role === 'admin' ? 'bg-red-700 text-white' : 'bg-neutral-200 text-neutral-800'}`}>
                           {c.role}
                         </span>
-                        <span className="text-[11px] font-mono text-industrial-400 ms-auto">{formatHistoryDate(c.createdAt)}</span>
+                        <span className="text-[11px] font-mono text-neutral-400 ms-auto">{formatHistoryDate(c.createdAt)}</span>
                       </div>
-                      <p className="text-sm text-industrial-700 dark:text-industrial-300 whitespace-pre-wrap font-medium">{c.commentText}</p>
+                      <p className="text-sm text-neutral-700 whitespace-pre-wrap font-medium">{c.commentText}</p>
                     </div>
                   ))}
                 </div>
@@ -1152,21 +1324,21 @@ function TrackingPortal({ dict }) {
 function Step({ label, active, done, rejected }) {
   if (rejected) {
     return (
-      <div className="flex flex-col items-center gap-3 bg-white dark:bg-industrial-950 px-2">
-        <div className="w-10 h-10 rounded-full flex items-center justify-center border-2 bg-red-500 border-red-500 text-white shadow-[0_0_20px_rgba(239,68,68,0.35)]">
+      <div className="flex flex-col items-center gap-3 bg-white px-2">
+        <div className="w-10 h-10 rounded-full flex items-center justify-center border-2 bg-red-700 border-red-700 text-white ">
           <X size={18} strokeWidth={3} />
         </div>
-        <span className="text-xs font-bold text-red-600 dark:text-red-400">{label}</span>
+        <span className="text-xs font-bold text-red-700">{label}</span>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col items-center gap-3 bg-white dark:bg-industrial-950 px-2">
-      <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all duration-500 ${done ? 'bg-black border-black text-white dark:bg-white dark:border-white dark:text-black' : active ? 'border-industrial-900 dark:border-industrial-50 bg-white dark:bg-industrial-950 text-industrial-900 dark:text-industrial-50' : 'border-industrial-200 dark:border-industrial-800 bg-white dark:bg-industrial-950 text-gray-300'}`}>
-        {done ? <Check size={16} strokeWidth={3} /> : <div className={`w-2.5 h-2.5 rounded-full ${active ? 'bg-industrial-900 dark:bg-industrial-50' : 'bg-transparent'}`} />}
+    <div className="flex flex-col items-center gap-3 bg-white px-2">
+      <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all duration-500 ${done ? 'bg-neutral-900 border-neutral-900 text-white' : active ? 'border-red-700 bg-white text-red-700 ring-4 ring-red-700/10' : 'border-neutral-200 bg-white text-neutral-300'}`}>
+        {done ? <Check size={16} strokeWidth={3} /> : <div className={`w-2.5 h-2.5 rounded-full ${active ? 'bg-red-700' : 'bg-transparent'}`} />}
       </div>
-      <span className={`text-xs font-bold ${active ? 'text-industrial-900 dark:text-industrial-50' : 'text-industrial-400'}`}>{label}</span>
+      <span className={`text-xs font-bold ${active ? 'text-neutral-900' : 'text-neutral-400'}`}>{label}</span>
     </div>
   );
 }
@@ -1197,6 +1369,7 @@ function AdminDashboard({
   const [showTicketTrash, setShowTicketTrash] = useState(false);
   const [showAddRoomForm, setShowAddRoomForm] = useState(false);
   const [showStaffModal, setShowStaffModal] = useState(false);
+  const [showAddStaffModal, setShowAddStaffModal] = useState(false);
   const [editingRoom, setEditingRoom] = useState(null);
   const [editRoomName, setEditRoomName] = useState('');
   const [editRoomFloor, setEditRoomFloor] = useState('');
@@ -1220,8 +1393,6 @@ function AdminDashboard({
   const [filters, setFilters] = useState({
     status: '', priority: '', departmentId: '', roomId: '', site: '', dateFrom: '', dateTo: '',
   });
-
-  const baseUrl = import.meta.env.VITE_PUBLIC_BASE_URL || window.location.origin;
 
   const loadTickets = () => {
     const params = new URLSearchParams({ includeDeleted: 'true' });
@@ -1313,7 +1484,34 @@ function AdminDashboard({
     : adminRooms;
 
   const roomSite = (r) => r.site || (MGS_FLOORS.has(r.floor) ? 'MGS' : 'Dhahran');
-  const siteOptions = [...new Set(adminRooms.map(roomSite))].sort();
+  const locationSections = useMemo(
+    () => buildLocationSections(Object.keys(INITIAL_ROOM_DATA)),
+    [],
+  );
+
+  const siteOptions = useMemo(() => (
+    [...new Set([
+      ...adminRooms.map(roomSite),
+      ...locationSections.map((s) => campLabelToSite(s.camp)),
+    ])].sort()
+  ), [adminRooms, locationSections]);
+
+  const dbRoomByLocationKey = useMemo(() => {
+    const map = new Map();
+    for (const room of adminRooms) {
+      const { qrValue } = getRoomLocationParts(room, roomSite);
+      map.set(qrValue, room);
+    }
+    return map;
+  }, [adminRooms]);
+
+  const visibleLocationSections = useMemo(() => {
+    if (isMainAdmin || adminRole === 'viewer') return locationSections;
+    if (isSiteScoped) {
+      return locationSections.filter((section) => campMatchesAdminSite(section.camp, adminSite));
+    }
+    return locationSections;
+  }, [locationSections, isMainAdmin, isSiteScoped, adminSite, adminRole]);
 
   useEffect(() => {
     const onAfterPrint = () => setPrintReportConfig(null);
@@ -1321,8 +1519,50 @@ function AdminDashboard({
     return () => window.removeEventListener('afterprint', onAfterPrint);
   }, []);
 
-  const activeTickets = tickets.filter((t) => !t.isDeleted);
-  const trashedTickets = tickets.filter((t) => t.isDeleted);
+  const currentUser = useMemo(() => ({
+    role: adminRole === 'sub_admin' ? 'subadmin' : adminRole,
+    camp: (adminRole === 'admin' || /^all$/i.test(String(adminSite || '').trim()))
+      ? 'All'
+      : siteToCampLabel(adminSite),
+  }), [adminRole, adminSite]);
+
+  const roomCampByRoomId = useMemo(() => {
+    const map = new Map();
+    for (const room of adminRooms) {
+      map.set(room.id, siteToCampLabel(roomSite(room)));
+    }
+    return map;
+  }, [adminRooms]);
+
+  const selectedCampFilter = filters.site ? siteToCampLabel(filters.site) : '';
+
+  const visibleTickets = useMemo(() => {
+    let filtered = tickets;
+
+    // 1. Enforce RBAC (security layer)
+    const isGlobalAdmin = currentUser.role === 'admin'
+      || currentUser.camp === 'All'
+      || adminRole === 'viewer';
+    if (!isGlobalAdmin) {
+      filtered = filtered.filter((t) => {
+        const ticketCamp = resolveTicketCamp(t, roomCampByRoomId);
+        return campMatchesAdminSite(ticketCamp, currentUser.camp);
+      });
+    }
+
+    // 2. Apply UI site/camp dropdown filter (main admin only)
+    if (selectedCampFilter && selectedCampFilter !== 'All') {
+      filtered = filtered.filter((t) => {
+        const ticketCamp = resolveTicketCamp(t, roomCampByRoomId);
+        return campMatchesAdminSite(ticketCamp, selectedCampFilter);
+      });
+    }
+
+    return filtered;
+  }, [tickets, currentUser, selectedCampFilter, roomCampByRoomId, adminRole]);
+
+  const activeTickets = visibleTickets.filter((t) => !t.isDeleted);
+  const trashedTickets = visibleTickets.filter((t) => t.isDeleted);
   const isMine = (ticket) => Boolean(adminUser) && (ticket.assignee || '') === adminUser;
   const myTickets = activeTickets.filter(isMine);
   const displayTickets = showTicketTrash
@@ -1558,23 +1798,6 @@ function AdminDashboard({
     }
   };
 
-  const handleRotateQr = async (roomId) => {
-    if (!isManager) return;
-    if (!window.confirm('Regenerate QR token? Old printed codes will stop working.')) return;
-    try {
-      const res = await fetch(`${API_BASE}/rooms/${roomId}/qr/regenerate`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${adminToken}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setAdminRooms((prev) => prev.map((r) => (r.id === roomId ? { ...r, token: data.token } : r)));
-      }
-    } catch {
-      alert(dict.backendError);
-    }
-  };
-
   const openEditRoom = (room) => {
     setEditingRoom(room);
     setEditRoomName(room.name);
@@ -1608,6 +1831,16 @@ function AdminDashboard({
     }
   };
 
+  const resetStaffForm = () => {
+    setNewStaffUser('');
+    setNewStaffPass('');
+    setNewStaffName('');
+    setNewStaffPhone('');
+    setNewStaffEmail('');
+    setNewStaffRole('facility');
+    setNewStaffSite('');
+  };
+
   const handleCreateStaff = async (e) => {
     e.preventDefault();
     const username = newStaffUser.trim();
@@ -1630,13 +1863,8 @@ function AdminDashboard({
         }),
       });
       if (res.ok) {
-        setNewStaffUser('');
-        setNewStaffPass('');
-        setNewStaffName('');
-        setNewStaffPhone('');
-        setNewStaffEmail('');
-        setNewStaffRole('facility');
-        setNewStaffSite('');
+        resetStaffForm();
+        setShowAddStaffModal(false);
         loadStaff();
         fetch(`${API_BASE}/users?role=facility`, { headers: { Authorization: `Bearer ${adminToken}` } })
           .then((r) => r.json())
@@ -1695,8 +1923,8 @@ function AdminDashboard({
         <div className="flex items-center gap-4">
           <BrandLogo className="h-12 sm:h-16 w-auto drop-shadow-lg object-contain" />
           <div>
-            <h1 className="text-4xl font-extrabold tracking-tighter">{dict.admin}</h1>
-            <p className="text-sm text-industrial-500 dark:text-industrial-400 mt-1">{dict.adminSubtitle}</p>
+            <h1 className="text-4xl font-extrabold tracking-tighter text-neutral-900">{dict.admin}</h1>
+            <p className="text-sm text-neutral-500 mt-1">{dict.adminSubtitle}</p>
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -1704,29 +1932,29 @@ function AdminDashboard({
           <button
             type="button"
             onClick={() => setShowTicketTrash((v) => !v)}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold transition-colors ${showTicketTrash ? 'bg-industrial-900 text-white dark:bg-industrial-50 dark:text-industrial-900 hover:bg-industrial-800 dark:hover:bg-industrial-200' : 'bg-gray-100 hover:bg-gray-200 dark:bg-zinc-900 dark:hover:bg-zinc-800'}`}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold transition-colors ${showTicketTrash ? 'bg-red-700 text-white' : 'btn-secondary'}`}
           >
             <Trash2 size={18} /> {showTicketTrash ? dict.hideTrash : dict.viewTrash}
           </button>
           )}
-          {isManager && (
-          <button type="button" onClick={() => setShowRoomModal(true)} className="flex items-center gap-2 bg-gray-100 hover:bg-gray-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-industrial-900 dark:text-industrial-50 px-4 py-2.5 rounded-xl font-bold transition-colors">
+          {isAdmin && (
+          <button type="button" onClick={() => setShowRoomModal(true)} className="btn-secondary">
             <LayoutGrid size={18} /> {dict.manageLocations}
           </button>
           )}
           {isManager && (
-          <button type="button" onClick={() => { setShowStaffModal(true); loadStaff(); }} className="flex items-center gap-2 bg-gray-100 hover:bg-gray-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-industrial-900 dark:text-industrial-50 px-4 py-2.5 rounded-xl font-bold transition-colors">
+          <button type="button" onClick={() => { setShowStaffModal(true); loadStaff(); }} className="btn-secondary">
             <Users size={18} /> {dict.manageStaff}
           </button>
           )}
           {isAdmin && (
-          <div className="flex items-center gap-1 bg-industrial-100 dark:bg-industrial-900 rounded-xl p-1">
+          <div className="flex items-center gap-1 bg-neutral-100 rounded-xl p-1 border border-neutral-200/60">
             {['daily', 'weekly', 'monthly'].map((type) => (
               <button
                 key={type}
                 type="button"
                 onClick={() => handlePrintReport(type)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-bold text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-black hover:shadow-sm transition-all"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-bold text-neutral-600 hover:bg-white hover:text-neutral-900 hover:shadow-sm transition-all"
               >
                 <Printer size={14} />
                 {type === 'daily' ? dict.reportDaily : type === 'weekly' ? dict.reportWeekly : dict.reportMonthly}
@@ -1748,24 +1976,24 @@ function AdminDashboard({
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 print:hidden">
             <div className="md:col-span-2 glass-panel rounded-[2.5rem] p-6 sm:p-8 h-[22rem]">
-              <h3 className="font-extrabold text-xl tracking-tight mb-6 text-industrial-900 dark:text-white">{dict.issuesByLocation}</h3>
+              <h3 className="font-extrabold text-xl tracking-tight mb-6 text-neutral-900">{dict.issuesByLocation}</h3>
               <ResponsiveContainer width="100%" height="85%">
                 <BarChart data={chartRoomData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: 'currentColor' }} className="text-industrial-400" />
-                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: 'currentColor' }} className="text-industrial-400" />
-                  <Tooltip cursor={{ fill: 'rgba(255, 170, 26, 0.1)' }} contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 20px 40px -10px rgba(0,0,0,0.15)', background: 'var(--bg-main)', color: 'var(--text-main)', fontWeight: 'bold' }} />
-                  <Bar dataKey="count" fill="currentColor" className="text-industrial-900 dark:text-white hover:opacity-80 transition-opacity" radius={[8, 8, 0, 0]} />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: 'currentColor' }} className="text-neutral-400" />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: 'currentColor' }} className="text-neutral-400" />
+                  <Tooltip cursor={{ fill: 'rgba(185, 28, 28, 0.08)' }} contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 20px 40px -10px rgba(0,0,0,0.15)', background: 'var(--bg-main)', color: 'var(--text-main)', fontWeight: 'bold' }} />
+                  <Bar dataKey="count" fill="currentColor" className="text-neutral-900 hover:opacity-80 transition-opacity" radius={[8, 8, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
             <div className="glass-panel rounded-[2.5rem] p-6 sm:p-8 h-[22rem]">
-              <h3 className="font-extrabold text-xl tracking-tight mb-6 text-industrial-900 dark:text-white">{dict.statusOverview}</h3>
+              <h3 className="font-extrabold text-xl tracking-tight mb-6 text-neutral-900">{dict.statusOverview}</h3>
               <ResponsiveContainer width="100%" height="85%">
                 <PieChart>
                   <Pie data={statusData} innerRadius={70} outerRadius={100} paddingAngle={8} dataKey="value" stroke="none">
-                    <Cell fill="#f98c07" className="drop-shadow-sm" />
-                    <Cell fill="#46628c" className="drop-shadow-sm" />
-                    <Cell fill="#1d2537" className="dark:fill-white drop-shadow-sm" />
+                    <Cell fill="#b91c1c" className="drop-shadow-sm" />
+                    <Cell fill="#525252" className="drop-shadow-sm" />
+                    <Cell fill="#171717" className=" drop-shadow-sm" />
                   </Pie>
                   <Tooltip contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 20px 40px -10px rgba(0,0,0,0.15)', background: 'var(--bg-main)', color: 'var(--text-main)', fontWeight: 'bold' }} />
                 </PieChart>
@@ -1780,14 +2008,14 @@ function AdminDashboard({
           <button
             type="button"
             onClick={() => setShowMineOnly(true)}
-            className={`px-4 py-2 rounded-xl text-sm font-bold transition-colors ${showMineOnly ? 'bg-industrial-900 text-white dark:bg-industrial-50 dark:text-industrial-900 hover:bg-industrial-800 dark:hover:bg-industrial-200' : 'bg-industrial-100 dark:bg-industrial-900 text-industrial-500 dark:text-industrial-400'}`}
+            className={`px-4 py-2.5 rounded-xl text-sm font-bold transition-colors ${showMineOnly ? 'bg-red-700 text-white' : 'btn-secondary'}`}
           >
             {dict.myTickets} ({myTickets.length})
           </button>
           <button
             type="button"
             onClick={() => setShowMineOnly(false)}
-            className={`px-4 py-2 rounded-xl text-sm font-bold transition-colors ${!showMineOnly ? 'bg-industrial-900 text-white dark:bg-industrial-50 dark:text-industrial-900 hover:bg-industrial-800 dark:hover:bg-industrial-200' : 'bg-industrial-100 dark:bg-industrial-900 text-industrial-500 dark:text-industrial-400'}`}
+            className={`px-4 py-2.5 rounded-xl text-sm font-bold transition-colors ${!showMineOnly ? 'bg-red-700 text-white' : 'btn-secondary'}`}
           >
             {dict.allTickets} ({activeTickets.length})
           </button>
@@ -1795,7 +2023,7 @@ function AdminDashboard({
       )}
 
       <div className="flex flex-wrap items-center gap-3 mb-6 print:hidden">
-        <select value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })} className="border border-industrial-200 dark:border-industrial-800 rounded-2xl px-5 py-3 text-sm font-bold bg-white/50 dark:bg-industrial-900/50 backdrop-blur-xl focus:border-accent-500 outline-none transition-all shadow-sm">
+        <select value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })} className="border border-neutral-200 rounded-2xl px-5 py-3 text-sm font-bold bg-neutral-50 backdrop-blur-xl focus:border-red-700 outline-none transition-all shadow-sm">
           <option value="">{dict.filterStatus}</option>
           <option value="New">New</option>
           <option value="In Progress">In Progress</option>
@@ -1803,7 +2031,7 @@ function AdminDashboard({
           <option value="Closed">Closed</option>
           <option value="Rejected">Rejected</option>
         </select>
-        <select value={filters.priority} onChange={(e) => setFilters({ ...filters, priority: e.target.value })} className="border border-industrial-200 dark:border-industrial-800 rounded-2xl px-5 py-3 text-sm font-bold bg-white/50 dark:bg-industrial-900/50 backdrop-blur-xl focus:border-accent-500 outline-none transition-all shadow-sm">
+        <select value={filters.priority} onChange={(e) => setFilters({ ...filters, priority: e.target.value })} className="border border-neutral-200 rounded-2xl px-5 py-3 text-sm font-bold bg-neutral-50 backdrop-blur-xl focus:border-red-700 outline-none transition-all shadow-sm">
           <option value="">{dict.filterPriority}</option>
           <option value="Low">Low</option>
           <option value="Medium">Medium</option>
@@ -1812,7 +2040,7 @@ function AdminDashboard({
         <select
           value={filters.departmentId}
           onChange={(e) => setFilters({ ...filters, departmentId: e.target.value, roomId: '' })}
-          className="border border-industrial-200 dark:border-industrial-800 rounded-2xl px-5 py-3 text-sm font-bold bg-white/50 dark:bg-industrial-900/50 backdrop-blur-xl focus:border-accent-500 outline-none transition-all shadow-sm"
+          className="border border-neutral-200 rounded-2xl px-5 py-3 text-sm font-bold bg-neutral-50 backdrop-blur-xl focus:border-red-700 outline-none transition-all shadow-sm"
         >
           <option value="">{dict.filterDepartment}</option>
           {departments.map((d) => <option key={d.id} value={d.id}>{d.name_en}</option>)}
@@ -1820,51 +2048,51 @@ function AdminDashboard({
         <select
           value={filters.roomId}
           onChange={(e) => setFilters({ ...filters, roomId: e.target.value })}
-          className="border border-industrial-200 dark:border-industrial-800 rounded-2xl px-5 py-3 text-sm font-bold bg-white/50 dark:bg-industrial-900/50 backdrop-blur-xl focus:border-accent-500 outline-none transition-all shadow-sm max-w-[200px]"
+          className="border border-neutral-200 rounded-2xl px-5 py-3 text-sm font-bold bg-neutral-50 backdrop-blur-xl focus:border-red-700 outline-none transition-all shadow-sm max-w-[200px]"
         >
           <option value="">{dict.filterLocation}</option>
           {filterRoomOptions.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
         </select>
-        {!isSiteScoped && (
+        {isMainAdmin && (
         <select
           value={filters.site}
           onChange={(e) => setFilters({ ...filters, site: e.target.value })}
-          className="border border-industrial-200 dark:border-industrial-800 rounded-2xl px-5 py-3 text-sm font-bold bg-white/50 dark:bg-industrial-900/50 backdrop-blur-xl focus:border-accent-500 outline-none transition-all shadow-sm"
+          className="border border-neutral-200 rounded-2xl px-5 py-3 text-sm font-bold bg-neutral-50 backdrop-blur-xl focus:border-red-700 outline-none transition-all shadow-sm"
         >
           <option value="">{dict.filterSite}</option>
           {siteOptions.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
         )}
-        <input type="date" value={filters.dateFrom} onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })} className="border border-industrial-200 dark:border-industrial-800 rounded-2xl px-5 py-3 text-sm font-bold bg-white/50 dark:bg-industrial-900/50 backdrop-blur-xl focus:border-accent-500 outline-none transition-all shadow-sm" placeholder={dict.filterDateFrom} />
-        <input type="date" value={filters.dateTo} onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })} className="border border-industrial-200 dark:border-industrial-800 rounded-2xl px-5 py-3 text-sm font-bold bg-white/50 dark:bg-industrial-900/50 backdrop-blur-xl focus:border-accent-500 outline-none transition-all shadow-sm" placeholder={dict.filterDateTo} />
-        <button type="button" onClick={loadTickets} className="bg-industrial-900 text-white dark:bg-white dark:text-industrial-900 hover:bg-accent-600 dark:hover:bg-accent-500 hover:text-white px-6 py-3 rounded-2xl text-sm font-extrabold shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5">{dict.applyFilters}</button>
+        <input type="date" value={filters.dateFrom} onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })} className="border border-neutral-200 rounded-2xl px-5 py-3 text-sm font-bold bg-neutral-50 backdrop-blur-xl focus:border-red-700 outline-none transition-all shadow-sm" placeholder={dict.filterDateFrom} />
+        <input type="date" value={filters.dateTo} onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })} className="border border-neutral-200 rounded-2xl px-5 py-3 text-sm font-bold bg-neutral-50 backdrop-blur-xl focus:border-red-700 outline-none transition-all shadow-sm" placeholder={dict.filterDateTo} />
+        <button type="button" onClick={loadTickets} className="bg-red-700 text-white hover:bg-red-800 hover:text-white px-6 py-3 rounded-2xl text-sm font-extrabold shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5">{dict.applyFilters}</button>
       </div>
 
       <div className="glass-panel rounded-[2.5rem] overflow-hidden print:hidden mb-8">
         <div className="overflow-x-auto">
         <table className="w-full text-start text-sm whitespace-nowrap">
-          <thead className="bg-industrial-100/50 dark:bg-industrial-900/30 border-b border-industrial-200/50 dark:border-industrial-800/50">
+          <thead className="bg-neutral-50 border-b border-neutral-200">
             <tr>
-              <th className="px-8 py-5 text-[10px] uppercase tracking-widest font-extrabold text-industrial-500 dark:text-industrial-400">{dict.ticketId}</th>
-              <th className="px-8 py-5 text-[10px] uppercase tracking-widest font-extrabold text-industrial-500 dark:text-industrial-400">{dict.location}</th>
-              <th className="px-8 py-5 text-[10px] uppercase tracking-widest font-extrabold text-industrial-500 dark:text-industrial-400">{dict.issueCol}</th>
-              <th className="px-8 py-5 text-[10px] uppercase tracking-widest font-extrabold text-industrial-500 dark:text-industrial-400">{dict.statusCol}</th>
-              {showTicketTrash && <th className="px-8 py-5 text-[10px] uppercase tracking-widest font-extrabold text-industrial-500 dark:text-industrial-400">{dict.actions}</th>}
+              <th className="px-8 py-5 text-[10px] uppercase tracking-widest font-extrabold text-neutral-500">{dict.ticketId}</th>
+              <th className="px-8 py-5 text-[10px] uppercase tracking-widest font-extrabold text-neutral-500">{dict.location}</th>
+              <th className="px-8 py-5 text-[10px] uppercase tracking-widest font-extrabold text-neutral-500">{dict.issueCol}</th>
+              <th className="px-8 py-5 text-[10px] uppercase tracking-widest font-extrabold text-neutral-500">{dict.statusCol}</th>
+              {showTicketTrash && <th className="px-8 py-5 text-[10px] uppercase tracking-widest font-extrabold text-neutral-500">{dict.actions}</th>}
             </tr>
           </thead>
-          <tbody className="divide-y divide-industrial-100 dark:divide-industrial-800/50">
+          <tbody className="divide-y divide-neutral-100">
             {displayTickets.map((ticket) => (
-              <tr key={ticket.id} onClick={() => !showTicketTrash && setSelectedTicket(ticket)} className={`${showTicketTrash ? '' : 'cursor-pointer'} hover:bg-industrial-50/80 dark:hover:bg-industrial-900/30 transition-colors group`}>
-                <td className="px-8 py-5 font-mono font-extrabold text-industrial-900 dark:text-white group-hover:text-accent-600 dark:group-hover:text-accent-400 transition-colors">
+              <tr key={ticket.id} onClick={() => !showTicketTrash && setSelectedTicket(ticket)} className={`${showTicketTrash ? '' : 'cursor-pointer'} hover:bg-neutral-50/80 transition-colors group`}>
+                <td className="px-8 py-5 font-mono font-extrabold text-neutral-900 group-hover:text-red-700 transition-colors">
                   {ticket.id}
                   {!isAdmin && isMine(ticket) && (
-                    <span className="ms-3 px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-accent-100 text-accent-700 dark:bg-accent-900/30 dark:text-accent-400 align-middle">
+                    <span className="ms-3 px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-red-50 text-red-800 align-middle">
                       {dict.assignedToYou}
                     </span>
                   )}
                 </td>
-                <td className="px-8 py-5 truncate max-w-[200px] font-bold text-industrial-700 dark:text-industrial-300">{ticket.room}</td>
-                <td className="px-8 py-5 font-extrabold text-industrial-900 dark:text-white">{ticket.issue}</td>
+                <td className="px-8 py-5 truncate max-w-[200px] font-bold text-neutral-700">{ticket.room}</td>
+                <td className="px-8 py-5 font-extrabold text-neutral-900">{ticket.issue}</td>
                 <td className="px-8 py-5">
                   <span className={`px-3 py-1 rounded-xl text-[11px] font-extrabold uppercase tracking-widest ${statusBadgeClass(ticket.status)}`}>
                     {statusLabel(dict, ticket.status)}
@@ -1883,7 +2111,7 @@ function AdminDashboard({
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); handleDeleteTicketForever(ticket.id); }}
-                        className="flex items-center gap-1.5 text-xs font-bold text-red-600 hover:text-red-700 hover:underline"
+                        className="flex items-center gap-1.5 text-xs font-bold text-red-700 hover:text-red-700 hover:underline"
                       >
                         <Trash2 size={14} /> {dict.deleteForever}
                       </button>
@@ -1899,73 +2127,73 @@ function AdminDashboard({
 
       {selectedTicket && !showTicketTrash && (
         <div className="fixed inset-0 z-50 flex justify-end rtl:justify-start">
-          <div className="absolute inset-0 bg-industrial-950/40 dark:bg-black/60 backdrop-blur-sm print:hidden" onClick={() => setSelectedTicket(null)} />
-          <div className="w-full max-w-md bg-white dark:bg-industrial-950 border-s border-industrial-200 dark:border-industrial-800 h-full relative z-10 shadow-[0_0_40px_rgba(0,0,0,0.1)] p-8 overflow-y-auto transform transition-transform">
-            <button type="button" onClick={() => window.print()} className="absolute top-8 end-16 p-2 rounded-xl hover:bg-industrial-50 dark:hover:bg-industrial-900/50 text-industrial-500 hover:text-industrial-900 dark:hover:text-white transition-colors print:hidden" aria-label={dict.print}>
+          <div className="modal-backdrop print:hidden" onClick={() => setSelectedTicket(null)} />
+          <div className="w-full max-w-md bg-white border-s border-neutral-200 h-full relative z-10 shadow-sm p-8 overflow-y-auto animate-slide-up">
+            <button type="button" onClick={() => window.print()} className="absolute top-8 end-16 btn-icon print:hidden" aria-label={dict.print}>
               <Printer size={20} />
             </button>
-            <button type="button" onClick={() => setSelectedTicket(null)} className="absolute top-8 end-6 p-2 rounded-xl hover:bg-industrial-50 dark:hover:bg-industrial-900/50 text-industrial-500 hover:text-industrial-900 dark:hover:text-white transition-colors print:hidden" aria-label={dict.cancel}>
+            <button type="button" onClick={() => setSelectedTicket(null)} className="absolute top-8 end-6 btn-icon print:hidden" aria-label={dict.cancel}>
               <X size={20} />
             </button>
 
             <div className="mb-8 mt-4">
               <BrandLogo className="h-10 w-auto object-contain mb-6 print:block" />
-              <p className="text-[10px] font-extrabold text-industrial-400 uppercase tracking-widest mb-2">{dict.workOrder}</p>
-              <h2 className="text-4xl font-mono font-extrabold tracking-tight text-industrial-900 dark:text-white">{selectedTicket.id}</h2>
-              <p className="mt-4 font-bold text-lg text-industrial-800 dark:text-industrial-200">{selectedTicket.room} <span className="text-industrial-400">—</span> {selectedTicket.asset}</p>
-              <p className="text-industrial-500 dark:text-industrial-400 mt-2 font-medium">{selectedTicket.issue}</p>
+              <p className="text-[10px] font-extrabold text-neutral-400 uppercase tracking-widest mb-2">{dict.workOrder}</p>
+              <h2 className="text-4xl font-mono font-extrabold tracking-tight text-neutral-900">{selectedTicket.id}</h2>
+              <p className="mt-4 font-bold text-lg text-neutral-800">{selectedTicket.room} <span className="text-neutral-400">—</span> {selectedTicket.asset}</p>
+              <p className="text-neutral-500 mt-2 font-medium">{selectedTicket.issue}</p>
               
-              <div className="mt-6 bg-industrial-50 dark:bg-industrial-900/30 border border-industrial-200 dark:border-industrial-800/50 rounded-2xl px-5 py-4 shadow-sm">
-                <p className="text-[10px] font-extrabold text-industrial-400 uppercase tracking-widest mb-2">{dict.userNotes}</p>
-                <p className={`text-sm whitespace-pre-wrap font-medium leading-relaxed ${selectedTicket.notes ? 'text-industrial-700 dark:text-industrial-300' : 'text-industrial-400 italic'}`}>
+              <div className="mt-6 bg-neutral-50 border border-neutral-200 rounded-2xl px-5 py-4 shadow-sm">
+                <p className="text-[10px] font-extrabold text-neutral-400 uppercase tracking-widest mb-2">{dict.userNotes}</p>
+                <p className={`text-sm whitespace-pre-wrap font-medium leading-relaxed ${selectedTicket.notes ? 'text-neutral-700' : 'text-neutral-400 italic'}`}>
                   {selectedTicket.notes || dict.noNotes}
                 </p>
               </div>
               {selectedTicket.status === 'Rejected' && selectedTicket.rejectionReason && (
-                <div className="mt-4 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/50 rounded-2xl px-5 py-4">
-                  <p className="text-[10px] font-extrabold text-red-600/70 dark:text-red-400/70 uppercase tracking-widest mb-2">{dict.reject}</p>
-                  <p className="text-sm text-red-700 dark:text-red-400 font-bold">{selectedTicket.rejectionReason}</p>
+                <div className="mt-4 bg-red-50 border border-red-200 rounded-2xl px-5 py-4">
+                  <p className="text-[10px] font-extrabold text-red-700/70 uppercase tracking-widest mb-2">{dict.reject}</p>
+                  <p className="text-sm text-red-700 font-bold">{selectedTicket.rejectionReason}</p>
                 </div>
               )}
               {(isAdmin || isViewer || adminRole === 'facility') && (
-                <div className="mt-4 bg-industrial-50 dark:bg-industrial-900/30 border border-industrial-200 dark:border-industrial-800/50 rounded-2xl p-5 shadow-sm">
-                  <p className="text-[10px] font-extrabold text-industrial-400 uppercase tracking-widest mb-4">{dict.reporterInfo}</p>
+                <div className="mt-4 bg-neutral-50 border border-neutral-200 rounded-2xl p-5 shadow-sm">
+                  <p className="text-[10px] font-extrabold text-neutral-400 uppercase tracking-widest mb-4">{dict.reporterInfo}</p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 text-sm">
                     <div>
-                      <p className="text-[10px] font-bold text-industrial-400 uppercase tracking-wider mb-1">{dict.name}</p>
-                      <p className="font-extrabold text-industrial-900 dark:text-white">{selectedTicket.name || '—'}</p>
+                      <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider mb-1">{dict.name}</p>
+                      <p className="font-extrabold text-neutral-900">{selectedTicket.name || '—'}</p>
                     </div>
                     <div>
-                      <p className="text-[10px] font-bold text-industrial-400 uppercase tracking-wider mb-1">{dict.searchEmployeeId}</p>
-                      <p className="font-extrabold text-industrial-900 dark:text-white">{selectedTicket.employeeId || '—'}</p>
+                      <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider mb-1">{dict.searchEmployeeId}</p>
+                      <p className="font-extrabold text-neutral-900">{selectedTicket.employeeId || '—'}</p>
                     </div>
                     <div>
-                      <p className="text-[10px] font-bold text-industrial-400 uppercase tracking-wider mb-1">{dict.reporterPhone}</p>
+                      <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider mb-1">{dict.reporterPhone}</p>
                       {selectedTicket.phone ? (
-                        <a href={`tel:${selectedTicket.phone}`} className="font-extrabold text-accent-600 hover:text-accent-700 dark:text-accent-500 dark:hover:text-accent-400 underline decoration-accent-500/30 hover:decoration-accent-500" dir="ltr">{selectedTicket.phone}</a>
-                      ) : <p className="font-extrabold text-industrial-900 dark:text-white">—</p>}
+                        <a href={`tel:${selectedTicket.phone}`} className="font-extrabold text-red-700 hover:text-red-800 underline decoration-red-700/30 hover:decoration-red-700" dir="ltr">{selectedTicket.phone}</a>
+                      ) : <p className="font-extrabold text-neutral-900">—</p>}
                     </div>
                     <div>
-                      <p className="text-[10px] font-bold text-industrial-400 uppercase tracking-wider mb-1">{dict.reporterEmail}</p>
+                      <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider mb-1">{dict.reporterEmail}</p>
                       {selectedTicket.email ? (
-                        <a href={`mailto:${selectedTicket.email}`} className="font-extrabold text-accent-600 hover:text-accent-700 dark:text-accent-500 dark:hover:text-accent-400 underline decoration-accent-500/30 hover:decoration-accent-500 break-all" dir="ltr">{selectedTicket.email}</a>
-                      ) : <p className="font-extrabold text-industrial-900 dark:text-white">—</p>}
+                        <a href={`mailto:${selectedTicket.email}`} className="font-extrabold text-red-700 hover:text-red-800 underline decoration-red-700/30 hover:decoration-red-700 break-all" dir="ltr">{selectedTicket.email}</a>
+                      ) : <p className="font-extrabold text-neutral-900">—</p>}
                     </div>
                     <div className="sm:col-span-2">
-                      <p className="text-[10px] font-bold text-industrial-400 uppercase tracking-wider mb-1">{dict.reportedAt}</p>
-                      <p className="font-extrabold text-industrial-900 dark:text-white">{selectedTicket.createdAt ? new Date(selectedTicket.createdAt).toLocaleString() : '—'}</p>
+                      <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider mb-1">{dict.reportedAt}</p>
+                      <p className="font-extrabold text-neutral-900">{selectedTicket.createdAt ? new Date(selectedTicket.createdAt).toLocaleString() : '—'}</p>
                     </div>
                   </div>
                   {selectedTicket.imageUrl && (
                     <div className="mt-5">
-                      <p className="text-[10px] font-bold text-industrial-400 uppercase tracking-wider mb-2">{dict.reporterPhoto}</p>
-                      <a href={selectedTicket.imageUrl} target="_blank" rel="noreferrer" className="block relative group overflow-hidden rounded-xl border border-industrial-200 dark:border-industrial-800">
+                      <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider mb-2">{dict.reporterPhoto}</p>
+                      <a href={selectedTicket.imageUrl} target="_blank" rel="noreferrer" className="block relative group overflow-hidden rounded-xl border border-neutral-200">
                         <img
                           src={selectedTicket.imageUrl}
                           alt={dict.reporterPhoto}
                           className="w-full object-cover max-h-72 group-hover:scale-105 transition-transform duration-500"
                         />
-                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
+                        <div className="absolute inset-0 bg-neutral-900/0 group-hover:bg-neutral-900/10 transition-colors" />
                       </a>
                     </div>
                   )}
@@ -1976,11 +2204,11 @@ function AdminDashboard({
             <div className="space-y-6 print:hidden">
               {isAdmin ? (
                 <div>
-                  <label className="text-[10px] font-extrabold text-industrial-400 block mb-2 uppercase tracking-widest">{dict.assign}</label>
+                  <label className="text-[10px] font-extrabold text-neutral-400 block mb-2 uppercase tracking-widest">{dict.assign}</label>
                   <select
                     value={pendingAssignee}
                     onChange={(e) => setPendingAssignee(e.target.value)}
-                    className="w-full border border-industrial-200 dark:border-industrial-800 rounded-2xl px-5 py-4 bg-white/50 dark:bg-industrial-900/50 backdrop-blur-xl focus:border-accent-500 outline-none transition-all shadow-sm font-bold"
+                    className="w-full border border-neutral-200 rounded-2xl px-5 py-4 bg-neutral-50 backdrop-blur-xl focus:border-red-700 outline-none transition-all shadow-sm font-bold"
                   >
                     <option value="">{dict.selectPlaceholder}</option>
                     {facilityUsers.map((user) => (
@@ -1991,7 +2219,7 @@ function AdminDashboard({
                     <button
                       type="button"
                       onClick={handleSubmitAssign}
-                      className="mt-3 w-full bg-industrial-900 text-white dark:bg-white dark:text-industrial-900 py-4 rounded-2xl font-extrabold shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all"
+                      className="mt-3 w-full bg-red-700 text-white py-4 rounded-2xl font-extrabold shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all"
                     >
                       {dict.submitAssign}
                     </button>
@@ -1999,8 +2227,8 @@ function AdminDashboard({
                 </div>
               ) : (
                 <div>
-                  <label className="text-[10px] font-extrabold text-industrial-400 block mb-2 uppercase tracking-widest">{dict.assignedTo}</label>
-                  <div className="w-full border border-industrial-200 dark:border-industrial-800 rounded-2xl px-5 py-4 font-extrabold bg-industrial-50 dark:bg-industrial-900/30">
+                  <label className="text-[10px] font-extrabold text-neutral-400 block mb-2 uppercase tracking-widest">{dict.assignedTo}</label>
+                  <div className="w-full border border-neutral-200 rounded-2xl px-5 py-4 font-extrabold bg-neutral-50">
                     {selectedTicket.assignee || dict.unassigned}
                   </div>
                 </div>
@@ -2009,17 +2237,17 @@ function AdminDashboard({
               {isAdmin && (
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-[10px] font-extrabold text-industrial-400 block mb-2 uppercase tracking-widest">{dict.unitPrice}</label>
-                  <input type="number" min="0" step="any" value={selectedTicket.unitPrice || ''} onChange={(e) => updateTicket(selectedTicket.id, { unitPrice: e.target.value })} className="w-full border border-industrial-200 dark:border-industrial-800 rounded-2xl px-5 py-4 bg-white/50 dark:bg-industrial-900/50 backdrop-blur-xl focus:border-accent-500 outline-none transition-all shadow-sm font-bold" />
+                  <label className="text-[10px] font-extrabold text-neutral-400 block mb-2 uppercase tracking-widest">{dict.unitPrice}</label>
+                  <input type="number" min="0" step="any" value={selectedTicket.unitPrice || ''} onChange={(e) => updateTicket(selectedTicket.id, { unitPrice: e.target.value })} className="w-full border border-neutral-200 rounded-2xl px-5 py-4 bg-neutral-50 backdrop-blur-xl focus:border-red-700 outline-none transition-all shadow-sm font-bold" />
                 </div>
                 <div>
-                  <label className="text-[10px] font-extrabold text-industrial-400 block mb-2 uppercase tracking-widest">{dict.units}</label>
-                  <input type="number" min="1" step="1" value={selectedTicket.units || ''} onChange={(e) => updateTicket(selectedTicket.id, { units: e.target.value })} className="w-full border border-industrial-200 dark:border-industrial-800 rounded-2xl px-5 py-4 bg-white/50 dark:bg-industrial-900/50 backdrop-blur-xl focus:border-accent-500 outline-none transition-all shadow-sm font-bold" />
+                  <label className="text-[10px] font-extrabold text-neutral-400 block mb-2 uppercase tracking-widest">{dict.units}</label>
+                  <input type="number" min="1" step="1" value={selectedTicket.units || ''} onChange={(e) => updateTicket(selectedTicket.id, { units: e.target.value })} className="w-full border border-neutral-200 rounded-2xl px-5 py-4 bg-neutral-50 backdrop-blur-xl focus:border-red-700 outline-none transition-all shadow-sm font-bold" />
                 </div>
                 <div className="col-span-2">
-                  <label className="text-[10px] font-extrabold text-industrial-400 block mb-2 uppercase tracking-widest">{dict.cost}</label>
-                  <div className="w-full border border-industrial-200 dark:border-industrial-800 rounded-2xl px-5 py-4 font-extrabold text-lg bg-industrial-50 dark:bg-industrial-900/30 flex justify-between items-center">
-                    <span className="text-industrial-500">SAR</span>
+                  <label className="text-[10px] font-extrabold text-neutral-400 block mb-2 uppercase tracking-widest">{dict.cost}</label>
+                  <div className="w-full border border-neutral-200 rounded-2xl px-5 py-4 font-extrabold text-lg bg-neutral-50 flex justify-between items-center">
+                    <span className="text-neutral-500">SAR</span>
                     <span>{((Number(selectedTicket.unitPrice) || 0) * (Number(selectedTicket.units) || 1)).toLocaleString()}</span>
                   </div>
                 </div>
@@ -2032,39 +2260,39 @@ function AdminDashboard({
                     <button type="button" onClick={() => updateTicket(selectedTicket.id, { status: 'In Progress' })} className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white py-4 rounded-2xl font-extrabold transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5">
                       {dict.accept}
                     </button>
-                    <button type="button" onClick={() => handleReject(selectedTicket.id)} className="flex-1 bg-red-500 hover:bg-red-600 text-white py-4 rounded-2xl font-extrabold transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5">
+                    <button type="button" onClick={() => handleReject(selectedTicket.id)} className="flex-1 bg-red-700 hover:bg-red-800 text-white py-4 rounded-2xl font-extrabold transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5">
                       {dict.reject}
                     </button>
                   </div>
                 )}
 
                 {!isAdmin && !isViewer && isMine(selectedTicket) && selectedTicket.status === 'Resolved' && (
-                  <button type="button" onClick={() => updateTicket(selectedTicket.id, { status: 'Closed' })} className="w-full bg-industrial-900 dark:bg-white text-white dark:text-industrial-900 hover:bg-industrial-800 dark:hover:bg-industrial-100 py-4 rounded-2xl font-extrabold transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5">
+                  <button type="button" onClick={() => updateTicket(selectedTicket.id, { status: 'Closed' })} className="w-full bg-red-700 text-white hover:bg-red-800 py-4 rounded-2xl font-extrabold transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5">
                     {dict.markClosed}
                   </button>
                 )}
 
                 {isAdmin && selectedTicket.status === 'Rejected' && (
-                  <button type="button" onClick={() => handleReopenTicket(selectedTicket.id)} className="w-full bg-accent-500 hover:bg-accent-600 text-white py-4 rounded-2xl font-extrabold transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5">
+                  <button type="button" onClick={() => handleReopenTicket(selectedTicket.id)} className="w-full bg-red-700 hover:bg-red-800 text-white py-4 rounded-2xl font-extrabold transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5">
                     {dict.reopenNew}
                   </button>
                 )}
               </div>
 
               {!isAdmin && !isViewer && isMine(selectedTicket) && selectedTicket.status === 'In Progress' && (
-                <div className="glass-panel border-accent-200 dark:border-accent-900/50 rounded-[2rem] p-6 shadow-sm">
-                  <label className="text-[10px] font-extrabold text-industrial-400 block mb-4 uppercase tracking-widest">{dict.uploadFixPhoto}</label>
+                <div className="glass-panel border-red-200 rounded-[2rem] p-6 shadow-sm">
+                  <label className="text-[10px] font-extrabold text-neutral-400 block mb-4 uppercase tracking-widest">{dict.uploadFixPhoto}</label>
                   <input
                     type="file"
                     accept="image/*"
                     onChange={(e) => setResolutionFile(e.target.files?.[0] || null)}
-                    className="w-full text-sm mb-4 file:me-4 file:px-6 file:py-3 file:rounded-xl file:border-0 file:bg-industrial-100 dark:file:bg-industrial-800 file:font-extrabold file:text-sm file:text-industrial-900 dark:file:text-white hover:file:bg-industrial-200 dark:hover:file:bg-industrial-700 transition-colors cursor-pointer"
+                    className="w-full text-sm mb-4 file:me-4 file:px-6 file:py-3 file:rounded-xl file:border-0 file:bg-neutral-100 file:font-extrabold file:text-sm file:text-neutral-900 hover:file:bg-neutral-200 transition-colors cursor-pointer"
                   />
                   <button
                     type="button"
                     onClick={handleUploadResolution}
                     disabled={uploadingPhoto || !resolutionFile}
-                    className="w-full bg-accent-500 hover:bg-accent-600 disabled:bg-industrial-200 dark:disabled:bg-industrial-800 disabled:text-industrial-400 text-white py-4 rounded-2xl font-extrabold transition-all flex items-center justify-center gap-2 shadow-sm hover:shadow-md disabled:shadow-none hover:-translate-y-0.5 disabled:translate-y-0"
+                    className="w-full bg-red-700 hover:bg-red-800 disabled:bg-neutral-200 disabled:text-neutral-400 text-white py-4 rounded-2xl font-extrabold transition-all flex items-center justify-center gap-2 shadow-sm hover:shadow-md disabled:shadow-none hover:-translate-y-0.5 disabled:translate-y-0"
                   >
                     <Check size={20} /> {uploadingPhoto ? dict.uploading : dict.uploadFixPhoto}
                   </button>
@@ -2072,22 +2300,22 @@ function AdminDashboard({
               )}
 
               {selectedTicket.resolutionImageUrl && (
-                <div className="bg-emerald-50/80 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/50 rounded-[2rem] p-6">
+                <div className="bg-emerald-50/80 border border-emerald-200 rounded-[2rem] p-6">
                   <div className="flex items-center gap-3 mb-4">
                     <div className="w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-sm">
                       <Check size={16} strokeWidth={3} />
                     </div>
-                    <label className="text-[10px] font-extrabold text-emerald-700 dark:text-emerald-400 uppercase tracking-widest">{dict.technicianFixPhoto}</label>
+                    <label className="text-[10px] font-extrabold text-emerald-700 uppercase tracking-widest">{dict.technicianFixPhoto}</label>
                   </div>
-                  <a href={selectedTicket.resolutionImageUrl} target="_blank" rel="noreferrer" className="block relative group overflow-hidden rounded-xl border border-emerald-200 dark:border-emerald-800/50">
+                  <a href={selectedTicket.resolutionImageUrl} target="_blank" rel="noreferrer" className="block relative group overflow-hidden rounded-xl border border-emerald-200">
                     <img
                       src={selectedTicket.resolutionImageUrl}
                       alt={dict.technicianFixPhoto}
                       className="w-full object-cover max-h-72 group-hover:scale-105 transition-transform duration-500"
                     />
-                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
+                    <div className="absolute inset-0 bg-neutral-900/0 group-hover:bg-neutral-900/10 transition-colors" />
                   </a>
-                  <p className="text-[10px] font-bold text-emerald-600/70 dark:text-emerald-500/70 mt-3 uppercase tracking-wider">{dict.internalOnly}</p>
+                  <p className="text-[10px] font-bold text-emerald-600/70 mt-3 uppercase tracking-wider">{dict.internalOnly}</p>
                 </div>
               )}
 
@@ -2095,31 +2323,31 @@ function AdminDashboard({
               <button
                 type="button"
                 onClick={() => handleDeleteTicket(selectedTicket.id)}
-                className="w-full flex items-center justify-center gap-2 border-2 border-red-200 dark:border-red-900/50 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 py-4 rounded-2xl font-extrabold transition-colors mt-8"
+                className="w-full flex items-center justify-center gap-2 border-2 border-red-200 text-red-700 hover:bg-red-50 py-4 rounded-2xl font-extrabold transition-colors mt-8"
               >
                 <Trash2 size={18} /> {dict.deleteTicket}
               </button>
               )}
             </div>
 
-            <div className="mt-10 pt-8 border-t border-industrial-200 dark:border-industrial-800 print:hidden">
-              <h3 className="text-[10px] font-extrabold text-industrial-400 uppercase tracking-widest mb-6">{dict.discussion}</h3>
+            <div className="mt-10 pt-8 border-t border-neutral-200 print:hidden">
+              <h3 className="text-[10px] font-extrabold text-neutral-400 uppercase tracking-widest mb-6">{dict.discussion}</h3>
               <div className="space-y-4 mb-6 max-h-[300px] overflow-y-auto pe-2 custom-scrollbar">
                 {comments.length === 0 && (
-                  <div className="text-center py-6 bg-industrial-50 dark:bg-industrial-900/30 rounded-2xl border border-dashed border-industrial-200 dark:border-industrial-800">
-                    <p className="text-sm font-medium text-industrial-400">{dict.noComments}</p>
+                  <div className="text-center py-6 bg-neutral-50 rounded-2xl border border-dashed border-neutral-200">
+                    <p className="text-sm font-medium text-neutral-400">{dict.noComments}</p>
                   </div>
                 )}
                 {comments.map((c) => (
-                  <div key={c.id} className="bg-white dark:bg-industrial-900/50 border border-industrial-100 dark:border-industrial-800/50 shadow-sm rounded-2xl px-5 py-4">
+                  <div key={c.id} className="bg-white border border-neutral-100 shadow-sm rounded-2xl px-5 py-4">
                     <div className="flex items-center gap-3 mb-2">
-                      <span className="text-sm font-extrabold text-industrial-900 dark:text-white">{c.userName}</span>
-                      <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-widest ${c.role === 'admin' ? 'bg-industrial-900 text-white dark:bg-industrial-50 dark:text-industrial-900' : 'bg-accent-100 text-accent-700 dark:bg-accent-900/30 dark:text-accent-400'}`}>
+                      <span className="text-sm font-extrabold text-neutral-900">{c.userName}</span>
+                      <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-widest ${c.role === 'admin' ? 'bg-red-700 text-white' : 'bg-red-50 text-red-800'}`}>
                         {c.role}
                       </span>
-                      <span className="text-[10px] font-mono text-industrial-400 ms-auto">{formatHistoryDate(c.createdAt)}</span>
+                      <span className="text-[10px] font-mono text-neutral-400 ms-auto">{formatHistoryDate(c.createdAt)}</span>
                     </div>
-                    <p className="text-sm whitespace-pre-wrap font-medium text-industrial-700 dark:text-industrial-300 leading-relaxed">{c.commentText}</p>
+                    <p className="text-sm whitespace-pre-wrap font-medium text-neutral-700 leading-relaxed">{c.commentText}</p>
                   </div>
                 ))}
               </div>
@@ -2131,15 +2359,15 @@ function AdminDashboard({
                     placeholder={dict.writeComment}
                     rows={3}
                     maxLength={2000}
-                    className="w-full border border-industrial-200 dark:border-industrial-800 rounded-2xl px-5 py-4 bg-white/50 dark:bg-industrial-900/50 backdrop-blur-xl outline-none focus:border-accent-500 dark:focus:border-accent-400 focus:ring-4 focus:ring-accent-500/10 text-sm font-medium resize-none shadow-sm transition-all pb-14"
+                    className="w-full border border-neutral-200 rounded-2xl px-5 py-4 bg-neutral-50 backdrop-blur-xl outline-none focus:border-red-700 focus:ring-4 focus:ring-red-700/10 text-sm font-medium resize-none shadow-sm transition-all pb-14"
                   />
                   <div className="absolute bottom-3 end-3 flex items-center justify-between start-4">
-                    <span className="text-[10px] font-bold text-industrial-400">{commentDraft.length}/2000</span>
+                    <span className="text-[10px] font-bold text-neutral-400">{commentDraft.length}/2000</span>
                     <button
                       type="button"
                       onClick={handleSendComment}
                       disabled={sendingComment || !commentDraft.trim()}
-                      className="bg-industrial-900 text-white dark:bg-white dark:text-industrial-900 disabled:opacity-30 disabled:hover:scale-100 px-5 py-2 rounded-xl font-extrabold text-sm transition-all hover:-translate-y-0.5 active:scale-[0.98] shadow-sm flex items-center gap-2"
+                      className="bg-red-700 text-white disabled:opacity-30 disabled:hover:scale-100 px-5 py-2 rounded-xl font-extrabold text-sm transition-all hover:-translate-y-0.5 active:scale-[0.98] shadow-sm flex items-center gap-2"
                     >
                       {sendingComment ? dict.sending : dict.sendComment}
                     </button>
@@ -2149,29 +2377,29 @@ function AdminDashboard({
             </div>
 
             {ticketHistory.length > 0 && (
-              <div className="mt-10 pt-8 border-t border-industrial-200 dark:border-industrial-800 print:hidden">
-                <h3 className="text-[10px] font-extrabold text-industrial-400 uppercase tracking-widest mb-6">{dict.auditTrail}</h3>
-                <div className="space-y-0 relative before:absolute before:inset-0 before:ms-[11px] rtl:before:me-[11px] before:-translate-x-px before:w-0.5 before:bg-industrial-200 dark:before:bg-industrial-800">
+              <div className="mt-10 pt-8 border-t border-neutral-200 print:hidden">
+                <h3 className="text-[10px] font-extrabold text-neutral-400 uppercase tracking-widest mb-6">{dict.auditTrail}</h3>
+                <div className="space-y-0 relative before:absolute before:inset-0 before:ms-[11px] rtl:before:me-[11px] before:-translate-x-px before:w-0.5 before:bg-neutral-200">
                   {ticketHistory.map((entry, idx) => (
                     <div key={entry.id} className="relative ps-8 rtl:pe-8 py-3">
-                      <div className="absolute start-0 rtl:end-0 top-4 w-6 h-6 -translate-x-1/2 rtl:translate-x-1/2 rounded-full bg-white dark:bg-industrial-950 border-4 border-industrial-200 dark:border-industrial-800 z-10" />
-                      <div className="bg-industrial-50 dark:bg-industrial-900/30 rounded-2xl px-5 py-4 border border-industrial-100 dark:border-industrial-800/50">
-                        <p className="font-extrabold text-sm text-industrial-900 dark:text-white">
+                      <div className="absolute start-0 rtl:end-0 top-4 w-6 h-6 -translate-x-1/2 rtl:translate-x-1/2 rounded-full bg-white border-4 border-neutral-200 z-10" />
+                      <div className="bg-neutral-50 rounded-2xl px-5 py-4 border border-neutral-100">
+                        <p className="font-extrabold text-sm text-neutral-900">
                           {entry.fromStatus ? (
                             <span className="flex items-center gap-2">
-                              <span className="text-industrial-500 dark:text-industrial-400 line-through">{entry.fromStatus}</span>
-                              <ArrowRight size={14} className="rtl:rotate-180 text-industrial-400" />
+                              <span className="text-neutral-500 line-through">{entry.fromStatus}</span>
+                              <ArrowRight size={14} className="rtl:rotate-180 text-neutral-400" />
                               <span>{entry.toStatus}</span>
                             </span>
                           ) : entry.toStatus}
                         </p>
-                        <p className="text-industrial-500 dark:text-industrial-400 text-[11px] font-medium mt-1.5 flex items-center gap-2">
+                        <p className="text-neutral-500 text-[11px] font-medium mt-1.5 flex items-center gap-2">
                           <span className="font-bold">{entry.changedBy}</span>
-                          <span className="w-1 h-1 rounded-full bg-industrial-300 dark:bg-industrial-700" />
+                          <span className="w-1 h-1 rounded-full bg-neutral-300" />
                           <span className="font-mono">{formatHistoryDate(entry.createdAt)}</span>
                         </p>
                         {entry.note && (
-                          <p className="text-industrial-600 dark:text-industrial-300 text-sm mt-3 font-medium bg-white dark:bg-industrial-950 p-3 rounded-xl border border-industrial-200 dark:border-industrial-800">{entry.note}</p>
+                          <p className="text-neutral-600 text-sm mt-3 font-medium bg-white p-3 rounded-xl border border-neutral-200">{entry.note}</p>
                         )}
                       </div>
                     </div>
@@ -2182,8 +2410,8 @@ function AdminDashboard({
 
             <div className="hidden print:block mt-16 border-t-2 border-black pt-8">
               <h3 className="font-extrabold text-xl tracking-tight mb-8 uppercase">{dict.resolutionNotes}</h3>
-              <div className="h-32 border-b border-dashed border-gray-400 mb-8" />
-              <div className="h-32 border-b border-dashed border-gray-400 mb-12" />
+              <div className="h-32 border-b border-dashed border-neutral-300 mb-8" />
+              <div className="h-32 border-b border-dashed border-neutral-300 mb-12" />
               <div className="flex justify-between mt-16 text-lg font-bold">
                 <div>{dict.techSign}: <span className="inline-block w-64 border-b border-black ms-2"></span></div>
                 <div>{dict.adminSign}: <span className="inline-block w-64 border-b border-black ms-2"></span></div>
@@ -2194,17 +2422,22 @@ function AdminDashboard({
       )}
 
       {showRoomModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center print:static print:block print:bg-white">
-          <div className="absolute inset-0 bg-black/20 backdrop-blur-sm print:hidden" onClick={() => setShowRoomModal(false)} />
-          <div className="w-full max-w-4xl bg-white dark:bg-industrial-950 border border-industrial-200 dark:border-industrial-800 rounded-[2rem] relative z-10 shadow-2xl p-8 max-h-[90vh] overflow-y-auto print:max-h-none print:max-w-none print:overflow-visible print:shadow-none print:border-none print:p-0">
+        <div className="fixed inset-0 z-50 flex items-center justify-center print:static print:block print:bg-white p-4">
+          <div className="modal-backdrop print:hidden" onClick={() => setShowRoomModal(false)} />
+          <div className="modal-panel max-w-7xl w-full p-6 sm:p-8 max-h-[90vh] overflow-y-auto animate-slide-up print:max-h-none print:max-w-none print:overflow-visible print:shadow-none print:border-none print:p-0 print:bg-white print:rounded-none">
             <div className="flex flex-wrap justify-between items-center gap-4 mb-8 print:hidden">
               <div className="flex items-center gap-4">
-                <BrandLogo className="h-12 w-auto object-contain" />
-                <h2 className="text-3xl font-extrabold tracking-tighter">{dict.locationManager}</h2>
+                <div className="bg-white p-2 rounded-xl shadow-sm">
+                  <BrandLogo className="h-10 w-auto object-contain" />
+                </div>
+                <div>
+                  <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tighter text-neutral-900">{dict.locationManager}</h2>
+                  <p className="text-xs font-bold uppercase tracking-widest text-neutral-400 mt-1">{dict.manageLocations}</p>
+                </div>
               </div>
               <div className="flex flex-wrap gap-2">
-                <button type="button" onClick={() => window.print()} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-zinc-900" aria-label={dict.print}><Printer size={20} /></button>
-                <button type="button" onClick={() => setShowRoomModal(false)} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-zinc-900"><X size={20} /></button>
+                <button type="button" onClick={() => window.print()} className="btn-icon" aria-label={dict.print}><Printer size={20} /></button>
+                <button type="button" onClick={() => setShowRoomModal(false)} className="btn-icon"><X size={20} /></button>
               </div>
             </div>
 
@@ -2212,46 +2445,50 @@ function AdminDashboard({
               <BrandLogo className="h-16 w-auto object-contain" />
             </div>
 
-            {[...new Set(['Dhahran', ...adminRooms.map(roomSite)])].map((siteName) => ({
-              key: siteName,
-              label: siteName === 'Dhahran' ? dict.dhahranRooms : siteName === 'MGS' ? dict.mgsRooms : `${siteName} ${dict.roomsSuffix}`,
-              rooms: adminRooms
-                .filter((r) => roomSite(r) === siteName)
-                .slice()
-                .sort((a, b) => (a.floor || '').localeCompare(b.floor || '') || a.name.localeCompare(b.name, undefined, { numeric: true })),
-            })).filter((section) => section.rooms.length > 0 || section.key === 'Dhahran').map((section) => (
-            <div key={section.key} className="mb-10 print:mb-0">
-            <h3 className="text-xl font-extrabold tracking-tight mb-4 pb-2 border-b border-industrial-200 dark:border-industrial-800 print:text-black print:border-black print:mt-6 print:break-after-avoid">{section.label}</h3>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6 print:block print:gap-0">
-              {section.rooms.map((room) => (
-                <div key={room.id} className="border border-industrial-200 dark:border-industrial-800 rounded-2xl p-6 flex flex-col items-center text-center print:inline-flex print:w-[30%] print:align-top print:m-[1.5%] print:border-black print:break-inside-avoid">
-                  <BrandLogo className="h-10 w-auto object-contain mb-2 print:h-12" />
-                  <p className="text-xs font-bold uppercase tracking-wider text-industrial-500 dark:text-industrial-400 mb-4 print:text-black">{dict.facilityDepartment}</p>
-                  {room.token && (
-                    <QRCodeSVG
-                      value={`${baseUrl}?token=${encodeURIComponent(room.token)}`}
-                      size={100}
-                      className="mb-4"
-                    />
-                  )}
-                  <p className="font-bold text-sm tracking-tight mb-2">{room.name}</p>
-                  {isManager && (
-                    <div className="print:hidden flex flex-col gap-2 w-full">
-                      <button type="button" onClick={() => openEditRoom(room)} className="text-xs font-bold flex items-center justify-center gap-1 text-gray-600 hover:text-black dark:hover:text-white">
+            {visibleLocationSections.map((section, sectionIndex) => (
+            <div key={section.camp} className="mb-10 print:mb-0">
+            <h3 className={`text-2xl font-black text-slate-900 mb-4 pb-2 border-b border-slate-200 print:text-black print:border-gray-400 print:break-after-avoid ${sectionIndex === 0 ? 'mt-0' : 'mt-10'}`}>
+              {section.camp}
+              <span className="ml-2 text-sm font-bold text-slate-500">({section.locations.length})</span>
+            </h3>
+            {section.locations.length === 0 && (
+              <p className="text-sm text-slate-500 mb-4 print:hidden">No inventory loaded for this camp yet.</p>
+            )}
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 sm:gap-6 print:grid print:grid-cols-3 print:gap-4">
+              {section.locations.map((locationKey) => {
+                const { camp, roomName } = parseLocationKey(locationKey);
+                const dbRoom = dbRoomByLocationKey.get(locationKey);
+                return (
+                <div
+                  key={locationKey}
+                  className="bg-white border border-slate-200 rounded-xl p-5 sm:p-6 flex flex-col items-center justify-center text-center print:break-inside-avoid print:shadow-none print:border-gray-400"
+                >
+                  <p className="font-bold text-lg text-slate-900 text-center mb-2">{camp}</p>
+                  <QRCodeSVG
+                    value={locationKey}
+                    size={100}
+                    level="M"
+                    includeMargin={false}
+                  />
+                  <p className="text-[10px] sm:text-xs uppercase text-red-700 font-bold tracking-wider text-center mt-2">
+                    FACILITY AND MAINTENANCE
+                  </p>
+                  <p className="text-sm sm:text-base font-black text-slate-900 text-center mt-1">{roomName}</p>
+                  {isManager && dbRoom && (
+                    <div className="print:hidden flex flex-col gap-2 w-full mt-4">
+                      <button type="button" onClick={() => openEditRoom(dbRoom)} className="text-xs font-bold flex items-center justify-center gap-1 text-neutral-500 hover:text-red-700 transition-colors">
                         <Pencil size={12} /> {dict.editRoom}
                       </button>
-                      <button type="button" onClick={() => handleRotateQr(room.id)} className="text-xs font-bold flex items-center justify-center gap-1 text-gray-600 hover:text-black dark:hover:text-white">
-                        <RefreshCw size={12} /> {dict.rotateQr}
-                      </button>
-                      <button type="button" onClick={() => handleDeleteRoom(room.id, room.name)} className="text-xs font-bold flex items-center justify-center gap-1 text-red-600 hover:text-red-700">
+                      <button type="button" onClick={() => handleDeleteRoom(dbRoom.id, dbRoom.name)} className="text-xs font-bold flex items-center justify-center gap-1 text-red-700 hover:text-red-700 transition-colors">
                         <Trash2 size={12} /> {dict.deleteLocation}
                       </button>
                     </div>
                   )}
                 </div>
-              ))}
-              {isManager && (isMainAdmin || section.key === adminSite) && (
-              <button type="button" onClick={() => setShowAddRoomForm(true)} className="print:hidden border-2 border-dashed border-industrial-200 dark:border-industrial-800 rounded-2xl p-6 flex flex-col items-center justify-center text-industrial-400 hover:text-black dark:hover:text-white min-h-[180px]">
+                );
+              })}
+              {isManager && (isMainAdmin || campMatchesAdminSite(section.camp, adminSite)) && (
+              <button type="button" onClick={() => setShowAddRoomForm(true)} className="print:hidden border-2 border-dashed border-slate-200 rounded-xl p-6 flex flex-col items-center justify-center text-slate-400 hover:text-red-700 hover:border-red-600 min-h-[180px] transition-colors">
                 <Plus size={32} className="mb-2" />
                 <span className="font-bold text-sm">{dict.addLocation}</span>
               </button>
@@ -2261,21 +2498,21 @@ function AdminDashboard({
             ))}
 
             {showAddRoomForm && (
-              <form onSubmit={handleSaveRoom} className="mt-8 p-6 border border-industrial-200 dark:border-industrial-800 rounded-2xl space-y-4 print:hidden">
-                <h3 className="font-bold text-lg">{dict.addNewLocation}</h3>
-                <input value={newRoomName} onChange={(e) => setNewRoomName(e.target.value)} placeholder={dict.roomName} required className="w-full border border-industrial-200 dark:border-industrial-800 rounded-xl px-4 py-3 bg-transparent outline-none" />
-                <select value={newRoomDept} onChange={(e) => setNewRoomDept(e.target.value)} required className="w-full border border-industrial-200 dark:border-industrial-800 rounded-xl px-4 py-3 bg-transparent outline-none">
+              <form onSubmit={handleSaveRoom} className="mt-8 p-6 surface-muted rounded-2xl space-y-4 print:hidden">
+                <h3 className="font-extrabold text-lg text-neutral-900">{dict.addNewLocation}</h3>
+                <input value={newRoomName} onChange={(e) => setNewRoomName(e.target.value)} placeholder={dict.roomName} required className="w-full border border-neutral-200 rounded-xl px-4 py-3 bg-neutral-50 outline-none focus:border-red-700 focus:ring-4 focus:ring-red-700/10 transition-all font-medium" />
+                <select value={newRoomDept} onChange={(e) => setNewRoomDept(e.target.value)} required className="w-full border border-neutral-200 rounded-xl px-4 py-3 bg-neutral-50 outline-none focus:border-red-700 transition-all font-medium">
                   <option value="">{dict.department}</option>
                   {departments.map((d) => <option key={d.id} value={d.id}>{d.name_en}</option>)}
                 </select>
-                <input value={newRoomSite} onChange={(e) => setNewRoomSite(e.target.value)} placeholder={dict.site} list="site-options" className="w-full border border-industrial-200 dark:border-industrial-800 rounded-xl px-4 py-3 bg-transparent outline-none" />
+                <input value={newRoomSite} onChange={(e) => setNewRoomSite(e.target.value)} placeholder={dict.site} list="site-options" className="w-full border border-neutral-200 rounded-xl px-4 py-3 bg-neutral-50 outline-none focus:border-red-700 focus:ring-4 focus:ring-red-700/10 transition-all font-medium" />
                 <datalist id="site-options">
                   {siteOptions.map((s) => <option key={s} value={s} />)}
                 </datalist>
-                <textarea value={newRoomAssets} onChange={(e) => setNewRoomAssets(e.target.value)} placeholder={dict.assetsComma} rows={2} className="w-full border border-industrial-200 dark:border-industrial-800 rounded-xl px-4 py-3 bg-transparent outline-none resize-none" />
+                <textarea value={newRoomAssets} onChange={(e) => setNewRoomAssets(e.target.value)} placeholder={dict.assetsComma} rows={2} className="w-full border border-neutral-200 rounded-xl px-4 py-3 bg-neutral-50 outline-none resize-none focus:border-red-700 focus:ring-4 focus:ring-red-700/10 transition-all font-medium" />
                 <div className="flex gap-2">
-                  <button type="submit" className="bg-industrial-900 text-white dark:bg-industrial-50 dark:text-industrial-900 hover:bg-industrial-800 dark:hover:bg-industrial-200 px-6 py-2.5 rounded-xl font-bold">{dict.saveRoom}</button>
-                  <button type="button" onClick={() => setShowAddRoomForm(false)} className="px-6 py-2.5 rounded-xl font-bold border border-industrial-200 dark:border-industrial-800">{dict.cancel}</button>
+                  <button type="submit" className="bg-red-700 text-white hover:bg-red-800 hover:text-white px-6 py-2.5 rounded-xl font-bold transition-colors">{dict.saveRoom}</button>
+                  <button type="button" onClick={() => setShowAddRoomForm(false)} className="px-6 py-2.5 rounded-xl font-bold border border-neutral-200 text-neutral-700 hover:bg-neutral-50 transition-colors">{dict.cancel}</button>
                 </div>
               </form>
             )}
@@ -2285,67 +2522,82 @@ function AdminDashboard({
 
       {editingRoom && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center print:hidden p-4">
-          <div className="absolute inset-0 bg-industrial-950/40 dark:bg-black/60 backdrop-blur-sm" onClick={() => setEditingRoom(null)} />
-          <form onSubmit={handleSaveRoomEdit} className="relative z-10 w-full max-w-md bg-white dark:bg-industrial-950 border border-industrial-200 dark:border-industrial-800 rounded-[2.5rem] p-8 shadow-[0_0_60px_rgba(0,0,0,0.1)] space-y-6 animate-fade-in overflow-hidden">
-            <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-accent-400 to-accent-600" />
-            <h3 className="text-2xl font-extrabold tracking-tight text-industrial-900 dark:text-white mb-2">{dict.editRoom}</h3>
+          <div className="modal-backdrop" onClick={() => setEditingRoom(null)} />
+          <form onSubmit={handleSaveRoomEdit} className="modal-panel max-w-md p-8 space-y-6 animate-slide-up overflow-hidden">
+            <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-red-600 to-red-700" />
+            <h3 className="text-2xl font-extrabold tracking-tight text-neutral-900 mb-2">{dict.editRoom}</h3>
             <div className="space-y-4">
               <div>
-                <label className="text-[10px] font-extrabold text-industrial-400 uppercase tracking-widest mb-2 block">{dict.roomName}</label>
-                <input value={editRoomName} onChange={(e) => setEditRoomName(e.target.value)} placeholder={dict.roomName} required className="w-full border border-industrial-200 dark:border-industrial-800 rounded-2xl px-5 py-4 bg-white/50 dark:bg-industrial-900/50 backdrop-blur-xl outline-none focus:border-accent-500 focus:ring-4 focus:ring-accent-500/10 transition-all font-bold shadow-sm text-industrial-900 dark:text-white" />
+                <label className="text-[10px] font-extrabold text-neutral-400 uppercase tracking-widest mb-2 block">{dict.roomName}</label>
+                <input value={editRoomName} onChange={(e) => setEditRoomName(e.target.value)} placeholder={dict.roomName} required className="w-full border border-neutral-200 rounded-2xl px-5 py-4 bg-neutral-50 backdrop-blur-xl outline-none focus:border-red-700 focus:ring-4 focus:ring-red-700/10 transition-all font-bold shadow-sm text-neutral-900" />
               </div>
               <div>
-                <label className="text-[10px] font-extrabold text-industrial-400 uppercase tracking-widest mb-2 block">{dict.floor}</label>
-                <input value={editRoomFloor} onChange={(e) => setEditRoomFloor(e.target.value)} placeholder={dict.floor} className="w-full border border-industrial-200 dark:border-industrial-800 rounded-2xl px-5 py-4 bg-white/50 dark:bg-industrial-900/50 backdrop-blur-xl outline-none focus:border-accent-500 focus:ring-4 focus:ring-accent-500/10 transition-all font-bold shadow-sm text-industrial-900 dark:text-white" />
+                <label className="text-[10px] font-extrabold text-neutral-400 uppercase tracking-widest mb-2 block">{dict.floor}</label>
+                <input value={editRoomFloor} onChange={(e) => setEditRoomFloor(e.target.value)} placeholder={dict.floor} className="w-full border border-neutral-200 rounded-2xl px-5 py-4 bg-neutral-50 backdrop-blur-xl outline-none focus:border-red-700 focus:ring-4 focus:ring-red-700/10 transition-all font-bold shadow-sm text-neutral-900" />
               </div>
               <div>
-                <label className="text-[10px] font-extrabold text-industrial-400 uppercase tracking-widest mb-2 block">{dict.site}</label>
-                <input value={editRoomSite} onChange={(e) => setEditRoomSite(e.target.value)} placeholder={dict.site} list="site-options-edit" className="w-full border border-industrial-200 dark:border-industrial-800 rounded-2xl px-5 py-4 bg-white/50 dark:bg-industrial-900/50 backdrop-blur-xl outline-none focus:border-accent-500 focus:ring-4 focus:ring-accent-500/10 transition-all font-bold shadow-sm text-industrial-900 dark:text-white" />
+                <label className="text-[10px] font-extrabold text-neutral-400 uppercase tracking-widest mb-2 block">{dict.site}</label>
+                <input value={editRoomSite} onChange={(e) => setEditRoomSite(e.target.value)} placeholder={dict.site} list="site-options-edit" className="w-full border border-neutral-200 rounded-2xl px-5 py-4 bg-neutral-50 backdrop-blur-xl outline-none focus:border-red-700 focus:ring-4 focus:ring-red-700/10 transition-all font-bold shadow-sm text-neutral-900" />
               </div>
               <datalist id="site-options-edit">
                 {siteOptions.map((s) => <option key={s} value={s} />)}
               </datalist>
             </div>
             <div className="flex gap-3 pt-2">
-              <button type="submit" className="flex-1 bg-industrial-900 text-white dark:bg-white dark:text-industrial-900 hover:bg-industrial-800 dark:hover:bg-industrial-100 py-4 rounded-2xl font-extrabold transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5 active:scale-[0.98]">{dict.saveChanges}</button>
-              <button type="button" onClick={() => setEditingRoom(null)} className="flex-1 py-4 rounded-2xl font-extrabold border-2 border-industrial-200 dark:border-industrial-800 hover:bg-industrial-50 dark:hover:bg-industrial-900/50 text-industrial-700 dark:text-industrial-300 transition-all active:scale-[0.98]">{dict.cancel}</button>
+              <button type="submit" className="flex-1 bg-red-700 text-white hover:bg-red-800 py-4 rounded-2xl font-extrabold transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5 active:scale-[0.98]">{dict.saveChanges}</button>
+              <button type="button" onClick={() => setEditingRoom(null)} className="flex-1 py-4 rounded-2xl font-extrabold border-2 border-neutral-200 hover:bg-neutral-50 text-neutral-700 transition-all active:scale-[0.98]">{dict.cancel}</button>
             </div>
           </form>
         </div>
       )}
 
+      {showStaffModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center print:hidden p-4">
-          <div className="absolute inset-0 bg-industrial-950/40 dark:bg-black/60 backdrop-blur-sm" onClick={() => setShowStaffModal(false)} />
-          <div className="w-full max-w-lg bg-white dark:bg-industrial-950 border border-industrial-200 dark:border-industrial-800 rounded-[2.5rem] relative z-10 shadow-[0_0_60px_rgba(0,0,0,0.1)] p-8 sm:p-10 max-h-[90vh] overflow-y-auto animate-fade-in custom-scrollbar">
+          <div
+            className="modal-backdrop"
+            onClick={() => { setShowStaffModal(false); setShowAddStaffModal(false); resetStaffForm(); }}
+          />
+          <div className="modal-panel relative max-w-lg p-8 sm:p-10 max-h-[90vh] overflow-y-auto animate-slide-up">
             <div className="flex justify-between items-center mb-8 shrink-0">
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-industrial-50 dark:bg-industrial-900/50 flex items-center justify-center shadow-sm">
-                  <Users size={24} className="text-industrial-700 dark:text-industrial-300" />
+                <div className="w-12 h-12 rounded-2xl bg-neutral-50 flex items-center justify-center shadow-sm">
+                  <Users size={24} className="text-neutral-700" />
                 </div>
-                <h2 className="text-2xl font-extrabold tracking-tight text-industrial-900 dark:text-white">{dict.staffManager}</h2>
+                <h2 className="text-2xl font-extrabold tracking-tight text-neutral-900">{dict.staffManager}</h2>
               </div>
-              <button type="button" onClick={() => setShowStaffModal(false)} className="p-3 rounded-2xl bg-industrial-50 dark:bg-industrial-900/50 hover:bg-industrial-100 dark:hover:bg-industrial-900 text-industrial-700 dark:text-industrial-300 transition-colors shadow-sm"><X size={20} /></button>
+              <div className="flex items-center gap-2">
+                {isManager && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAddStaffModal(true)}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-red-700 text-white font-bold text-sm hover:bg-red-800 transition-colors"
+                  >
+                    <Plus size={16} /> {dict.createStaff}
+                  </button>
+                )}
+                <button type="button" onClick={() => { setShowStaffModal(false); setShowAddStaffModal(false); resetStaffForm(); }} className="btn-icon"><X size={20} /></button>
+              </div>
             </div>
-            <ul className="space-y-3 mb-8">
+            <ul className="space-y-3">
               {allStaff.map((user) => (
-                <li key={user.id} className="flex items-center justify-between gap-4 border border-industrial-200 dark:border-industrial-800 rounded-2xl px-5 py-4 glass-panel shadow-sm hover:shadow-md transition-shadow">
+                <li key={user.id} className="flex items-center justify-between gap-4 border border-neutral-200 rounded-2xl px-5 py-4 glass-panel shadow-sm hover:shadow-md transition-shadow">
                   <div className="min-w-0">
-                    <p className="font-extrabold truncate text-industrial-900 dark:text-white">
+                    <p className="font-extrabold truncate text-neutral-900">
                       {user.full_name || user.username}
-                      {user.full_name && <span className="text-industrial-400 font-bold"> · {user.username}</span>}
+                      {user.full_name && <span className="text-neutral-400 font-bold"> · {user.username}</span>}
                     </p>
                     <div className="flex flex-wrap gap-2 mt-2">
-                      <span className="px-2 py-0.5 rounded-md text-[9px] font-extrabold uppercase tracking-widest bg-industrial-100 text-industrial-700 dark:bg-industrial-900/50 dark:text-industrial-300">
+                      <span className="px-2 py-0.5 rounded-md text-[9px] font-extrabold uppercase tracking-widest bg-neutral-100 text-neutral-700">
                         {dict[`role_${user.role}`] || user.role}
                       </span>
                       {user.site && user.site !== 'all' && (
-                        <span className="px-2 py-0.5 rounded-md text-[9px] font-extrabold uppercase tracking-widest bg-accent-50 text-accent-700 dark:bg-accent-950/30 dark:text-accent-400">
+                        <span className="px-2 py-0.5 rounded-md text-[9px] font-extrabold uppercase tracking-widest bg-red-50 text-red-800">
                           {user.site}
                         </span>
                       )}
                     </div>
                     {(user.phone || user.email) && (
-                      <p className="text-[11px] font-bold text-industrial-500 dark:text-industrial-400 mt-2 truncate flex items-center gap-1">
+                      <p className="text-[11px] font-bold text-neutral-500 mt-2 truncate flex items-center gap-1">
                         {[user.phone, user.email].filter(Boolean).join(' · ')}
                       </p>
                     )}
@@ -2354,35 +2606,69 @@ function AdminDashboard({
                     && (isMainAdmin
                       ? user.role !== 'admin'
                       : ['sub_admin', 'facility'].includes(user.role)) && (
-                    <button type="button" onClick={() => handleDeleteStaff(user.id, user.username)} className="w-10 h-10 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 dark:bg-red-950/20 dark:hover:bg-red-900/30 dark:text-red-400 flex items-center justify-center shrink-0 transition-colors" aria-label={dict.deleteStaff}>
+                    <button type="button" onClick={() => handleDeleteStaff(user.id, user.username)} className="w-10 h-10 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 flex items-center justify-center shrink-0 transition-colors" aria-label={dict.deleteStaff}>
                       <Trash2 size={16} />
                     </button>
                   )}
                 </li>
               ))}
             </ul>
-            <form onSubmit={handleCreateStaff} className="space-y-4 pt-8 relative before:absolute before:inset-x-[-40px] before:top-0 before:border-t before:border-industrial-200 dark:before:border-industrial-800">
-              <h3 className="font-extrabold text-lg text-industrial-900 dark:text-white mb-2">{dict.createStaff}</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <input value={newStaffName} onChange={(e) => setNewStaffName(e.target.value)} placeholder={dict.staffFullName} required className="w-full border border-industrial-200 dark:border-industrial-800 rounded-2xl px-5 py-4 bg-white/50 dark:bg-industrial-900/50 backdrop-blur-xl outline-none focus:border-accent-500 focus:ring-4 focus:ring-accent-500/10 transition-all font-bold shadow-sm text-industrial-900 dark:text-white" />
-                <input value={newStaffUser} onChange={(e) => setNewStaffUser(e.target.value)} placeholder={dict.newStaffUser} required className="w-full border border-industrial-200 dark:border-industrial-800 rounded-2xl px-5 py-4 bg-white/50 dark:bg-industrial-900/50 backdrop-blur-xl outline-none focus:border-accent-500 focus:ring-4 focus:ring-accent-500/10 transition-all font-bold shadow-sm text-industrial-900 dark:text-white" />
-                <input type="password" value={newStaffPass} onChange={(e) => setNewStaffPass(e.target.value)} placeholder={dict.staffPassword} required minLength={6} className="w-full border border-industrial-200 dark:border-industrial-800 rounded-2xl px-5 py-4 bg-white/50 dark:bg-industrial-900/50 backdrop-blur-xl outline-none focus:border-accent-500 focus:ring-4 focus:ring-accent-500/10 transition-all font-bold shadow-sm text-industrial-900 dark:text-white md:col-span-2" />
-                <input type="tel" value={newStaffPhone} onChange={(e) => setNewStaffPhone(e.target.value)} placeholder={dict.staffPhone} required className="w-full border border-industrial-200 dark:border-industrial-800 rounded-2xl px-5 py-4 bg-white/50 dark:bg-industrial-900/50 backdrop-blur-xl outline-none focus:border-accent-500 focus:ring-4 focus:ring-accent-500/10 transition-all font-bold shadow-sm text-industrial-900 dark:text-white" dir="ltr" />
-                <input type="email" value={newStaffEmail} onChange={(e) => setNewStaffEmail(e.target.value)} placeholder={dict.staffEmail} required className="w-full border border-industrial-200 dark:border-industrial-800 rounded-2xl px-5 py-4 bg-white/50 dark:bg-industrial-900/50 backdrop-blur-xl outline-none focus:border-accent-500 focus:ring-4 focus:ring-accent-500/10 transition-all font-bold shadow-sm text-industrial-900 dark:text-white" dir="ltr" />
-                <select value={newStaffRole} onChange={(e) => setNewStaffRole(e.target.value)} className="w-full border border-industrial-200 dark:border-industrial-800 rounded-2xl px-5 py-4 bg-white/50 dark:bg-industrial-900/50 backdrop-blur-xl outline-none focus:border-accent-500 focus:ring-4 focus:ring-accent-500/10 transition-all font-bold shadow-sm text-industrial-900 dark:text-white appearance-none">
-                  {(isMainAdmin ? ['facility', 'sub_admin', 'site_admin', 'admin'] : ['facility', 'sub_admin']).map((r) => (
-                    <option key={r} value={r} className="text-industrial-900">{dict[`role_${r}`] || r}</option>
-                  ))}
-                </select>
-                {isMainAdmin && newStaffRole !== 'admin' && (
-                  <select value={newStaffSite} onChange={(e) => setNewStaffSite(e.target.value)} className="w-full border border-industrial-200 dark:border-industrial-800 rounded-2xl px-5 py-4 bg-white/50 dark:bg-industrial-900/50 backdrop-blur-xl outline-none focus:border-accent-500 focus:ring-4 focus:ring-accent-500/10 transition-all font-bold shadow-sm text-industrial-900 dark:text-white appearance-none">
-                    <option value="" className="text-industrial-900">{dict.staffSite}</option>
-                    {siteOptions.map((s) => <option key={s} value={s} className="text-industrial-900">{s}</option>)}
-                  </select>
-                )}
+            {showAddStaffModal && (
+              <div className="absolute inset-0 z-20 flex items-center justify-center p-4 sm:p-6">
+                <div
+                  className="absolute inset-0 bg-neutral-900/50 backdrop-blur-sm"
+                  onClick={() => { setShowAddStaffModal(false); resetStaffForm(); }}
+                  aria-hidden
+                />
+                <form
+                  onSubmit={handleCreateStaff}
+                  className="modal-panel max-w-lg w-full p-8 sm:p-10 max-h-[90vh] overflow-y-auto animate-slide-up relative z-10"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-red-600 to-red-700 rounded-t-2xl" />
+                  <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-2xl font-extrabold tracking-tight text-neutral-900">{dict.createStaff}</h3>
+                    <button
+                      type="button"
+                      onClick={() => { setShowAddStaffModal(false); resetStaffForm(); }}
+                      className="btn-icon"
+                    >
+                      <X size={20} />
+                    </button>
+                  </div>
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <input value={newStaffName} onChange={(e) => setNewStaffName(e.target.value)} placeholder={dict.staffFullName} required className="w-full border border-neutral-200 rounded-2xl px-5 py-4 bg-neutral-50 backdrop-blur-xl outline-none focus:border-red-700 focus:ring-4 focus:ring-red-700/10 transition-all font-bold shadow-sm text-neutral-900" />
+                      <input value={newStaffUser} onChange={(e) => setNewStaffUser(e.target.value)} placeholder={dict.newStaffUser} required className="w-full border border-neutral-200 rounded-2xl px-5 py-4 bg-neutral-50 backdrop-blur-xl outline-none focus:border-red-700 focus:ring-4 focus:ring-red-700/10 transition-all font-bold shadow-sm text-neutral-900" />
+                      <input type="password" value={newStaffPass} onChange={(e) => setNewStaffPass(e.target.value)} placeholder={dict.staffPassword} required minLength={6} className="w-full border border-neutral-200 rounded-2xl px-5 py-4 bg-neutral-50 backdrop-blur-xl outline-none focus:border-red-700 focus:ring-4 focus:ring-red-700/10 transition-all font-bold shadow-sm text-neutral-900 md:col-span-2" />
+                      <input type="tel" value={newStaffPhone} onChange={(e) => setNewStaffPhone(e.target.value)} placeholder={dict.staffPhone} required className="w-full border border-neutral-200 rounded-2xl px-5 py-4 bg-neutral-50 backdrop-blur-xl outline-none focus:border-red-700 focus:ring-4 focus:ring-red-700/10 transition-all font-bold shadow-sm text-neutral-900" dir="ltr" />
+                      <input type="email" value={newStaffEmail} onChange={(e) => setNewStaffEmail(e.target.value)} placeholder={dict.staffEmail} required className="w-full border border-neutral-200 rounded-2xl px-5 py-4 bg-neutral-50 backdrop-blur-xl outline-none focus:border-red-700 focus:ring-4 focus:ring-red-700/10 transition-all font-bold shadow-sm text-neutral-900" dir="ltr" />
+                      <select value={newStaffRole} onChange={(e) => setNewStaffRole(e.target.value)} className="w-full border border-neutral-200 rounded-2xl px-5 py-4 bg-neutral-50 backdrop-blur-xl outline-none focus:border-red-700 focus:ring-4 focus:ring-red-700/10 transition-all font-bold shadow-sm text-neutral-900 appearance-none">
+                        {(isMainAdmin ? ['facility', 'sub_admin', 'site_admin', 'admin'] : ['facility', 'sub_admin']).map((r) => (
+                          <option key={r} value={r} className="text-neutral-900">{dict[`role_${r}`] || r}</option>
+                        ))}
+                      </select>
+                      {isMainAdmin && newStaffRole !== 'admin' && (
+                        <select value={newStaffSite} onChange={(e) => setNewStaffSite(e.target.value)} className="w-full border border-neutral-200 rounded-2xl px-5 py-4 bg-neutral-50 backdrop-blur-xl outline-none focus:border-red-700 focus:ring-4 focus:ring-red-700/10 transition-all font-bold shadow-sm text-neutral-900 appearance-none">
+                          <option value="" className="text-neutral-900">{dict.staffSite}</option>
+                          {siteOptions.map((s) => <option key={s} value={s} className="text-neutral-900">{s}</option>)}
+                        </select>
+                      )}
+                    </div>
+                    <div className="flex gap-3 pt-2">
+                      <button type="submit" className="flex-1 bg-red-700 text-white py-4 rounded-2xl font-extrabold shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 active:scale-[0.98]">{dict.createStaff}</button>
+                      <button
+                        type="button"
+                        onClick={() => { setShowAddStaffModal(false); resetStaffForm(); }}
+                        className="px-6 py-4 rounded-2xl font-extrabold border-2 border-neutral-200 text-neutral-700 hover:bg-neutral-50 transition-colors"
+                      >
+                        {dict.cancel}
+                      </button>
+                    </div>
+                  </div>
+                </form>
               </div>
-              <button type="submit" className="w-full bg-industrial-900 text-white dark:bg-white dark:text-industrial-900 py-4 rounded-2xl font-extrabold shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 active:scale-[0.98] mt-2">{dict.createStaff}</button>
-            </form>
+            )}
           </div>
         </div>
       )}
@@ -2464,9 +2750,9 @@ function PrintableReport({ config, dict }) {
 function MetricCard({ label, value }) {
   return (
     <div className="glass-panel p-6 sm:p-8 rounded-[2rem] card-hover relative overflow-hidden group">
-      <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-accent-400/0 via-accent-500/0 to-accent-600/0 group-hover:from-accent-400 group-hover:via-accent-500 group-hover:to-accent-600 transition-all duration-500" />
-      <p className="text-xs font-extrabold text-industrial-500 dark:text-industrial-400 mb-2 uppercase tracking-widest">{label}</p>
-      <p className="text-4xl sm:text-5xl font-extrabold tracking-tighter text-industrial-900 dark:text-white">{value}</p>
+      <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-red-600/0 via-red-700/0 to-red-700/0 group-hover:from-red-600 group-hover:via-red-700 group-hover:to-red-700 transition-all duration-500" />
+      <p className="text-xs font-extrabold text-neutral-500 mb-2 uppercase tracking-widest">{label}</p>
+      <p className="text-4xl sm:text-5xl font-extrabold tracking-tighter text-neutral-900">{value}</p>
     </div>
   );
 }

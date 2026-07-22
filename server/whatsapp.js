@@ -280,3 +280,30 @@ export async function sendWhatsAppAdminAlert(ticketNumber, details, phone) {
   const template = await resolveTemplate('admin', 'TWILIO_TEMPLATE_ADMIN', { 1: ticketNumber, 2: summary });
   return sendWhatsAppMessage(adminPhone, message, template);
 }
+
+/**
+ * Role-based new-ticket WhatsApp body (freeform). Prefer admin template when
+ * approved Content SID is available (required outside the 24h session window).
+ */
+export async function sendWhatsAppNewTicketAlert(phone, ticket) {
+  const to = (phone || '').trim();
+  if (!to) return { sent: false, skipped: true, reason: 'no-phone' };
+
+  const ticketId = ticket?.id || ticket?.ticketNumber || '';
+  const location = ticket?.room || ticket?.roomName || ticket?.location || '';
+  const issue = ticket?.issue || ticket?.issueType || '';
+  const summary = [location, issue].filter(Boolean).join(' — ').slice(0, 200);
+
+  const message =
+    `🚨 *New Maintenance Request*\n\n`
+    + `*Ticket ID:* ${ticketId}\n`
+    + `*Location:* ${location}\n`
+    + `*Issue:* ${issue}\n\n`
+    + 'Please check the FMC Command Center.';
+
+  const template = await resolveTemplate('admin', 'TWILIO_TEMPLATE_ADMIN', {
+    1: String(ticketId),
+    2: summary || String(ticketId),
+  });
+  return sendWhatsAppMessage(to, message, template);
+}

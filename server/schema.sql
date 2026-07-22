@@ -26,7 +26,13 @@ CREATE TABLE IF NOT EXISTS rooms (
   UNIQUE (department_id, name)
 );
 
+-- Allow the same room name (e.g. A-01) in different camps/sites.
+ALTER TABLE rooms DROP CONSTRAINT IF EXISTS rooms_department_id_name_key;
+CREATE UNIQUE INDEX IF NOT EXISTS uniq_rooms_dept_site_name
+  ON rooms (department_id, COALESCE(site, ''), name);
+
 CREATE INDEX IF NOT EXISTS idx_rooms_department ON rooms (department_id);
+CREATE INDEX IF NOT EXISTS idx_rooms_site ON rooms (site);
 CREATE INDEX IF NOT EXISTS idx_rooms_active ON rooms (is_active) WHERE is_active = true;
 
 -- Migration: add site column to existing rooms and backfill from floor

@@ -2,8 +2,53 @@ import crypto from 'crypto';
 import bcrypt from 'bcrypt';
 import { SEED_DEPARTMENTS, SEED_ROOMS_BY_DEPT } from './seed-data.js';
 
+/** @deprecated Use buildStaticQrToken — random tokens break printable static QR stickers. */
 export function generateQrToken() {
   return crypto.randomBytes(24).toString('base64url');
+}
+
+/** Map DB site → camp label used in static QR keys ("{Camp} - {Room}"). */
+export function siteToCampLabel(site) {
+  const s = String(site || '').trim();
+  if (!s || /^dhahran$/i.test(s)) return 'Dhahran Camp';
+  if (/^mgs$/i.test(s)) return 'MGS Camp';
+  if (/^khurais$/i.test(s)) return 'Khurais Camp';
+  if (/^juaymah$/i.test(s) || /^juyamah$/i.test(s)) return 'Juaymah Camp';
+  if (/^madina camp 1$/i.test(s) || /^tcf-?1$/i.test(s)) return 'Madina Camp 1';
+  if (/^madina camp 2$/i.test(s) || /^tcf-?2$/i.test(s)) return 'Madina Camp 2';
+  if (/^jubail$/i.test(s)) return 'Jubail Camp';
+  if (/camp$/i.test(s)) return s;
+  return `${s} Camp`;
+}
+
+/** Camp label → DB rooms.site value. */
+export function campLabelToSite(camp) {
+  const c = String(camp || '').trim();
+  if (c === 'MGS Camp') return 'MGS';
+  if (c === 'Dhahran Camp') return 'Dhahran';
+  if (c === 'Khurais Camp') return 'Khurais';
+  if (c === 'Juaymah Camp') return 'Juaymah';
+  if (c === 'Jubail Camp') return 'Jubail';
+  if (c === 'Madina Camp 1') return 'Madina Camp 1';
+  if (c === 'Madina Camp 2') return 'Madina Camp 2';
+  return c.replace(/\s+Camp$/i, '').trim() || c;
+}
+
+/** Permanent static QR payload — must match Location Manager <QRCodeSVG value={...}>. */
+export function buildStaticQrToken(site, roomName) {
+  const name = String(roomName || '').trim();
+  if (name.includes(' - ')) return name;
+  return `${siteToCampLabel(site)} - ${name}`;
+}
+
+export function parseQrLocationKey(token) {
+  const raw = String(token || '').trim();
+  const splitAt = raw.indexOf(' - ');
+  if (splitAt === -1) return null;
+  return {
+    camp: raw.slice(0, splitAt).trim(),
+    roomName: raw.slice(splitAt + 3).trim(),
+  };
 }
 
 export async function seedUsers(db) {
@@ -24,7 +69,7 @@ export async function seedUsers(db) {
     console.log(`[seed] Created admin user "${adminUser}"`);
 
     const facilityUser = process.env.FACILITY_USER || 'facility_user';
-    const facilityPass = process.env.FACILITY_PASS || 'facility123';
+    const facilityPass = process.env.FACILITY_PASS || process.env.STAFF_DEFAULT_PASSWORD || 'Staff2026@@';
     const facilityHash = await bcrypt.hash(facilityPass, 12);
     await db.query(
       `INSERT INTO users (username, password_hash, role, is_active)
@@ -47,7 +92,7 @@ export async function seedUsers(db) {
   }
 
   const facilityUser = process.env.FACILITY_USER || 'facility_user';
-  const facilityPass = process.env.FACILITY_PASS || 'facility123';
+  const facilityPass = process.env.FACILITY_PASS || process.env.STAFF_DEFAULT_PASSWORD || 'Staff2026@@';
   const { rows: facilityExists } = await db.query(
     'SELECT id FROM users WHERE username = $1',
     [facilityUser],
@@ -159,7 +204,7 @@ export async function seedDb(db) {
       await db.query(
         `INSERT INTO room_qr_tokens (room_id, token, is_active)
          VALUES ($1, $2, true)`,
-        [roomId, generateQrToken()],
+        [roomId, buildStaticQrToken('Dhahran', roomName)],
       );
 
       for (const assetName of assets) {
@@ -317,40 +362,64 @@ export async function fetchAllIssues(db, filters = {}) {
 }
 
 export async function resolveRoomByToken(db, token) {
-  const { rows } = await db.query(
-    `SELECT r.id, r.name, r.floor, r.is_active, r.department_id,
-            d.id AS dept_id, d.code AS department_code, d.name_en AS department_name_en, d.name_ar AS department_name_ar
-     FROM room_qr_tokens t
-     JOIN rooms r ON r.id = t.room_id
-     LEFT JOIN departments d ON d.id = r.department_id
-     WHERE t.token = $1 AND t.is_active = true AND r.is_active = true`,
-    [token],
-  );
-  if (!rows[0]) return null;
+  const trimmed = String(token || '').trim();
+  if (!trimmed) return null;
 
-  const room = rows[0];
-  const assets = await db.query(
-    'SELECT name FROM room_assets WHERE room_id = $1 ORDER BY name',
-    [room.id],
-  );
-
-  return {
-    room: {
-      id: room.id,
-      name: room.name,
-      floor: room.floor,
-      departmentId: room.department_id,
-      department: room.dept_id
-        ? {
-            id: room.dept_id,
-            code: room.department_code,
-            nameEn: room.department_name_en,
-            nameAr: room.department_name_ar,
-          }
-        : null,
-    },
-    assets: assets.rows.map((a) => a.name),
+  const loadRoom = async (roomId) => {
+    const { rows } = await db.query(
+      `SELECT r.id, r.name, r.floor, r.is_active, r.department_id,
+              d.id AS dept_id, d.code AS department_code, d.name_en AS department_name_en, d.name_ar AS department_name_ar
+       FROM rooms r
+       LEFT JOIN departments d ON d.id = r.department_id
+       WHERE r.id = $1 AND r.is_active = true`,
+      [roomId],
+    );
+    if (!rows[0]) return null;
+    const room = rows[0];
+    const assets = await db.query(
+      'SELECT name FROM room_assets WHERE room_id = $1 ORDER BY name',
+      [room.id],
+    );
+    return {
+      room: {
+        id: room.id,
+        name: room.name,
+        floor: room.floor,
+        departmentId: room.department_id,
+        department: room.dept_id
+          ? {
+              id: room.dept_id,
+              code: room.department_code,
+              nameEn: room.department_name_en,
+              nameAr: room.department_name_ar,
+            }
+          : null,
+      },
+      assets: assets.rows.map((a) => a.name),
+    };
   };
+
+  const { rows } = await db.query(
+    `SELECT t.room_id FROM room_qr_tokens t
+     JOIN rooms r ON r.id = t.room_id
+     WHERE t.token = $1 AND t.is_active = true AND r.is_active = true`,
+    [trimmed],
+  );
+  if (rows[0]) return loadRoom(rows[0].room_id);
+
+  const parsed = parseQrLocationKey(trimmed);
+  if (parsed?.roomName) {
+    const site = campLabelToSite(parsed.camp);
+    const { rows: roomRows } = await db.query(
+      `SELECT id FROM rooms
+       WHERE is_active = true AND name = $1 AND COALESCE(site, '') = $2
+       LIMIT 1`,
+      [parsed.roomName, site || ''],
+    );
+    if (roomRows[0]) return loadRoom(roomRows[0].id);
+  }
+
+  return null;
 }
 
 export async function fetchPublicRooms(db) {

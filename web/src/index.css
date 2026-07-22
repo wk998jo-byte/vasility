@@ -6,19 +6,18 @@
 
 @layer base {
   :root {
-    --bg-main: #f5f7fa;
-    --text-main: #1d2537;
-  }
-  
-  .dark {
-    --bg-main: #0b0f17;
-    --text-main: #f5f7fa;
+    --bg-main: #ffffff;
+    --text-main: #171717;
+    --surface: #ffffff;
+    --surface-muted: #fafafa;
+    --border-soft: rgba(23, 23, 23, 0.1);
+    --brand-red: #b91c1c;
   }
 
   body {
-    background-color: var(--bg-main);
-    color: var(--text-main);
-    @apply min-h-[100dvh] antialiased selection:bg-accent-500 selection:text-white transition-colors duration-300;
+    background-color: #ffffff;
+    color: #171717;
+    @apply min-h-[100dvh] antialiased selection:bg-red-700 selection:text-white;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   }
 
@@ -35,12 +34,55 @@
   }
 }
 
-@layer utilities {
+@layer components {
   .glass-panel {
-    @apply bg-white/80 dark:bg-industrial-950/80 backdrop-blur-xl border border-white/20 dark:border-industrial-800/50 shadow-premium;
+    @apply bg-white border border-neutral-200 shadow-sm;
   }
-  
+
   .card-hover {
-    @apply transition-all duration-300 hover:-translate-y-1 hover:shadow-premium-hover;
+    @apply transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md;
+  }
+
+  .modal-backdrop {
+    @apply absolute inset-0 bg-neutral-900/40 backdrop-blur-sm;
+  }
+
+  .modal-panel {
+    @apply relative z-10 w-full bg-white border border-neutral-200 rounded-[2rem] shadow-md;
+  }
+
+  .btn-primary {
+    @apply bg-red-700 text-white font-extrabold rounded-2xl
+      hover:bg-red-800 transition-colors shadow-sm
+      active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+
+  .btn-secondary {
+    @apply flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold
+      bg-neutral-50 hover:bg-neutral-100 text-neutral-900
+      border border-neutral-200 transition-colors;
+  }
+
+  .btn-icon {
+    @apply p-2.5 rounded-xl text-neutral-600 hover:bg-neutral-50 hover:text-red-700 transition-colors;
+  }
+
+  .section-divider {
+    @apply border-neutral-200;
+  }
+
+  .field-label {
+    @apply text-xs font-extrabold text-neutral-500 block mb-2 uppercase tracking-widest;
+  }
+
+  .surface-muted {
+    @apply bg-neutral-50 border border-neutral-200;
+  }
+
+  .input-field {
+    @apply w-full border border-neutral-200 rounded-2xl px-5 py-4
+      bg-neutral-50 outline-none focus:border-red-700
+      focus:ring-4 focus:ring-red-700/10 transition-all
+      font-bold shadow-sm text-neutral-900;
   }
 }

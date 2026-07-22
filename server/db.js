@@ -4,6 +4,9 @@ import { fileURLToPath } from 'url';
 import { loadEnv } from './env.js';
 import { seedDb } from './seed.js';
 import { seedCampRooms } from './seed-camp.js';
+import { seedOfficialStaff } from './seed-staff.js';
+import { seedCampUsers } from './seed-camp-users.js';
+import { seedInventoryRooms } from './seed-inventory-rooms.js';
 
 loadEnv();
 
@@ -29,6 +32,9 @@ export async function initDb() {
   const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
   await db.query(schema);
   await seedDb(db);
+  await seedOfficialStaff(db);
+  await seedCampUsers(db);
+  await seedInventoryRooms(db);
   await seedCampRooms(db);
   await cleanupOrphanedNotifications(db);
   return true;

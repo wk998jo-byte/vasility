@@ -16,14 +16,14 @@ class ErrorBoundary extends Component {
   render() {
     if (this.state.error) {
       return (
-        <div className="min-h-screen flex items-center justify-center p-8 bg-white text-black">
-          <div className="max-w-lg text-center">
-            <h1 className="text-2xl font-bold mb-4">Something went wrong</h1>
-            <p className="text-red-600 text-sm mb-6">{String(this.state.error?.message || this.state.error)}</p>
+        <div className="min-h-[100dvh] flex items-center justify-center p-8 bg-white text-neutral-900">
+          <div className="max-w-lg text-center bg-white border border-neutral-200 shadow-md rounded-[2rem] p-10">
+            <h1 className="text-2xl font-extrabold tracking-tight text-neutral-900 mb-4">Something went wrong</h1>
+            <p className="text-red-700 text-sm mb-6 font-medium">{String(this.state.error?.message || this.state.error)}</p>
             <button
               type="button"
               onClick={() => window.location.reload()}
-              className="bg-black text-white px-6 py-3 rounded-xl font-bold"
+              className="btn-primary px-8 py-3.5"
             >
               Reload Page
             </button>

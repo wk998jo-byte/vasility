@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { generateQrToken } from './seed.js';
+import { buildStaticQrToken } from './seed.js';
 import { withTransaction } from './db.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -26,11 +26,19 @@ export async function seedCampRooms(pool) {
   const { rows: deptRows } = await pool.query(
     `SELECT id FROM departments WHERE code = 'FAC' LIMIT 1`,
   );
+  let deptId;
   if (!deptRows.length) {
-    console.warn('[seed-camp] FAC department not found — skipping camp rooms seed');
-    return { created: 0 };
+    const inserted = await pool.query(
+      `INSERT INTO departments (code, name_en, name_ar, is_active)
+       VALUES ('FAC', 'Facilities', 'المرافق', true)
+       ON CONFLICT (code) DO UPDATE SET name_en = EXCLUDED.name_en
+       RETURNING id`,
+    );
+    deptId = inserted.rows[0].id;
+    console.log('[seed-camp] Created FAC department');
+  } else {
+    deptId = deptRows[0].id;
   }
-  const deptId = deptRows[0].id;
 
   const names = rooms.map((r) => r.name);
   const floors = rooms.map((r) => r.floor || null);
@@ -48,16 +56,29 @@ export async function seedCampRooms(pool) {
   const result = await withTransaction(pool, async (client) => {
     // 1. Ensure all rooms exist (skip ones already present).
     const { rowCount: created } = await client.query(
-      `INSERT INTO rooms (department_id, name, floor, is_active)
-       SELECT $1, t.name, t.floor, true
+      `INSERT INTO rooms (department_id, name, floor, site, is_active)
+       SELECT $1, t.name, t.floor, 'MGS', true
        FROM unnest($2::text[], $3::text[]) AS t(name, floor)
-       ON CONFLICT (department_id, name) DO NOTHING`,
+       WHERE NOT EXISTS (
+         SELECT 1 FROM rooms r
+         WHERE r.department_id = $1
+           AND COALESCE(r.site, '') = 'MGS'
+           AND r.name = t.name
+       )`,
       [deptId, names, floors],
+    );
+
+    // Ensure site stays MGS for camp rooms (covers older rows seeded without site).
+    await client.query(
+      `UPDATE rooms SET site = 'MGS'
+       WHERE department_id = $1 AND name = ANY($2::text[])
+         AND (site IS NULL OR site = '' OR site = 'Dhahran')`,
+      [deptId, names],
     );
 
     // 2. Find seeded rooms that lack an active QR token.
     const { rows: tokenless } = await client.query(
-      `SELECT r.id
+      `SELECT r.id, r.name, r.site
        FROM rooms r
        WHERE r.department_id = $1
          AND r.name = ANY($2::text[])
@@ -68,7 +89,7 @@ export async function seedCampRooms(pool) {
     );
     if (tokenless.length) {
       const ids = tokenless.map((r) => r.id);
-      const tokens = tokenless.map(() => generateQrToken());
+      const tokens = tokenless.map((r) => buildStaticQrToken(r.site, r.name));
       await client.query(
         `INSERT INTO room_qr_tokens (room_id, token, is_active)
          SELECT t.room_id::uuid, t.token, true

@@ -8,11 +8,13 @@ import rateLimit from 'express-rate-limit';
 import { loadEnv } from './env.js';
 import { getPool, initDb, checkDb, withTransaction } from './db.js';
 import { sendNewIssueNotification } from './notify.js';
-import { sendWhatsAppNotification, sendWhatsAppWelcome, sendWhatsAppAdminAlert } from './whatsapp.js';
+import { sendWhatsAppNotification, sendWhatsAppWelcome, sendWhatsAppNewTicketAlert } from './whatsapp.js';
+import { USERS, getWhatsAppTargetsForCamp, siteToCamp, campsMatch } from './users-data.js';
 import { initCloudinaryUpload, getUploadMiddleware, uploadBufferToCloudinary } from './upload.js';
 import {
   generateTicketNumber,
-  generateQrToken,
+  buildStaticQrToken,
+  parseQrLocationKey,
   mapIssueRow,
   fetchIssueByTicketNumber,
   fetchIssueForTracking,
@@ -80,14 +82,16 @@ const issueSubmitLimiter = rateLimit({
   message: { error: 'Too many requests. Please try again later.' },
 });
 
-const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 5,
-  skipSuccessfulRequests: true,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Too many login attempts. Please try again in 15 minutes.' },
-});
+const loginLimiter = process.env.NODE_ENV === 'production'
+  ? rateLimit({
+      windowMs: 15 * 60 * 1000,
+      max: 5,
+      skipSuccessfulRequests: true,
+      standardHeaders: true,
+      legacyHeaders: false,
+      message: { error: 'Too many login attempts. Please try again in 15 minutes.' },
+    })
+  : (_req, _res, next) => next();
 
 const VALID_STATUSES = new Set(['New', 'In Progress', 'Resolved', 'Closed', 'Rejected']);
 const VALID_PRIORITIES = new Set(['Low', 'Medium', 'High']);
@@ -170,39 +174,95 @@ function userSite(user) {
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-// WhatsApp alert fan-out for a new ticket: every main admin with a phone,
-// the site admins of the ticket's site, plus the legacy ADMIN_WHATSAPP env
-// number (deduplicated). Sub-admins do not receive alerts.
-async function notifyAdminsOfNewTicket(db, roomId, ticketNumber, summary) {
+function deriveTicketCamp(site, roomName) {
+  const parsed = parseQrLocationKey(String(roomName || ''));
+  if (parsed?.camp) return parsed.camp;
+  const staticKey = buildStaticQrToken(site, roomName);
+  const fromKey = parseQrLocationKey(staticKey);
+  if (fromKey?.camp) return fromKey.camp;
+  return siteToCamp(site) || 'Dhahran Camp';
+}
+
+// WhatsApp alert fan-out for a new ticket (RBAC):
+// - USERS with role admin / camp All → every ticket
+// - USERS with role subadmin → only when user.camp matches ticket camp
+// - Also DB users (admin / matching site_admin|sub_admin|facility with phone)
+// - Plus legacy ADMIN_WHATSAPP env number
+async function notifyAdminsOfNewTicket(db, roomId, ticketNumber, summary, issue = null) {
   let site = null;
+  let roomName = issue?.roomName || issue?.room_name || '';
   try {
-    const { rows } = await db.query('SELECT site FROM rooms WHERE id = $1', [roomId]);
+    const { rows } = await db.query('SELECT site, name FROM rooms WHERE id = $1', [roomId]);
     site = rows[0]?.site || null;
+    if (!roomName) roomName = rows[0]?.name || '';
   } catch { /* fall through — still alert main admins */ }
 
-  const { rows: admins } = await db.query(
-    `SELECT phone FROM users
-     WHERE is_active = true AND phone <> ''
-       AND (role = 'admin' OR (role = 'site_admin' AND site = $1))`,
-    [site],
-  );
+  const ticketCamp = deriveTicketCamp(site, roomName);
+  const ticketPayload = {
+    id: ticketNumber,
+    ticketNumber,
+    room: roomName,
+    location: roomName,
+    issue: issue?.issueType || issue?.issue_type || summary,
+    issueType: issue?.issueType || issue?.issue_type || '',
+    camp: ticketCamp,
+    site,
+  };
 
-  const phones = new Set(admins.map((a) => a.phone.trim()).filter(Boolean));
+  const phones = new Map(); // digits → original phone string
+  const addPhone = (phone, label = '') => {
+    const raw = String(phone || '').trim();
+    if (!raw) return;
+    const digits = raw.replace(/\D/g, '');
+    if (!digits || phones.has(digits)) return;
+    phones.set(digits, raw.startsWith('+') ? raw : `+${digits.replace(/^00/, '')}`);
+    if (label) console.log(`[whatsapp] queue ${label} (${raw})`);
+  };
+
+  // 1) Central USERS directory (campUsersData — strict RBAC filter)
+  for (const user of getWhatsAppTargetsForCamp(ticketCamp)) {
+    addPhone(user.phone, `${user.name || user.username} / ${user.role}`);
+  }
+
+  // 2) Live DB admins/sub-admins only (never facility technicians cross-camp)
+  try {
+    const { rows: dbUsers } = await db.query(
+      `SELECT full_name, username, role, site, phone FROM users
+       WHERE is_active = true AND phone IS NOT NULL AND phone <> ''
+         AND role IN ('admin', 'site_admin', 'sub_admin')`,
+    );
+    for (const u of dbUsers) {
+      const role = String(u.role || '').toLowerCase();
+      if (role === 'admin') {
+        addPhone(u.phone, `${u.full_name || u.username} / db-admin`);
+        continue;
+      }
+      const userCamp = siteToCamp(u.site) || u.site;
+      if (['site_admin', 'sub_admin'].includes(role) && campsMatch(userCamp, ticketCamp)) {
+        addPhone(u.phone, `${u.full_name || u.username} / db-${role}`);
+      }
+    }
+  } catch (err) {
+    console.error('[whatsapp] DB recipient lookup failed:', err?.message || err);
+  }
+
   const envPhone = (process.env.ADMIN_WHATSAPP || '').trim();
-  if (envPhone) phones.add(envPhone);
+  if (envPhone) addPhone(envPhone, 'ADMIN_WHATSAPP env');
 
-  // Normalize for dedupe (digits only) while keeping the original strings.
-  const seen = new Set();
   const results = [];
-  for (const phone of phones) {
-    const digits = phone.replace(/\D/g, '');
-    if (!digits || seen.has(digits)) continue;
-    seen.add(digits);
+  for (const phone of phones.values()) {
     results.push(
-      sendWhatsAppAdminAlert(ticketNumber, summary, phone)
-        .catch((err) => console.error(`[whatsapp] admin alert to ${phone} failed:`, err?.message || err)),
+      sendWhatsAppNewTicketAlert(phone, ticketPayload)
+        .catch((err) => console.error(`[whatsapp] new-ticket alert to ${phone} failed:`, err?.message || err)),
     );
   }
+
+  if (!results.length) {
+    console.log(`[whatsapp] No recipients with phone for ticket ${ticketNumber} (camp=${ticketCamp})`);
+    // Keep USERS in scope for debugging empty-phone directories
+    console.log(`[whatsapp] USERS directory size: ${Object.keys(USERS).length}`);
+  }
+
   await Promise.all(results);
 }
 
@@ -292,6 +352,53 @@ app.post('/api/auth/login', loginLimiter, requireDb, async (req, res) => {
     });
   } catch {
     res.status(500).json({ error: 'Login failed' });
+  }
+});
+
+app.put('/api/auth/change-password', requireDb, authenticateToken, async (req, res) => {
+  const oldPassword = req.body?.oldPassword;
+  const newPassword = req.body?.newPassword;
+
+  if (!oldPassword || !newPassword) {
+    res.status(400).json({ error: 'oldPassword and newPassword required' });
+    return;
+  }
+  if (String(newPassword).length < 6) {
+    res.status(400).json({ error: 'Password must be at least 6 characters' });
+    return;
+  }
+
+  const userId = req.user?.sub;
+  if (!userId) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+
+  try {
+    const { rows } = await req.db.query(
+      'SELECT password_hash FROM users WHERE id = $1 AND is_active = true',
+      [userId],
+    );
+    const user = rows[0];
+    if (!user?.password_hash) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    const valid = await bcrypt.compare(String(oldPassword), user.password_hash);
+    if (!valid) {
+      res.status(401).json({ error: 'Invalid current password' });
+      return;
+    }
+
+    const passwordHash = await bcrypt.hash(String(newPassword), 12);
+    await req.db.query(
+      'UPDATE users SET password_hash = $1 WHERE id = $2',
+      [passwordHash, userId],
+    );
+    res.status(200).json({ ok: true });
+  } catch {
+    res.status(500).json({ error: 'Failed to change password' });
   }
 });
 
@@ -499,7 +606,7 @@ app.post('/api/rooms', requireDb, authenticateToken, requireManager, async (req,
       [departmentId, name, floor, site],
     );
     const roomId = room.rows[0].id;
-    const token = generateQrToken();
+    const token = buildStaticQrToken(site, name);
 
     await req.db.query(
       'INSERT INTO room_qr_tokens (room_id, token, is_active) VALUES ($1, $2, true)',
@@ -601,7 +708,7 @@ app.post('/api/rooms/:id/qr/regenerate', requireDb, authenticateToken, requireMa
 
   try {
     const roomCheck = await req.db.query(
-      'SELECT id, site FROM rooms WHERE id = $1 AND is_active = true',
+      'SELECT id, name, site FROM rooms WHERE id = $1 AND is_active = true',
       [roomId],
     );
     if (!roomCheck.rowCount) {
@@ -614,7 +721,8 @@ app.post('/api/rooms/:id/qr/regenerate', requireDb, authenticateToken, requireMa
       return;
     }
 
-    const newToken = generateQrToken();
+    const roomRow = roomCheck.rows[0];
+    const newToken = buildStaticQrToken(roomRow.site, roomRow.name);
 
     await withTransaction(req.db, async (client) => {
       await client.query(
@@ -782,8 +890,8 @@ app.post('/api/issues', issueSubmitLimiter, requireDb, async (req, res) => {
 
     const adminSummary = [issue?.roomName || issue?.room_name, assetName, issueType]
       .filter(Boolean).join(' — ');
-    // WhatsApp alert fan-out: every main admin + the site admins of this ticket's site.
-    notifyAdminsOfNewTicket(req.db, resolvedRoomId, ticketNumber, adminSummary)
+    // WhatsApp RBAC fan-out (USERS + DB) — fire-and-forget; never blocks HTTP response.
+    notifyAdminsOfNewTicket(req.db, resolvedRoomId, ticketNumber, adminSummary, issue)
       .catch((err) => console.error('[whatsapp] admin alert failed:', err?.message || err));
 
     res.status(201).json({ ok: true, issue: toPublicIssue(issue) });
@@ -1311,6 +1419,7 @@ app.get('*', (req, res) => {
     res.status(404).json({ error: 'Not found' });
     return;
   }
+  res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.sendFile(path.join(distDir, 'index.html'));
 });
 
