@@ -256,14 +256,22 @@ async function resolveQrToken(token) {
 }
 
 function extractTokenFromScan(scannedText) {
+  const raw = String(scannedText || '').trim();
+  if (!raw) return '';
   try {
-    const url = new URL(scannedText);
+    const url = new URL(raw);
     const token = url.searchParams.get('token');
     if (token) return token.trim();
+    // Some scanners wrap the payload; try hash query too.
+    if (url.hash && url.hash.includes('token=')) {
+      const hashParams = new URLSearchParams(url.hash.replace(/^#/, '').replace(/^\?/, ''));
+      const hashToken = hashParams.get('token');
+      if (hashToken) return hashToken.trim();
+    }
   } catch {
-    /* raw token string */
+    /* raw token string (legacy stickers) */
   }
-  return scannedText.trim();
+  return raw;
 }
 
 function decodeJwtPayload(token) {
@@ -2076,6 +2084,8 @@ function AdminDashboard({
     for (const room of adminRooms) {
       const { qrValue } = getRoomLocationParts(room, roomSite);
       map.set(qrValue, room);
+      // Also index by the stored sticker token so legacy payloads stay tied to the room.
+      if (room.token) map.set(String(room.token).trim(), room);
     }
     return map;
   }, [adminRooms]);
@@ -3104,7 +3114,6 @@ function AdminDashboard({
                 <button type="button" onClick={() => setShowRoomModal(false)} className="btn-icon"><X size={20} /></button>
               </div>
             </div>
-
             <div className="hidden print:flex print:justify-center print:mb-8">
               <BrandLogo className="h-16 w-auto object-contain" />
             </div>
@@ -3122,6 +3131,8 @@ function AdminDashboard({
               {section.locations.map((locationKey) => {
                 const { camp, roomName } = parseLocationKey(locationKey);
                 const dbRoom = dbRoomByLocationKey.get(locationKey);
+                // Prefer stored DB token so printed stickers stay identical (never rewrite payload).
+                const qrPayload = String(dbRoom?.token || locationKey).trim();
                 return (
                 <div
                   key={locationKey}
@@ -3129,7 +3140,7 @@ function AdminDashboard({
                 >
                   <p className="font-bold text-lg text-slate-900 text-center mb-2">{camp}</p>
                   <QRCodeSVG
-                    value={locationKey}
+                    value={qrPayload}
                     size={100}
                     level="M"
                     includeMargin={false}

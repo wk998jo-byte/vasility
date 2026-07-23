@@ -79,16 +79,11 @@ export async function seedInventoryRooms(pool) {
         `SELECT id, token FROM room_qr_tokens WHERE room_id = $1 AND is_active = true LIMIT 1`,
         [roomId],
       );
+      // Never overwrite existing tokens — printed stickers must keep working.
       if (!tokenRows.length) {
         await client.query(
           `INSERT INTO room_qr_tokens (room_id, token, is_active) VALUES ($1, $2, true)`,
           [roomId, staticToken],
-        );
-        tokensAdded += 1;
-      } else if (tokenRows[0].token !== staticToken) {
-        await client.query(
-          `UPDATE room_qr_tokens SET token = $2 WHERE id = $1`,
-          [tokenRows[0].id, staticToken],
         );
         tokensAdded += 1;
       }

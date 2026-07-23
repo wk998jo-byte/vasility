@@ -78,20 +78,8 @@ CREATE TABLE IF NOT EXISTS room_qr_tokens (
 CREATE INDEX IF NOT EXISTS idx_room_qr_tokens_token ON room_qr_tokens (token) WHERE is_active = true;
 CREATE INDEX IF NOT EXISTS idx_room_qr_tokens_room ON room_qr_tokens (room_id);
 
--- Refresh static QR payloads after site rename (legacy stickers still resolve via campLabelToSite).
-UPDATE room_qr_tokens
-SET token = REGEXP_REPLACE(token, '^MGS Camp - ', 'MGS BQ - ')
-WHERE token LIKE 'MGS Camp - %';
-UPDATE room_qr_tokens
-SET token = REGEXP_REPLACE(token, '^Madina Camp 1 - ', 'Madina Camp 1 PMT - ')
-WHERE token LIKE 'Madina Camp 1 - %'
-  AND token NOT LIKE 'Madina Camp 1 BQ - %'
-  AND token NOT LIKE 'Madina Camp 1 PMT - %';
-UPDATE room_qr_tokens
-SET token = REGEXP_REPLACE(token, '^Madina Camp 2 - ', 'Madina Camp 2 BQ - ')
-WHERE token LIKE 'Madina Camp 2 - %'
-  AND token NOT LIKE 'Madina Camp 2 BQ - %'
-  AND token NOT LIKE 'Madina Camp 2 PMT - %';
+-- Do NOT rewrite room_qr_tokens here. Printed stickers encode the stored token as-is;
+-- legacy camp labels (e.g. "MGS Camp - A-01") still resolve via campLabelToSite.
 
 -- ─── Room assets ─────────────────────────────────────────────────────────────
 
