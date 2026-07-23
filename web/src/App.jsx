@@ -222,11 +222,16 @@ function extractTokenFromScan(scannedText) {
 
 function decodeJwtPayload(token) {
   try {
-    const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    let base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    while (base64.length % 4) base64 += '=';
     return JSON.parse(decodeURIComponent(atob(base64).split('').map((c) => `%${(`00${c.charCodeAt(0).toString(16)}`).slice(-2)}`).join('')));
   } catch {
     return null;
   }
+}
+
+function normId(value) {
+  return String(value || '').trim().toLowerCase();
 }
 
 const BrandLogo = ({ className = 'h-10 w-auto object-contain', alt = 'Bin Quraya' }) => (
@@ -327,7 +332,7 @@ const t = {
     resolutionNotes: 'Resolution Notes', techSign: 'Technician Sign', adminSign: 'Admin Sign',
     auditTrail: 'Status History', reportedViaQr: 'Reported via QR',
     submitAssign: 'Submit & Assign', assignedTo: 'Assigned Technician', unassigned: 'Unassigned',
-    myTickets: 'My Tickets', allTickets: 'All Tickets', assignedToYou: 'Assigned to you',
+    myTickets: 'My Tickets', allTickets: 'All Tickets', assignedToYou: 'This ticket is assigned to you.',
     discussion: 'Discussion', writeComment: 'Write a comment...', sendComment: 'Send Comment',
     sending: 'Sending...', noComments: 'No comments yet.', commentFailed: 'Failed to send comment.',
     uploadFixPhoto: 'Upload Fix Photo & Resolve',
@@ -441,7 +446,7 @@ const t = {
     resolutionNotes: 'ملاحظات الإغلاق', techSign: 'توقيع الفني', adminSign: 'توقيع المسؤول',
     auditTrail: 'سجل الحالة', reportedViaQr: 'تم الإبلاغ عبر QR',
     submitAssign: 'اعتماد وتعيين', assignedTo: 'الفني المعيّن', unassigned: 'غير معيّن',
-    myTickets: 'تذاكري', allTickets: 'كل التذاكر', assignedToYou: 'معيّنة لك',
+    myTickets: 'تذاكري', allTickets: 'كل التذاكر', assignedToYou: 'هذه التذكرة معيّنة لك.',
     discussion: 'المناقشة', writeComment: 'اكتب تعليقاً...', sendComment: 'إرسال التعليق',
     sending: 'جاري الإرسال...', noComments: 'لا توجد تعليقات بعد.', commentFailed: 'فشل إرسال التعليق.',
     uploadFixPhoto: 'رفع صورة الإصلاح وإغلاق البلاغ',
@@ -549,6 +554,7 @@ export default function App() {
     localStorage.removeItem('ssc_admin_role');
     localStorage.removeItem('ssc_admin_site');
     localStorage.removeItem('ssc_admin_user');
+    localStorage.removeItem('ssc_admin_name');
     setAdminToken('');
     setAdminRole('');
     setAdminSite('');
@@ -978,6 +984,7 @@ function AdminLogin({ setToken, setRole, setSite, dict }) {
         localStorage.setItem('ssc_admin_role', data.role || 'admin');
         localStorage.setItem('ssc_admin_site', data.site || '');
         localStorage.setItem('ssc_admin_user', decodeJwtPayload(data.token)?.user || user.trim());
+        if (data.fullName) localStorage.setItem('ssc_admin_name', data.fullName);
         setToken(data.token);
         setRole(data.role || 'admin');
         setSite(data.site || '');
@@ -1741,6 +1748,8 @@ function AdminDashboard({
   const [sendingComment, setSendingComment] = useState(false);
   const [resolutionFile, setResolutionFile] = useState(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [sessionUser, setSessionUser] = useState(adminUser);
+  const [sessionName, setSessionName] = useState(() => localStorage.getItem('ssc_admin_name') || '');
   const [showRoomModal, setShowRoomModal] = useState(false);
   const [showTicketTrash, setShowTicketTrash] = useState(false);
   const [showAddRoomForm, setShowAddRoomForm] = useState(false);
@@ -1805,10 +1814,27 @@ function AdminDashboard({
   useEffect(() => {
     loadTickets();
     loadRooms();
+    if (isManager) loadStaff();
     fetch(`${API_BASE}/departments`)
       .then((r) => r.json())
       .then((data) => setDepartments(data.departments || []))
       .catch(console.error);
+  }, [adminToken]);
+
+  useEffect(() => {
+    if (!adminToken) return undefined;
+    let cancelled = false;
+    fetch(`${API_BASE}/auth/me`, { headers: { Authorization: `Bearer ${adminToken}` } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (cancelled || !data?.username) return;
+        setSessionUser(data.username);
+        setSessionName(data.name || '');
+        localStorage.setItem('ssc_admin_user', data.username);
+        if (data.name) localStorage.setItem('ssc_admin_name', data.name);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
   }, [adminToken]);
 
   useEffect(() => {
@@ -1865,17 +1891,36 @@ function AdminDashboard({
   );
 
   const groupedTechnicians = useMemo(() => {
-    const usersList = typeof USERS !== 'undefined' ? Object.values(USERS) : [];
-    return usersList.reduce((acc, user) => {
-      // Only include subadmins/facility staff (exclude main admins from being assigned work if desired, or keep them)
-      if (user.role === 'admin') return acc;
-
+    const byUser = new Map();
+    const add = (tech) => {
+      if (!tech?.username) return;
+      byUser.set(normId(tech.username), tech);
+    };
+    for (const user of Object.values(typeof USERS !== 'undefined' ? USERS : {})) {
+      if (user.role === 'admin') continue;
+      add({
+        username: user.username,
+        name: user.name || user.username,
+        title: user.title || user.role,
+        camp: user.camp || 'General',
+      });
+    }
+    for (const user of allStaff) {
+      if (!['sub_admin', 'facility', 'site_admin'].includes(user.role)) continue;
+      add({
+        username: user.username,
+        name: user.full_name || user.username,
+        title: user.title || user.role,
+        camp: user.site ? siteToCampLabel(user.site) : 'General',
+      });
+    }
+    return [...byUser.values()].reduce((acc, user) => {
       const campName = user.camp || 'General';
       if (!acc[campName]) acc[campName] = [];
       acc[campName].push(user);
       return acc;
     }, {});
-  }, []);
+  }, [allStaff]);
 
   const siteOptions = useMemo(() => (
     [...new Set([
@@ -1951,8 +1996,21 @@ function AdminDashboard({
 
   const activeTickets = visibleTickets.filter((t) => !t.isDeleted);
   const trashedTickets = visibleTickets.filter((t) => t.isDeleted);
-  const isMine = (ticket) => Boolean(adminUser)
-    && String(ticket.assignee || '').trim().toLowerCase() === String(adminUser).trim().toLowerCase();
+  const isMine = (ticket) => {
+    const assignee = normId(ticket?.assignee);
+    if (!assignee) return false;
+    const meUser = normId(sessionUser || adminUser);
+    const meName = normId(sessionName);
+    if (meUser && meUser === assignee) return true;
+    if (meName && meName === assignee) return true;
+    const dir = (typeof USERS !== 'undefined' && meUser)
+      ? (USERS[meUser] || Object.values(USERS).find((u) => normId(u.username) === meUser))
+      : null;
+    if (dir && normId(dir.name) === assignee) return true;
+    const staff = allStaff.find((u) => normId(u.username) === meUser);
+    if (staff && normId(staff.full_name) === assignee) return true;
+    return false;
+  };
   // Assigned technicians may be role facility OR sub_admin — they still need
   // upload-fix-photo / close-ticket. Do not gate those actions on !isAdmin.
   const canActAsAssignedTech = (ticket) => !isViewer && isMine(ticket);
@@ -2019,6 +2077,8 @@ function AdminDashboard({
       payload.parts = merged.parts;
       payload.assignee = merged.assignee || '';
       payload.isDeleted = merged.isDeleted;
+    } else if (Object.prototype.hasOwnProperty.call(updates, 'assignee')) {
+      payload.assignee = merged.assignee || '';
     }
 
     try {
@@ -2627,7 +2687,7 @@ function AdminDashboard({
             </div>
 
             <div className="space-y-6 print:hidden">
-              {adminRole === 'admin' ? (
+              {isManager ? (
                 <div>
                   <label className="text-[10px] font-extrabold text-neutral-400 block mb-2 uppercase tracking-widest">{dict.assign}</label>
                   <select
@@ -2665,6 +2725,44 @@ function AdminDashboard({
                 </div>
               )}
 
+              {canActAsAssignedTech(selectedTicket) && (
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm font-extrabold text-emerald-900">
+                  {dict.assignedToYou}
+                </div>
+              )}
+
+              {canActAsAssignedTech(selectedTicket) && selectedTicket.status === 'In Progress' && (
+                <div className="glass-panel border-red-200 rounded-[2rem] p-6 shadow-sm">
+                  <label className="text-[10px] font-extrabold text-neutral-400 block mb-4 uppercase tracking-widest">{dict.uploadFixPhoto}</label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => setResolutionFile(e.target.files?.[0] || null)}
+                    className="w-full text-sm mb-4 file:me-4 file:px-6 file:py-3 file:rounded-xl file:border-0 file:bg-neutral-100 file:font-extrabold file:text-sm file:text-neutral-900 hover:file:bg-neutral-200 transition-colors cursor-pointer"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleUploadResolution}
+                    disabled={uploadingPhoto || !resolutionFile}
+                    className="w-full bg-red-700 hover:bg-red-800 disabled:bg-neutral-200 disabled:text-neutral-400 text-white py-4 rounded-2xl font-extrabold transition-all flex items-center justify-center gap-2 shadow-sm hover:shadow-md disabled:shadow-none hover:-translate-y-0.5 disabled:translate-y-0"
+                  >
+                    <Check size={20} /> {uploadingPhoto ? dict.uploading : dict.uploadFixPhoto}
+                  </button>
+                </div>
+              )}
+
+              {canActAsAssignedTech(selectedTicket) && (selectedTicket.status === 'Resolved' || selectedTicket.status === 'Completed') && (
+                <button type="button" onClick={() => updateTicket(selectedTicket.id, { status: 'Closed' })} className="w-full bg-red-700 text-white hover:bg-red-800 py-4 rounded-2xl font-extrabold transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5">
+                  {dict.markClosed}
+                </button>
+              )}
+
+              {canActAsAssignedTech(selectedTicket) && (selectedTicket.status === 'New' || selectedTicket.status === 'Pending') && (
+                <button type="button" onClick={() => updateTicket(selectedTicket.id, { status: 'In Progress' })} className="w-full bg-emerald-500 hover:bg-emerald-600 text-white py-4 rounded-2xl font-extrabold transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5">
+                  {dict.accept}
+                </button>
+              )}
+
               {isAdmin && (
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -2686,7 +2784,7 @@ function AdminDashboard({
               )}
 
               <div className="flex flex-col gap-3 pt-4">
-                {isAdmin && (selectedTicket.status === 'New' || selectedTicket.status === 'Pending') && (
+                {isAdmin && (selectedTicket.status === 'New' || selectedTicket.status === 'Pending') && !canActAsAssignedTech(selectedTicket) && (
                   <div className="flex gap-3">
                     <button type="button" onClick={() => updateTicket(selectedTicket.id, { status: 'In Progress' })} className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white py-4 rounded-2xl font-extrabold transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5">
                       {dict.accept}
@@ -2697,9 +2795,9 @@ function AdminDashboard({
                   </div>
                 )}
 
-                {canActAsAssignedTech(selectedTicket) && selectedTicket.status === 'Resolved' && (
-                  <button type="button" onClick={() => updateTicket(selectedTicket.id, { status: 'Closed' })} className="w-full bg-red-700 text-white hover:bg-red-800 py-4 rounded-2xl font-extrabold transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5">
-                    {dict.markClosed}
+                {isAdmin && (selectedTicket.status === 'New' || selectedTicket.status === 'Pending') && canActAsAssignedTech(selectedTicket) && (
+                  <button type="button" onClick={() => handleReject(selectedTicket.id)} className="w-full bg-red-700 hover:bg-red-800 text-white py-4 rounded-2xl font-extrabold transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5">
+                    {dict.reject}
                   </button>
                 )}
 
@@ -2709,26 +2807,6 @@ function AdminDashboard({
                   </button>
                 )}
               </div>
-
-              {canActAsAssignedTech(selectedTicket) && selectedTicket.status === 'In Progress' && (
-                <div className="glass-panel border-red-200 rounded-[2rem] p-6 shadow-sm">
-                  <label className="text-[10px] font-extrabold text-neutral-400 block mb-4 uppercase tracking-widest">{dict.uploadFixPhoto}</label>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => setResolutionFile(e.target.files?.[0] || null)}
-                    className="w-full text-sm mb-4 file:me-4 file:px-6 file:py-3 file:rounded-xl file:border-0 file:bg-neutral-100 file:font-extrabold file:text-sm file:text-neutral-900 hover:file:bg-neutral-200 transition-colors cursor-pointer"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleUploadResolution}
-                    disabled={uploadingPhoto || !resolutionFile}
-                    className="w-full bg-red-700 hover:bg-red-800 disabled:bg-neutral-200 disabled:text-neutral-400 text-white py-4 rounded-2xl font-extrabold transition-all flex items-center justify-center gap-2 shadow-sm hover:shadow-md disabled:shadow-none hover:-translate-y-0.5 disabled:translate-y-0"
-                  >
-                    <Check size={20} /> {uploadingPhoto ? dict.uploading : dict.uploadFixPhoto}
-                  </button>
-                </div>
-              )}
 
               {selectedTicket.resolutionImageUrl && (
                 <div className="bg-emerald-50/80 border border-emerald-200 rounded-[2rem] p-6">

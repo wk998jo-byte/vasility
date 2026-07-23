@@ -1280,7 +1280,24 @@ app.post('/api/issues/:ticketNumber/resolution', requireDb, authenticateToken, (
 
     const ticket = existing.rows[0];
     const assignee = String(ticket.assignee || '').trim().toLowerCase();
-    const isAssignee = Boolean(username && assignee && username === assignee);
+    let isAssignee = Boolean(username && assignee && username === assignee);
+    if (!isAssignee && req.user?.sub && assignee) {
+      try {
+        const me = await req.db.query(
+          'SELECT username, full_name FROM users WHERE id = $1 AND is_active = true',
+          [req.user.sub],
+        );
+        const row = me.rows[0];
+        if (row) {
+          const aliases = [row.username, row.full_name]
+            .map((v) => String(v || '').trim().toLowerCase())
+            .filter(Boolean);
+          isAssignee = aliases.includes(assignee);
+        }
+      } catch {
+        // fall through with username-only match
+      }
+    }
     const role = req.user?.role;
     // Main admin may upload for any ticket; everyone else only if assigned to them.
     if (role !== 'admin' && !isAssignee) {
@@ -1440,7 +1457,23 @@ app.put('/api/issues/:ticketNumber', requireDb, authenticateToken, requireStaff,
       ? newUnitPrice * newUnits
       : (isAdmin && body.cost !== undefined ? Number(body.cost) || 0 : current.cost);
     const newParts = isAdmin && body.parts !== undefined ? body.parts : current.parts;
-    const newAssignee = isAdmin && body.assignee !== undefined ? String(body.assignee).trim() : current.assignee;
+    let newAssignee = isAdmin && body.assignee !== undefined ? String(body.assignee).trim() : current.assignee;
+    // Prefer canonical DB username when assignee was stored as a display name.
+    if (isAdmin && body.assignee !== undefined && newAssignee) {
+      try {
+        const found = await req.db.query(
+          `SELECT username FROM users
+           WHERE is_active = true
+             AND (LOWER(username) = LOWER($1) OR LOWER(COALESCE(full_name, '')) = LOWER($1))
+           ORDER BY CASE WHEN LOWER(username) = LOWER($1) THEN 0 ELSE 1 END
+           LIMIT 1`,
+          [newAssignee],
+        );
+        if (found.rowCount) newAssignee = found.rows[0].username;
+      } catch {
+        // keep raw assignee string
+      }
+    }
     const newIsDeleted = canDelete && body.isDeleted !== undefined
       ? Boolean(body.isDeleted)
       : current.is_deleted;
