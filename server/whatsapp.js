@@ -137,15 +137,19 @@ export function checkTwilioConfig() {
   const sid = (process.env.TWILIO_ACCOUNT_SID || '').trim();
   const token = (process.env.TWILIO_AUTH_TOKEN || '').trim();
   const apiKey = (process.env.TWILIO_API_KEY || '').trim();
+  const fromWa = (process.env.TWILIO_WHATSAPP_NUMBER || process.env.TWILIO_WHATSAPP_FROM || '').trim();
   if (!sid || (!token && !apiKey)) {
     console.warn('[WARNING] Twilio credentials missing. Alerts are disabled.');
     return false;
   }
+  if (!fromWa && !messagingServiceSid()) {
+    console.warn('[WARNING] Set TWILIO_WHATSAPP_NUMBER or TWILIO_MESSAGING_SERVICE_SID — WhatsApp alerts disabled.');
+    return false;
+  }
+  console.log('[whatsapp] Twilio Content API templates configured — WhatsApp alerts enabled.');
+  if (fromWa) console.log(`[whatsapp] From sender: ${fromWa}`);
   if (messagingServiceSid()) {
-    console.log('[whatsapp] Twilio Content API templates configured — WhatsApp alerts enabled.');
-    console.log(`[sms] Will send SMS via MessagingServiceSid=${messagingServiceSid()} (Twilio Console test pattern).`);
-  } else {
-    console.warn('[WARNING] TWILIO_MESSAGING_SERVICE_SID missing — WhatsApp alerts disabled.');
+    console.log(`[sms] MessagingServiceSid=${messagingServiceSid()}`);
   }
 
   resolveSmsFromNumber()
@@ -260,8 +264,8 @@ export async function sendWhatsAppNotification(phone, ticketId, role = 'user', e
     if (!process.env.TWILIO_ACCOUNT_SID || (!process.env.TWILIO_AUTH_TOKEN && !process.env.TWILIO_API_KEY)) {
       console.warn('[whatsapp] Twilio credentials missing');
       waResult = { sent: false, skipped: true, reason: 'twilio-not-configured' };
-    } else if (!messagingServiceSid()) {
-      console.warn('[whatsapp] TWILIO_MESSAGING_SERVICE_SID missing');
+    } else if (!(process.env.TWILIO_WHATSAPP_NUMBER || process.env.TWILIO_WHATSAPP_FROM || messagingServiceSid())) {
+      console.warn('[whatsapp] TWILIO_WHATSAPP_NUMBER / Messaging Service missing');
       waResult = { sent: false, skipped: true, reason: 'twilio-not-configured' };
     } else {
       const raw = String(phone || '').trim();
