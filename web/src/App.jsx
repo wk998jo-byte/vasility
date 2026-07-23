@@ -1811,11 +1811,15 @@ function AdminDashboard({
 
   const activeTickets = visibleTickets.filter((t) => !t.isDeleted);
   const trashedTickets = visibleTickets.filter((t) => t.isDeleted);
-  const isMine = (ticket) => Boolean(adminUser) && (ticket.assignee || '') === adminUser;
+  const isMine = (ticket) => Boolean(adminUser)
+    && String(ticket.assignee || '').trim().toLowerCase() === String(adminUser).trim().toLowerCase();
+  // Assigned technicians may be role facility OR sub_admin — they still need
+  // upload-fix-photo / close-ticket. Do not gate those actions on !isAdmin.
+  const canActAsAssignedTech = (ticket) => !isViewer && isMine(ticket);
   const myTickets = activeTickets.filter(isMine);
   const displayTickets = showTicketTrash
     ? trashedTickets
-    : (!isAdmin && showMineOnly ? myTickets : activeTickets);
+    : (showMineOnly ? myTickets : activeTickets);
 
   const statusNew = activeTickets.filter((t) => t.status === 'New' || t.status === 'Pending').length;
   const inProgress = activeTickets.filter((t) => t.status === 'In Progress').length;
@@ -2246,7 +2250,7 @@ function AdminDashboard({
         </>
       )}
 
-      {!isAdmin && !isViewer && !showTicketTrash && (
+      {!isViewer && !showTicketTrash && (
         <div className="flex gap-2 mb-4 print:hidden">
           <button
             type="button"
@@ -2328,7 +2332,7 @@ function AdminDashboard({
               <tr key={ticket.id} onClick={() => !showTicketTrash && setSelectedTicket(ticket)} className={`${showTicketTrash ? '' : 'cursor-pointer'} hover:bg-neutral-50/80 transition-colors group`}>
                 <td className="px-8 py-5 font-mono font-extrabold text-neutral-900 group-hover:text-red-700 transition-colors">
                   {ticket.id}
-                  {!isAdmin && isMine(ticket) && (
+                  {isMine(ticket) && (
                     <span className="ms-3 px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-red-50 text-red-800 align-middle">
                       {dict.assignedToYou}
                     </span>
@@ -2515,7 +2519,7 @@ function AdminDashboard({
                   </div>
                 )}
 
-                {!isAdmin && !isViewer && isMine(selectedTicket) && selectedTicket.status === 'Resolved' && (
+                {canActAsAssignedTech(selectedTicket) && selectedTicket.status === 'Resolved' && (
                   <button type="button" onClick={() => updateTicket(selectedTicket.id, { status: 'Closed' })} className="w-full bg-red-700 text-white hover:bg-red-800 py-4 rounded-2xl font-extrabold transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5">
                     {dict.markClosed}
                   </button>
@@ -2528,7 +2532,7 @@ function AdminDashboard({
                 )}
               </div>
 
-              {!isAdmin && !isViewer && isMine(selectedTicket) && selectedTicket.status === 'In Progress' && (
+              {canActAsAssignedTech(selectedTicket) && selectedTicket.status === 'In Progress' && (
                 <div className="glass-panel border-red-200 rounded-[2rem] p-6 shadow-sm">
                   <label className="text-[10px] font-extrabold text-neutral-400 block mb-4 uppercase tracking-widest">{dict.uploadFixPhoto}</label>
                   <input

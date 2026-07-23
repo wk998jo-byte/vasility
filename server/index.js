@@ -1109,8 +1109,11 @@ app.post('/api/issues/:ticketNumber/comments', requireDb, authenticateToken, req
 });
 
 app.post('/api/issues/:ticketNumber/resolution', requireDb, authenticateToken, (req, res, next) => {
-  if (req.user?.role !== 'admin' && req.user?.role !== 'facility') {
-    res.status(403).json({ error: 'Admin or facility access required' });
+  const role = req.user?.role;
+  // Admins/facility always; sub_admin/site_admin allowed too (they are often assigned technicians).
+  // Exact assignee check happens after we load the ticket below.
+  if (!ADMIN_ROLES.has(role) && role !== 'facility') {
+    res.status(403).json({ error: 'Staff access required' });
     return;
   }
   const upload = getUploadMiddleware();
@@ -1128,6 +1131,7 @@ app.post('/api/issues/:ticketNumber/resolution', requireDb, authenticateToken, (
 }, async (req, res) => {
   const ticketNumber = req.params.ticketNumber;
   const changedBy = req.user?.sub || null;
+  const username = String(req.user?.user || '').trim().toLowerCase();
 
   if (!req.file?.buffer) {
     res.status(400).json({ error: 'image file required' });
@@ -1136,7 +1140,7 @@ app.post('/api/issues/:ticketNumber/resolution', requireDb, authenticateToken, (
 
   try {
     const existing = await req.db.query(
-      'SELECT id, status, reporter_phone FROM facility_issues WHERE ticket_number = $1 AND is_deleted = false',
+      'SELECT id, status, reporter_phone, assignee FROM facility_issues WHERE ticket_number = $1 AND is_deleted = false',
       [ticketNumber],
     );
     if (!existing.rowCount) {
@@ -1145,6 +1149,14 @@ app.post('/api/issues/:ticketNumber/resolution', requireDb, authenticateToken, (
     }
 
     const ticket = existing.rows[0];
+    const assignee = String(ticket.assignee || '').trim().toLowerCase();
+    const isAssignee = Boolean(username && assignee && username === assignee);
+    const role = req.user?.role;
+    // Main admin may upload for any ticket; everyone else only if assigned to them.
+    if (role !== 'admin' && !isAssignee) {
+      res.status(403).json({ error: 'Only the assigned technician can upload a resolution photo' });
+      return;
+    }
     if (ticket.status !== 'In Progress' && ticket.status !== 'Resolved') {
       res.status(409).json({ error: 'Resolution photo can only be uploaded for tickets that are In Progress.' });
       return;
