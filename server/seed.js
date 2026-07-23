@@ -10,7 +10,8 @@ export function generateQrToken() {
 /** Map DB site → camp label used in static QR keys ("{Camp} - {Room}"). */
 export function siteToCampLabel(site) {
   const s = String(site || '').trim();
-  if (!s || /^dhahran$/i.test(s)) return 'Dhahran Camp';
+  if (!s) return '';
+  if (/^dhahran$/i.test(s)) return 'Dhahran Camp';
   if (/^mgs$/i.test(s)) return 'MGS Camp';
   if (/^khurais$/i.test(s)) return 'Khurais Camp';
   if (/^juaymah$/i.test(s) || /^juyamah$/i.test(s)) return 'Juaymah Camp';
@@ -24,14 +25,29 @@ export function siteToCampLabel(site) {
 /** Camp label → DB rooms.site value. */
 export function campLabelToSite(camp) {
   const c = String(camp || '').trim();
-  if (c === 'MGS Camp') return 'MGS';
-  if (c === 'Dhahran Camp') return 'Dhahran';
-  if (c === 'Khurais Camp') return 'Khurais';
-  if (c === 'Juaymah Camp') return 'Juaymah';
-  if (c === 'Jubail Camp') return 'Jubail';
-  if (c === 'Madina Camp 1') return 'Madina Camp 1';
-  if (c === 'Madina Camp 2') return 'Madina Camp 2';
+  if (c === 'MGS Camp' || /^mgs$/i.test(c)) return 'MGS';
+  if (c === 'Dhahran Camp' || /^dhahran$/i.test(c)) return 'Dhahran';
+  if (c === 'Khurais Camp' || /^khurais$/i.test(c)) return 'Khurais';
+  if (c === 'Juaymah Camp' || /^juaymah$/i.test(c) || /^juyamah$/i.test(c)) return 'Juaymah';
+  if (c === 'Jubail Camp' || /^jubail$/i.test(c)) return 'Jubail';
+  if (c === 'Madina Camp 1' || /^tcf-?1$/i.test(c)) return 'Madina Camp 1';
+  if (c === 'Madina Camp 2' || /^tcf-?2$/i.test(c)) return 'Madina Camp 2';
   return c.replace(/\s+Camp$/i, '').trim() || c;
+}
+
+/** All string forms that should match the same site in filters. */
+export function siteFilterAliases(site) {
+  const raw = String(site || '').trim();
+  if (!raw) return [];
+  const camp = siteToCampLabel(raw) || raw;
+  const db = campLabelToSite(camp) || raw;
+  const display = String(camp).replace(/\s+Camp$/i, '').trim();
+  return [...new Set(
+    [raw, camp, db, display]
+      .map((v) => String(v || '').trim())
+      .filter(Boolean)
+      .flatMap((v) => [v, v.toLowerCase()]),
+  )];
 }
 
 /** Permanent static QR payload — must match Location Manager <QRCodeSVG value={...}>. */
@@ -237,7 +253,11 @@ export async function generateTicketNumber(db) {
 }
 
 export function mapIssueRow(row) {
-  const roomSite = row.room_site || row.site || '';
+  const MGS_FLOORS = new Set(['A Block', 'B Block', 'C Block', 'Mess Hall', 'Gym Hall']);
+  let roomSite = row.room_site || row.site || '';
+  const floor = row.room_floor || row.floor || '';
+  // Correct mis-seeded Dhahran site on known MGS floors.
+  if (MGS_FLOORS.has(floor)) roomSite = 'MGS';
   return {
     id: row.ticket_number,
     ticketNumber: row.ticket_number,
@@ -272,7 +292,7 @@ export function mapIssueRow(row) {
 
 export async function fetchIssueByTicketNumber(db, ticketNumber) {
   const { rows } = await db.query(
-    `SELECT fi.*, r.name AS room_name, r.site AS room_site, d.name_en AS department_name_en
+    `SELECT fi.*, r.name AS room_name, r.site AS room_site, r.floor AS room_floor, d.name_en AS department_name_en
      FROM facility_issues fi
      JOIN rooms r ON r.id = fi.room_id
      LEFT JOIN departments d ON d.id = fi.department_id
@@ -292,7 +312,7 @@ export function toPublicIssue(issue) {
 
 export async function fetchIssueForTracking(db, ticketNumber, employeeId) {
   const { rows } = await db.query(
-    `SELECT fi.*, r.name AS room_name, r.site AS room_site, d.name_en AS department_name_en
+    `SELECT fi.*, r.name AS room_name, r.site AS room_site, r.floor AS room_floor, d.name_en AS department_name_en
      FROM facility_issues fi
      JOIN rooms r ON r.id = fi.room_id
      LEFT JOIN departments d ON d.id = fi.department_id
@@ -340,14 +360,16 @@ export async function fetchAllIssues(db, filters = {}) {
     params.push(priority);
   }
   if (site && assigneeUsername) {
+    const aliases = siteFilterAliases(site);
     conditions.push(
-      `(r.site = $${n} OR LOWER(TRIM(COALESCE(fi.assignee, ''))) = LOWER($${n + 1}))`,
+      `(LOWER(TRIM(COALESCE(r.site, ''))) = ANY($${n}::text[]) OR LOWER(TRIM(COALESCE(fi.assignee, ''))) = LOWER($${n + 1}))`,
     );
-    params.push(site, String(assigneeUsername).trim());
+    params.push(aliases.map((a) => a.toLowerCase()), String(assigneeUsername).trim());
     n += 2;
   } else if (site) {
-    conditions.push(`r.site = $${n++}`);
-    params.push(site);
+    const aliases = siteFilterAliases(site);
+    conditions.push(`LOWER(TRIM(COALESCE(r.site, ''))) = ANY($${n++}::text[])`);
+    params.push(aliases.map((a) => a.toLowerCase()));
   }
   if (dateFrom) {
     conditions.push(`fi.created_at >= $${n++}`);
@@ -361,7 +383,7 @@ export async function fetchAllIssues(db, filters = {}) {
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
   const { rows } = await db.query(
-    `SELECT fi.*, r.name AS room_name, r.site AS room_site, d.name_en AS department_name_en
+    `SELECT fi.*, r.name AS room_name, r.site AS room_site, r.floor AS room_floor, d.name_en AS department_name_en
      FROM facility_issues fi
      JOIN rooms r ON r.id = fi.room_id
      LEFT JOIN departments d ON d.id = fi.department_id
@@ -391,13 +413,16 @@ export async function resolveRoomByToken(db, token) {
       'SELECT name FROM room_assets WHERE room_id = $1 ORDER BY name',
       [room.id],
     );
+    const MGS_FLOORS = new Set(['A Block', 'B Block', 'C Block', 'Mess Hall', 'Gym Hall']);
+    let site = room.site || null;
+    if (MGS_FLOORS.has(room.floor)) site = 'MGS';
     return {
       room: {
         id: room.id,
         name: room.name,
         floor: room.floor,
-        site: room.site || null,
-        siteLabel: siteToCampLabel(room.site),
+        site,
+        siteLabel: siteToCampLabel(site),
         departmentId: room.department_id,
         department: room.dept_id
           ? {

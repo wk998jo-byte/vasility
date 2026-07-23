@@ -47,27 +47,36 @@ export const CAMP_DATA_STATS = {
 /** Camp label → DB site value (inverse of siteToCampLabel). */
 function campLabelToSite(camp) {
   const c = String(camp || '').trim();
-  if (c === 'MGS Camp') return 'MGS';
-  if (c === 'Dhahran Camp') return 'Dhahran';
-  if (c === 'Khurais Camp') return 'Khurais';
-  if (c === 'Juaymah Camp') return 'Juaymah';
-  if (c === 'Jubail Camp') return 'Jubail';
-  if (c === 'Madina Camp 1') return 'Madina Camp 1';
-  if (c === 'Madina Camp 2') return 'Madina Camp 2';
+  if (c === 'MGS Camp' || /^mgs$/i.test(c)) return 'MGS';
+  if (c === 'Dhahran Camp' || /^dhahran$/i.test(c)) return 'Dhahran';
+  if (c === 'Khurais Camp' || /^khurais$/i.test(c)) return 'Khurais';
+  if (c === 'Juaymah Camp' || /^juaymah$/i.test(c) || /^juyamah$/i.test(c)) return 'Juaymah';
+  if (c === 'Jubail Camp' || /^jubail$/i.test(c)) return 'Jubail';
+  if (c === 'Madina Camp 1' || /^tcf-?1$/i.test(c)) return 'Madina Camp 1';
+  if (c === 'Madina Camp 2' || /^tcf-?2$/i.test(c)) return 'Madina Camp 2';
   return c.replace(/\s+Camp$/i, '').trim() || c;
 }
 
 /** Map DB site values → camp prefix used in "{Camp} - {Room}" keys (matches ROOM_DATA / RBAC). */
 function siteToCampLabel(site) {
   const s = String(site || '').trim();
-  if (!s || /^dhahran$/i.test(s)) return 'Dhahran Camp';
+  if (!s) return '';
+  if (/^dhahran$/i.test(s)) return 'Dhahran Camp';
   if (/^mgs$/i.test(s)) return 'MGS Camp';
   if (/^khurais$/i.test(s)) return 'Khurais Camp';
   if (/^juaymah$/i.test(s) || /^juyamah$/i.test(s)) return 'Juaymah Camp';
   if (/^madina camp 1$/i.test(s) || /^tcf-?1$/i.test(s)) return 'Madina Camp 1';
   if (/^madina camp 2$/i.test(s) || /^tcf-?2$/i.test(s)) return 'Madina Camp 2';
+  if (/^jubail$/i.test(s)) return 'Jubail Camp';
   if (/camp$/i.test(s)) return s;
   return `${s} Camp`;
+}
+
+/** Canonical DB site code (MGS, Dhahran, …). */
+function canonicalSite(site) {
+  const raw = String(site || '').trim();
+  if (!raw) return '';
+  return campLabelToSite(siteToCampLabel(raw) || raw) || raw;
 }
 
 /** Sticker headline (e.g. "Dhahran Camp" → "Dhahran"). */
@@ -135,12 +144,15 @@ function getRoomLocationParts(room, resolveSite) {
 
 function campMatchesAdminSite(camp, adminSite) {
   if (!adminSite) return true;
-  const c = camp.trim().toLowerCase();
-  const s = adminSite.trim().toLowerCase();
+  if (!camp) return false;
+  const c = String(camp).trim().toLowerCase();
+  const s = String(adminSite).trim().toLowerCase();
+  if (!c || !s) return false;
   if (s === c) return true;
   if (siteToCampLabel(adminSite).toLowerCase() === c) return true;
   if (s === campDisplayName(camp).toLowerCase()) return true;
   if (campLabelToSite(camp).toLowerCase() === s) return true;
+  if (canonicalSite(camp) && canonicalSite(camp).toLowerCase() === canonicalSite(adminSite).toLowerCase()) return true;
   return false;
 }
 
@@ -157,16 +169,21 @@ function formatTicketLocation(ticket, roomCampByRoomId) {
   return site || room || '—';
 }
 
-/** Resolve a ticket's camp label for RBAC (room DB site, "Camp - Room" key, or ticket.site). */
+/** Resolve a ticket's camp label for RBAC (prefer API site fields; never invent Dhahran). */
 function resolveTicketCamp(ticket, roomCampByRoomId) {
-  if (ticket.camp) return ticket.camp;
-  if (ticket.roomId && roomCampByRoomId?.has(ticket.roomId)) {
-    return roomCampByRoomId.get(ticket.roomId);
+  if (ticket?.siteLabel) return ticket.siteLabel;
+  if (ticket?.site) {
+    const fromSite = siteToCampLabel(ticket.site);
+    if (fromSite) return fromSite;
   }
-  const roomName = String(ticket.room || '');
+  if (ticket?.camp) return ticket.camp;
+  if (ticket?.roomId && roomCampByRoomId?.has(ticket.roomId)) {
+    const fromRoom = roomCampByRoomId.get(ticket.roomId);
+    if (fromRoom) return fromRoom;
+  }
+  const roomName = String(ticket?.room || '');
   if (roomName.includes(' - ')) return parseLocationKey(roomName).camp;
-  if (ticket.site) return siteToCampLabel(ticket.site);
-  return 'Dhahran Camp';
+  return '';
 }
 
 function resolveApiBase() {
@@ -1909,7 +1926,12 @@ function AdminDashboard({
     ? adminRooms.filter((r) => r.departmentId === filters.departmentId)
     : adminRooms;
 
-  const roomSite = (r) => r.site || (MGS_FLOORS.has(r.floor) ? 'MGS' : 'Dhahran');
+  const roomSite = (r) => {
+    // Known MGS floors always map to MGS even if rooms.site was mis-seeded as Dhahran.
+    if (MGS_FLOORS.has(r?.floor)) return 'MGS';
+    if (r?.site) return canonicalSite(r.site) || String(r.site).trim();
+    return '';
+  };
   const locationSections = useMemo(
     () => buildLocationSections(Object.keys(INITIAL_ROOM_DATA)),
     [],
@@ -1951,7 +1973,7 @@ function AdminDashboard({
     [...new Set([
       ...adminRooms.map(roomSite),
       ...locationSections.map((s) => campLabelToSite(s.camp)),
-    ])].sort()
+    ])].filter(Boolean).sort()
   ), [adminRooms, locationSections]);
 
   const dbRoomByLocationKey = useMemo(() => {
@@ -2025,10 +2047,9 @@ function AdminDashboard({
       });
     }
 
-    // 2. Apply UI site/camp dropdown filter (main admin only)
+    // 2. Apply UI site/camp dropdown filter (strict — do not bypass for assignees)
     if (selectedCampFilter && selectedCampFilter !== 'All') {
       filtered = filtered.filter((t) => {
-        if (isMine(t)) return true;
         const ticketCamp = resolveTicketCamp(t, roomCampByRoomId);
         return campMatchesAdminSite(ticketCamp, selectedCampFilter);
       });

@@ -43,6 +43,19 @@ UPDATE rooms SET site = CASE
   ELSE 'Dhahran'
 END WHERE site IS NULL;
 
+-- Fix MGS rooms that were incorrectly stored as Dhahran (or other values).
+UPDATE rooms
+SET site = 'MGS'
+WHERE floor IN ('A Block', 'B Block', 'C Block', 'Mess Hall', 'Gym Hall')
+  AND COALESCE(site, '') <> 'MGS';
+
+-- Normalize camp-style site labels to canonical DB codes.
+UPDATE rooms SET site = 'MGS' WHERE LOWER(TRIM(site)) IN ('mgs camp', 'mgs');
+UPDATE rooms SET site = 'Dhahran' WHERE LOWER(TRIM(site)) IN ('dhahran camp', 'dhahran');
+UPDATE rooms SET site = 'Khurais' WHERE LOWER(TRIM(site)) IN ('khurais camp', 'khurais');
+UPDATE rooms SET site = 'Juaymah' WHERE LOWER(TRIM(site)) IN ('juaymah camp', 'juyamah camp', 'juaymah', 'juyamah');
+UPDATE rooms SET site = 'Jubail' WHERE LOWER(TRIM(site)) IN ('jubail camp', 'jubail');
+
 -- ─── QR tokens ───────────────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS room_qr_tokens (
