@@ -11,6 +11,7 @@ import { sendNewIssueNotification } from './notify.js';
 import { sendWhatsAppNotification, sendWhatsAppWelcome, sendWhatsAppNewTicketAlert, checkTwilioConfig } from './whatsapp.js';
 import { USERS, getWhatsAppTargetsForCamp, siteToCamp, campsMatch } from './users-data.js';
 import { initCloudinaryUpload, getUploadMiddleware, uploadBufferToCloudinary } from './upload.js';
+import { warnIfDefaultPasswords } from './passwords.js';
 import {
   generateTicketNumber,
   buildStaticQrToken,
@@ -30,10 +31,14 @@ import {
   toPublicIssue,
 } from './seed.js';
 
-// Bypass local Windows SSL/Proxy inspection for Twilio requests
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+// Bypass local Windows SSL/Proxy inspection ONLY when explicitly enabled.
+if (process.env.ALLOW_INSECURE_TLS === 'true') {
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+  console.warn('[security] ALLOW_INSECURE_TLS=true — HTTPS certificate verification DISABLED');
+}
 
 loadEnv();
+warnIfDefaultPasswords();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const distDir = path.join(__dirname, '../web/dist');
@@ -85,17 +90,36 @@ const issueSubmitLimiter = rateLimit({
   message: { error: 'Too many requests. Please try again later.' },
 });
 
-const loginLimiter = process.env.NODE_ENV === 'production'
-  ? rateLimit({
-      windowMs: 15 * 60 * 1000,
-      max: 5,
-      skipSuccessfulRequests: true,
-      standardHeaders: true,
-      legacyHeaders: false,
-      message: { error: 'Too many login attempts. Please try again in 15 minutes.' },
-    })
-  : (_req, _res, next) => next();
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  skipSuccessfulRequests: true,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many login attempts. Please try again in 15 minutes.' },
+});
 
+const forgotPasswordLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many password reset attempts. Please try again in 15 minutes.' },
+});
+
+/** In-memory OTP store for forgot-password (single-process Replit-friendly). */
+const passwordResetOtps = new Map();
+
+function normalizePhoneDigits(p) {
+  return String(p || '').replace(/\D/g, '');
+}
+
+function pruneExpiredOtps() {
+  const now = Date.now();
+  for (const [key, entry] of passwordResetOtps.entries()) {
+    if (!entry?.expiresAt || entry.expiresAt <= now) passwordResetOtps.delete(key);
+  }
+}
 const VALID_STATUSES = new Set(['New', 'In Progress', 'Resolved', 'Completed', 'Closed', 'Rejected']);
 const VALID_PRIORITIES = new Set(['Low', 'Medium', 'High']);
 const VALID_ISSUES = new Set([
@@ -141,7 +165,7 @@ function authenticateToken(req, res, next) {
 //   'site_admin' → admin of a single site (manages rooms/users of that site, gets WhatsApp alerts)
 //   'sub_admin'  → limited admin of a single site (updates tickets only)
 const ADMIN_ROLES = new Set(['admin', 'site_admin', 'sub_admin']);
-const SITE_SCOPED_ROLES = new Set(['site_admin', 'sub_admin']);
+const SITE_SCOPED_ROLES = new Set(['site_admin', 'sub_admin', 'facility']);
 
 // Main admin only.
 function requireAdmin(req, res, next) {
@@ -180,10 +204,14 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 function deriveTicketCamp(site, roomName) {
   const parsed = parseQrLocationKey(String(roomName || ''));
   if (parsed?.camp) return parsed.camp;
-  const staticKey = buildStaticQrToken(site, roomName);
-  const fromKey = parseQrLocationKey(staticKey);
-  if (fromKey?.camp) return fromKey.camp;
-  return siteToCamp(site) || 'Dhahran Camp';
+  if (site) {
+    const staticKey = buildStaticQrToken(site, roomName);
+    const fromKey = parseQrLocationKey(staticKey);
+    if (fromKey?.camp) return fromKey.camp;
+    const mapped = siteToCamp(site);
+    if (mapped) return mapped;
+  }
+  return '';
 }
 
 // WhatsApp alert fan-out for a new ticket (RBAC):
@@ -348,7 +376,7 @@ app.post('/api/auth/login', loginLimiter, requireDb, async (req, res) => {
     const token = jwt.sign(
       { sub: user.id, user: user.username, role: user.role, site: user.site || null },
       JWT_SECRET,
-      { expiresIn: '30d' },
+      { expiresIn: process.env.JWT_EXPIRES_IN || '12h' },
     );
     res.status(200).json({
       token, role: user.role, site: user.site || null, fullName: user.full_name || '',
@@ -404,8 +432,8 @@ app.put('/api/auth/change-password', requireDb, authenticateToken, async (req, r
     res.status(400).json({ error: 'oldPassword and newPassword required' });
     return;
   }
-  if (String(newPassword).length < 6) {
-    res.status(400).json({ error: 'Password must be at least 6 characters' });
+  if (String(newPassword).length < 8) {
+    res.status(400).json({ error: 'Password must be at least 8 characters' });
     return;
   }
 
@@ -481,8 +509,8 @@ app.post('/api/users', requireDb, authenticateToken, requireManager, async (req,
     return;
   }
 
-  if (password.length < 6) {
-    res.status(400).json({ error: 'password must be at least 6 characters' });
+  if (password.length < 8) {
+    res.status(400).json({ error: 'password must be at least 8 characters' });
     return;
   }
 
@@ -604,8 +632,8 @@ app.post('/api/users/:id/reset-password', requireDb, authenticateToken, requireM
     res.status(400).json({ error: 'Invalid user id' });
     return;
   }
-  if (!newPassword || String(newPassword).length < 6) {
-    res.status(400).json({ error: 'password must be at least 6 characters' });
+  if (!newPassword || String(newPassword).length < 8) {
+    res.status(400).json({ error: 'password must be at least 8 characters' });
     return;
   }
   if (String(req.user?.sub || '') === String(userId)) {
@@ -646,21 +674,82 @@ app.post('/api/users/:id/reset-password', requireDb, authenticateToken, requireM
 });
 
 /**
- * Forgot password — username + registered phone must match, then set a new password.
- * No email/WhatsApp dependency (internal staff tool).
+ * Forgot password — step 1: username + registered phone → WhatsApp OTP.
+ * Always returns a generic success when possible (limits user enumeration).
  */
-app.post('/api/auth/forgot-password', requireDb, async (req, res) => {
+app.post('/api/auth/forgot-password/request', forgotPasswordLimiter, requireDb, async (req, res) => {
   const username = typeof req.body?.username === 'string' ? req.body.username.trim() : '';
   const phone = typeof req.body?.phone === 'string' ? req.body.phone.trim() : '';
-  const newPassword = req.body?.newPassword ?? req.body?.password;
-  const confirmPassword = req.body?.confirmPassword;
 
   if (!username || !phone) {
     res.status(400).json({ error: 'username and phone required' });
     return;
   }
-  if (!newPassword || String(newPassword).length < 6) {
-    res.status(400).json({ error: 'password must be at least 6 characters' });
+
+  pruneExpiredOtps();
+  const generic = {
+    ok: true,
+    message: 'If the account matches, a reset code was sent to WhatsApp.',
+  };
+
+  try {
+    const { rows } = await req.db.query(
+      `SELECT id, phone, username FROM users
+       WHERE LOWER(username) = LOWER($1) AND is_active = true`,
+      [username],
+    );
+    const user = rows[0];
+    const phoneOk = user
+      && normalizePhoneDigits(user.phone)
+      && normalizePhoneDigits(user.phone) === normalizePhoneDigits(phone);
+
+    if (!phoneOk) {
+      // Same response shape — do not confirm whether the user exists.
+      res.status(200).json(generic);
+      return;
+    }
+
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    const codeHash = await bcrypt.hash(code, 10);
+    const key = String(user.username).toLowerCase();
+    passwordResetOtps.set(key, {
+      userId: user.id,
+      codeHash,
+      phoneDigits: normalizePhoneDigits(user.phone),
+      expiresAt: Date.now() + 10 * 60 * 1000,
+      attempts: 0,
+    });
+
+    sendWhatsAppNotification(
+      user.phone,
+      'PWD-RESET',
+      'admin',
+      `Password reset code: ${code}. Valid 10 minutes.`,
+    ).catch((err) => console.error('[auth] OTP WhatsApp failed:', err?.message || err));
+
+    res.status(200).json(generic);
+  } catch (err) {
+    console.error('[auth] forgot-password request failed:', err.message);
+    res.status(500).json({ error: 'Failed to start password reset' });
+  }
+});
+
+/**
+ * Forgot password — step 2: confirm OTP + set new password (min 8 chars).
+ */
+app.post('/api/auth/forgot-password', forgotPasswordLimiter, requireDb, async (req, res) => {
+  const username = typeof req.body?.username === 'string' ? req.body.username.trim() : '';
+  const phone = typeof req.body?.phone === 'string' ? req.body.phone.trim() : '';
+  const code = typeof req.body?.code === 'string' ? req.body.code.trim() : '';
+  const newPassword = req.body?.newPassword ?? req.body?.password;
+  const confirmPassword = req.body?.confirmPassword;
+
+  if (!username || !phone || !code) {
+    res.status(400).json({ error: 'username, phone and code required' });
+    return;
+  }
+  if (!newPassword || String(newPassword).length < 8) {
+    res.status(400).json({ error: 'password must be at least 8 characters' });
     return;
   }
   if (confirmPassword !== undefined && String(confirmPassword) !== String(newPassword)) {
@@ -668,32 +757,42 @@ app.post('/api/auth/forgot-password', requireDb, async (req, res) => {
     return;
   }
 
+  pruneExpiredOtps();
+  const key = username.toLowerCase();
+  const entry = passwordResetOtps.get(key);
+  if (!entry || entry.expiresAt <= Date.now()) {
+    passwordResetOtps.delete(key);
+    res.status(400).json({ error: 'Invalid or expired reset code' });
+    return;
+  }
+  if (entry.phoneDigits !== normalizePhoneDigits(phone)) {
+    res.status(400).json({ error: 'Username and registered phone do not match' });
+    return;
+  }
+
+  entry.attempts += 1;
+  if (entry.attempts > 5) {
+    passwordResetOtps.delete(key);
+    res.status(429).json({ error: 'Too many invalid code attempts' });
+    return;
+  }
+
+  const codeOk = await bcrypt.compare(code, entry.codeHash);
+  if (!codeOk) {
+    res.status(400).json({ error: 'Invalid or expired reset code' });
+    return;
+  }
+
   try {
-    const { rows } = await req.db.query(
-      `SELECT id, phone FROM users
-       WHERE LOWER(username) = LOWER($1) AND is_active = true`,
-      [username],
-    );
-    const user = rows[0];
-    const normalizeDigits = (p) => String(p || '').replace(/\D/g, '');
-    const phoneOk = user
-      && normalizeDigits(user.phone)
-      && normalizeDigits(user.phone) === normalizeDigits(phone);
-
-    // Same generic error whether user missing or phone mismatch (no enumeration).
-    if (!phoneOk) {
-      res.status(400).json({ error: 'Username and registered phone do not match' });
-      return;
-    }
-
     const passwordHash = await bcrypt.hash(String(newPassword), 12);
     await req.db.query(
       'UPDATE users SET password_hash = $1 WHERE id = $2',
-      [passwordHash, user.id],
+      [passwordHash, entry.userId],
     );
+    passwordResetOtps.delete(key);
     res.status(200).json({ ok: true, message: 'Password updated. You can log in now.' });
   } catch (err) {
-    console.error('[auth] forgot-password failed:', err.message);
+    console.error('[auth] forgot-password confirm failed:', err.message);
     res.status(500).json({ error: 'Failed to reset password' });
   }
 });
@@ -737,7 +836,12 @@ app.get('/api/rooms', requireDb, async (req, res) => {
 
 app.get('/api/rooms/admin', requireDb, authenticateToken, async (req, res) => {
   try {
-    const rooms = await fetchAdminRooms(req.db);
+    let rooms = await fetchAdminRooms(req.db);
+    const mySite = userSite(req.user);
+    if (mySite) {
+      rooms = rooms.filter((r) => !r.site || String(r.site).toLowerCase() === String(mySite).toLowerCase()
+        || siteToCamp(r.site) === siteToCamp(mySite));
+    }
     res.status(200).json({ rooms });
   } catch {
     res.status(500).json({ error: 'Failed to fetch admin rooms' });
@@ -1139,6 +1243,11 @@ app.post('/api/issues/:ticketNumber/attachments', issueSubmitLimiter, requireDb,
       res.status(403).json({ error: 'Invalid QR token for this ticket' });
       return;
     }
+    // Bind upload to the exact QR token used when the ticket was created.
+    if (ticket.qr_token_used && String(ticket.qr_token_used).trim() !== qrToken) {
+      res.status(403).json({ error: 'QR token does not match this ticket' });
+      return;
+    }
 
     const uploadResult = await uploadBufferToCloudinary(req.file.buffer);
     const imageUrl = uploadResult?.secure_url;
@@ -1377,10 +1486,14 @@ app.get('/api/issues', requireDb, authenticateToken, async (req, res) => {
   try {
     const filters = parseIssueFilters(req.query);
     const mySite = userSite(req.user);
+    const role = req.user?.role;
     if (mySite) {
       filters.site = mySite;
       // Always include tickets assigned to this user, even outside their site.
       if (req.user?.user) filters.assigneeUsername = req.user.user;
+    } else if (role === 'facility' && req.user?.user) {
+      // Facility without a site: only tickets assigned to them.
+      filters.assigneeOnly = req.user.user;
     }
     const issues = await fetchAllIssues(req.db, filters);
     res.status(200).json({ issues });
@@ -1394,7 +1507,10 @@ app.get('/api/issues/:ticketNumber/history', requireDb, authenticateToken, async
 
   try {
     const issue = await req.db.query(
-      'SELECT id FROM facility_issues WHERE ticket_number = $1',
+      `SELECT fi.id, fi.assignee, r.site AS room_site
+       FROM facility_issues fi
+       JOIN rooms r ON r.id = fi.room_id
+       WHERE fi.ticket_number = $1`,
       [ticketNumber],
     );
     if (!issue.rowCount) {
@@ -1402,7 +1518,24 @@ app.get('/api/issues/:ticketNumber/history', requireDb, authenticateToken, async
       return;
     }
 
-    const history = await fetchIssueHistory(req.db, issue.rows[0].id);
+    const row = issue.rows[0];
+    const mySite = userSite(req.user);
+    const username = String(req.user?.user || '').trim().toLowerCase();
+    const assignee = String(row.assignee || '').trim().toLowerCase();
+    const isAssignee = Boolean(username && assignee && username === assignee);
+    if (mySite) {
+      const siteOk = String(row.room_site || '').toLowerCase() === String(mySite).toLowerCase()
+        || siteToCamp(row.room_site) === siteToCamp(mySite);
+      if (!siteOk && !isAssignee) {
+        res.status(403).json({ error: 'Not allowed to view history of another site' });
+        return;
+      }
+    } else if (req.user?.role === 'facility' && !isAssignee) {
+      res.status(403).json({ error: 'Not allowed to view this ticket history' });
+      return;
+    }
+
+    const history = await fetchIssueHistory(req.db, row.id);
     res.status(200).json({ history });
   } catch {
     res.status(500).json({ error: 'Failed to fetch ticket history' });
@@ -1429,14 +1562,28 @@ app.put('/api/issues/:ticketNumber', requireDb, authenticateToken, requireStaff,
     // Any admin tier may manage ticket status/cost; site-scoped roles only within their site.
     const isAdmin = ADMIN_ROLES.has(req.user?.role);
     const canDelete = req.user?.role === 'admin' || req.user?.role === 'site_admin';
+    const role = req.user?.role;
+    const username = String(req.user?.user || '').trim().toLowerCase();
+    const currentAssignee = String(current.assignee || '').trim().toLowerCase();
+    const isAssignee = Boolean(username && currentAssignee && username === currentAssignee);
 
     const mySite = userSite(req.user);
     if (mySite) {
       const roomSite = await req.db.query('SELECT site FROM rooms WHERE id = $1', [current.room_id]);
-      if (roomSite.rows[0]?.site !== mySite) {
+      const ticketSite = roomSite.rows[0]?.site || '';
+      const siteOk = String(ticketSite).toLowerCase() === String(mySite).toLowerCase()
+        || siteToCamp(ticketSite) === siteToCamp(mySite);
+      // Assignees may update (e.g. close) even when the ticket is outside their home site.
+      if (!siteOk && !isAssignee) {
         res.status(403).json({ error: 'Not allowed to manage tickets of another site' });
         return;
       }
+    }
+
+    // Facility staff may only mutate tickets assigned to them.
+    if (role === 'facility' && !isAssignee) {
+      res.status(403).json({ error: 'Only the assigned technician can update this ticket' });
+      return;
     }
 
     if (!VALID_STATUSES.has(newStatus)) {
@@ -1528,6 +1675,7 @@ app.put('/api/issues/:ticketNumber', requireDb, authenticateToken, requireStaff,
       }
     });
 
+    let assignmentWarning = null;
     if (newAssignee && newAssignee !== current.assignee) {
       try {
         const assigneeUser = await req.db.query(
@@ -1567,6 +1715,7 @@ app.put('/api/issues/:ticketNumber', requireDb, authenticateToken, requireStaff,
             .then((result) => console.log('[whatsapp] assignment result:', JSON.stringify(result)))
             .catch((err) => console.error('[whatsapp] assignment notify failed:', err?.message || err));
         } else {
+          assignmentWarning = `Assigned, but "${newAssignee}" has no phone — WhatsApp was not sent. Add a phone in Staff Manager.`;
           console.warn(`[whatsapp] assignee "${newAssignee}" has no phone — skipping WhatsApp`);
         }
       } catch (err) {
@@ -1584,7 +1733,7 @@ app.put('/api/issues/:ticketNumber', requireDb, authenticateToken, requireStaff,
     }
 
     const issue = await fetchIssueByTicketNumber(req.db, ticketNumber);
-    res.status(200).json({ ok: true, issue });
+    res.status(200).json({ ok: true, issue, ...(assignmentWarning ? { warning: assignmentWarning } : {}) });
   } catch (err) {
     if (err?.code === '23505' && err?.constraint === 'uniq_facility_issues_active_room_issue') {
       res.status(409).json({ error: 'Cannot make this ticket active: another active ticket already exists for the same issue in this location.' });

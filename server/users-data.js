@@ -20,7 +20,8 @@ export function normalizeCamp(value) {
  */
 export function siteToCamp(site) {
   const s = String(site || '').trim();
-  if (!s || /^dhahran$/i.test(s)) return 'Dhahran Camp';
+  if (!s) return '';
+  if (/^dhahran$/i.test(s)) return 'Dhahran Camp';
   if (/^mgs$/i.test(s)) return 'MGS Camp';
   if (/^khurais$/i.test(s)) return 'Khurais Camp';
   if (/^juaymah$/i.test(s) || /^juyamah$/i.test(s)) return 'Juaymah Camp';

@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import bcrypt from 'bcrypt';
 import { SEED_DEPARTMENTS, SEED_ROOMS_BY_DEPT } from './seed-data.js';
+import { passwordForRole } from './passwords.js';
 
 /** @deprecated Use buildStaticQrToken — random tokens break printable static QR stickers. */
 export function generateQrToken() {
@@ -108,21 +109,31 @@ export async function seedUsers(db) {
   }
 
   const facilityUser = process.env.FACILITY_USER || 'facility_user';
-  const facilityPass = process.env.FACILITY_PASS || process.env.STAFF_DEFAULT_PASSWORD || 'Staff2026@@';
-  const { rows: facilityExists } = await db.query(
-    'SELECT id FROM users WHERE username = $1',
-    [facilityUser],
-  );
-  if (facilityExists.length === 0) {
-    const facilityHash = await bcrypt.hash(facilityPass, 12);
-    await db.query(
-      `INSERT INTO users (username, password_hash, role, is_active)
-       VALUES ($1, $2, 'facility', true)`,
-      [facilityUser, facilityHash],
+  let facilityPass = process.env.FACILITY_PASS || process.env.STAFF_DEFAULT_PASSWORD || '';
+  if (!facilityPass) {
+    try {
+      facilityPass = passwordForRole('facility');
+    } catch {
+      console.warn('[seed] Skipping facility user — set FACILITY_PASS or STAFF_DEFAULT_PASSWORD');
+      facilityPass = '';
+    }
+  }
+  if (facilityPass) {
+    const { rows: facilityExists } = await db.query(
+      'SELECT id FROM users WHERE username = $1',
+      [facilityUser],
     );
-    console.log(`[seed] Created facility user "${facilityUser}"`);
-  } else if (process.env.FACILITY_PASS) {
-    await syncUserPassword(db, facilityUser, facilityPass);
+    if (facilityExists.length === 0) {
+      const facilityHash = await bcrypt.hash(facilityPass, 12);
+      await db.query(
+        `INSERT INTO users (username, password_hash, role, is_active)
+         VALUES ($1, $2, 'facility', true)`,
+        [facilityUser, facilityHash],
+      );
+      console.log(`[seed] Created facility user "${facilityUser}"`);
+    } else if (process.env.FACILITY_PASS) {
+      await syncUserPassword(db, facilityUser, facilityPass);
+    }
   }
 
   await seedViewerUser(db);
@@ -131,10 +142,13 @@ export async function seedUsers(db) {
 }
 
 // Read-only monitoring account (dashboard access, no changes allowed).
-// Override via VIEWER_USER / VIEWER_PASS env vars; VIEWER_PASS syncs on restart.
+// Created only when VIEWER_USER + VIEWER_PASS are set. Password syncs only if VIEWER_PASS is set.
 async function seedViewerUser(db) {
-  const viewerUser = process.env.VIEWER_USER || 'irfanmohammad';
-  const viewerPass = process.env.VIEWER_PASS || 'irfan@1111';
+  const viewerUser = (process.env.VIEWER_USER || '').trim();
+  const viewerPass = process.env.VIEWER_PASS;
+  if (!viewerUser || !viewerPass) {
+    return;
+  }
 
   // Migration: rename the old spaced username to the new one (if not taken).
   await db.query(
@@ -156,7 +170,7 @@ async function seedViewerUser(db) {
       [viewerUser, hash],
     );
     console.log(`[seed] Created viewer user "${viewerUser}"`);
-  } else if (process.env.VIEWER_PASS) {
+  } else {
     await syncUserPassword(db, viewerUser, viewerPass);
   }
 }
@@ -332,6 +346,8 @@ export async function fetchAllIssues(db, filters = {}) {
     site,
     // When set with site, also return tickets assigned to this username (cross-site).
     assigneeUsername,
+    // When set without site, return ONLY tickets assigned to this username.
+    assigneeOnly,
     dateFrom,
     dateTo,
   } = filters;
@@ -359,7 +375,10 @@ export async function fetchAllIssues(db, filters = {}) {
     conditions.push(`fi.priority = $${n++}`);
     params.push(priority);
   }
-  if (site && assigneeUsername) {
+  if (assigneeOnly) {
+    conditions.push(`LOWER(TRIM(COALESCE(fi.assignee, ''))) = LOWER($${n++})`);
+    params.push(String(assigneeOnly).trim());
+  } else if (site && assigneeUsername) {
     const aliases = siteFilterAliases(site);
     conditions.push(
       `(LOWER(TRIM(COALESCE(r.site, ''))) = ANY($${n}::text[]) OR LOWER(TRIM(COALESCE(fi.assignee, ''))) = LOWER($${n + 1}))`,

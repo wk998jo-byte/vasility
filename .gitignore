@@ -6,3 +6,5 @@ Thumbs.db
 *.pdf
 users-backup.sql
 *-backup.sql
+*.csv
+messaging-logs*.csv

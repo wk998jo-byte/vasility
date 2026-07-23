@@ -14,9 +14,11 @@ import { loadEnv } from './env.js';
 
 loadEnv();
 
-// Bypass local Windows SSL/Proxy inspection for Twilio requests
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
-
+// Only disable TLS verification when explicitly opted in (local Windows SSL inspection).
+if (process.env.ALLOW_INSECURE_TLS === 'true') {
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+  console.warn('[security] ALLOW_INSECURE_TLS=true — HTTPS certificate verification DISABLED');
+}
 const require = createRequire(import.meta.url);
 const twilio = require('twilio');
 

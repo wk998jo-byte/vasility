@@ -387,15 +387,18 @@ const t = {
     changePassword: 'Change Password', currentPassword: 'Current Password',
     newPassword: 'New Password', confirmPassword: 'Confirm New Password',
     updatePassword: 'Update Password', passwordUpdated: 'Password updated successfully.',
-    passwordMismatch: 'New passwords do not match.', passwordTooShort: 'Password must be at least 6 characters.',
+    passwordMismatch: 'New passwords do not match.', passwordTooShort: 'Password must be at least 8 characters.',
     wrongCurrentPassword: 'Current password is incorrect.', profileLoadError: 'Failed to load profile.',
     forgotPassword: 'Forgot password?',
     forgotTitle: 'Reset Password',
-    forgotSubtitle: 'Enter your username and the phone number registered on your account.',
+    forgotSubtitle: 'Enter username and registered phone, then the WhatsApp code.',
     forgotPhone: 'Registered phone',
-    forgotSubmit: 'Reset Password',
+    forgotRequestCode: 'Send reset code',
+    forgotCode: 'WhatsApp code',
+    forgotCodeSent: 'If the account matches, a code was sent on WhatsApp.',
+    forgotSubmit: 'Set new password',
     forgotSuccess: 'Password updated. You can log in now.',
-    forgotMismatch: 'Username and registered phone do not match.',
+    forgotMismatch: 'Could not reset password. Check username, phone, and code.',
     backToLogin: 'Back to login',
     resetPassword: 'Reset Password',
     resetPasswordFor: 'Reset password for',
@@ -501,15 +504,18 @@ const t = {
     changePassword: 'تغيير كلمة المرور', currentPassword: 'كلمة المرور الحالية',
     newPassword: 'كلمة المرور الجديدة', confirmPassword: 'تأكيد كلمة المرور الجديدة',
     updatePassword: 'تحديث كلمة المرور', passwordUpdated: 'تم تحديث كلمة المرور بنجاح.',
-    passwordMismatch: 'كلمتا المرور الجديدتان غير متطابقتين.', passwordTooShort: 'يجب أن تكون كلمة المرور 6 أحرف على الأقل.',
+    passwordMismatch: 'كلمتا المرور الجديدتان غير متطابقتين.', passwordTooShort: 'يجب أن تكون كلمة المرور 8 أحرف على الأقل.',
     wrongCurrentPassword: 'كلمة المرور الحالية غير صحيحة.', profileLoadError: 'فشل تحميل الملف الشخصي.',
     forgotPassword: 'نسيت كلمة المرور؟',
     forgotTitle: 'إعادة تعيين كلمة المرور',
-    forgotSubtitle: 'أدخل اسم المستخدم ورقم الجوال المسجّل في حسابك.',
+    forgotSubtitle: 'أدخل اسم المستخدم والجوال المسجّل، ثم رمز الواتساب.',
     forgotPhone: 'رقم الجوال المسجّل',
-    forgotSubmit: 'إعادة التعيين',
+    forgotRequestCode: 'إرسال رمز إعادة التعيين',
+    forgotCode: 'رمز واتساب',
+    forgotCodeSent: 'إذا تطابق الحساب، تم إرسال الرمز على واتساب.',
+    forgotSubmit: 'تعيين كلمة المرور الجديدة',
     forgotSuccess: 'تم تحديث كلمة المرور. يمكنك تسجيل الدخول الآن.',
-    forgotMismatch: 'اسم المستخدم ورقم الجوال غير متطابقين.',
+    forgotMismatch: 'تعذر إعادة التعيين. تحقق من المستخدم والجوال والرمز.',
     backToLogin: 'العودة لتسجيل الدخول',
     resetPassword: 'إعادة تعيين كلمة المرور',
     resetPasswordFor: 'إعادة تعيين كلمة المرور لـ',
@@ -718,7 +724,7 @@ function UserProfile({ dict, adminToken }) {
     setFormError('');
     setFormSuccess('');
 
-    if (newPassword.length < 6) {
+    if (newPassword.length < 8) {
       setFormError(dict.passwordTooShort);
       return;
     }
@@ -849,7 +855,7 @@ function UserProfile({ dict, adminToken }) {
               id="profile-new-password"
               type="password"
               required
-              minLength={6}
+              minLength={8}
               value={newPassword}
               onChange={(e) => { setNewPassword(e.target.value); setFormError(''); setFormSuccess(''); }}
               autoComplete="new-password"
@@ -864,7 +870,7 @@ function UserProfile({ dict, adminToken }) {
               id="profile-confirm-password"
               type="password"
               required
-              minLength={6}
+              minLength={8}
               value={confirmPassword}
               onChange={(e) => { setConfirmPassword(e.target.value); setFormError(''); setFormSuccess(''); }}
               autoComplete="new-password"
@@ -988,9 +994,11 @@ function NavBtn({ active, onClick, children }) {
 
 function AdminLogin({ setToken, setRole, setSite, dict }) {
   const [mode, setMode] = useState('login'); // login | forgot
+  const [forgotStep, setForgotStep] = useState('request'); // request | confirm
   const [user, setUser] = useState('');
   const [pass, setPass] = useState('');
   const [phone, setPhone] = useState('');
+  const [otpCode, setOtpCode] = useState('');
   const [newPass, setNewPass] = useState('');
   const [confirmPass, setConfirmPass] = useState('');
   const [error, setError] = useState('');
@@ -1030,11 +1038,38 @@ function AdminLogin({ setToken, setRole, setSite, dict }) {
     }
   };
 
-  const handleForgot = async (e) => {
+  const handleForgotRequest = async (e) => {
     e.preventDefault();
     setError('');
     setSuccess('');
-    if (newPass.length < 6) {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/auth/forgot-password/request`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: user.trim(), phone: phone.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setSuccess(data.message || dict.forgotCodeSent);
+        setForgotStep('confirm');
+      } else if (res.status === 429) {
+        setError(dict.loginRateLimited);
+      } else {
+        setError(data.error || dict.forgotMismatch);
+      }
+    } catch {
+      setError(dict.backendError);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleForgotConfirm = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+    if (newPass.length < 8) {
       setError(dict.passwordTooShort);
       return;
     }
@@ -1050,6 +1085,7 @@ function AdminLogin({ setToken, setRole, setSite, dict }) {
         body: JSON.stringify({
           username: user.trim(),
           phone: phone.trim(),
+          code: otpCode.trim(),
           newPassword: newPass,
           confirmPassword: confirmPass,
         }),
@@ -1060,10 +1096,14 @@ function AdminLogin({ setToken, setRole, setSite, dict }) {
         setPass('');
         setNewPass('');
         setConfirmPass('');
+        setOtpCode('');
         setTimeout(() => {
           setMode('login');
+          setForgotStep('request');
           setSuccess('');
         }, 2000);
+      } else if (res.status === 429) {
+        setError(dict.loginRateLimited);
       } else {
         setError(data.error || dict.forgotMismatch);
       }
@@ -1112,7 +1152,7 @@ function AdminLogin({ setToken, setRole, setSite, dict }) {
           <div className="text-end">
             <button
               type="button"
-              onClick={() => { setMode('forgot'); setError(''); setSuccess(''); }}
+              onClick={() => { setMode('forgot'); setForgotStep('request'); setError(''); setSuccess(''); }}
               className="text-sm font-bold text-red-700 hover:underline"
             >
               {dict.forgotPassword}
@@ -1122,8 +1162,8 @@ function AdminLogin({ setToken, setRole, setSite, dict }) {
             {loading ? '...' : dict.loginBtn}
           </button>
         </form>
-      ) : (
-        <form onSubmit={handleForgot} className="space-y-5">
+      ) : forgotStep === 'request' ? (
+        <form onSubmit={handleForgotRequest} className="space-y-5">
           {error && (
             <p className="text-sm font-bold text-red-700 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-center" role="alert">
               {error}
@@ -1142,20 +1182,54 @@ function AdminLogin({ setToken, setRole, setSite, dict }) {
             <label htmlFor="forgot-phone" className="text-xs font-bold text-neutral-500 uppercase tracking-wider ms-1">{dict.forgotPhone}</label>
             <input id="forgot-phone" type="tel" required value={phone} onChange={(e) => { setPhone(e.target.value); setError(''); }} placeholder="+9665XXXXXXXX" autoComplete="tel" className="w-full border border-neutral-200 rounded-2xl px-5 py-4 bg-white focus:border-red-700 outline-none focus:ring-4 focus:ring-red-700/10 transition-all font-medium text-neutral-900" />
           </div>
+          <button type="submit" disabled={loading} className="w-full bg-red-700 text-white font-bold py-4 rounded-2xl hover:bg-red-800 transition-all shadow-sm disabled:opacity-50">
+            {loading ? '...' : dict.forgotRequestCode}
+          </button>
+          <button
+            type="button"
+            onClick={() => { setMode('login'); setForgotStep('request'); setError(''); setSuccess(''); }}
+            className="w-full text-sm font-bold text-neutral-600 hover:text-red-700"
+          >
+            {dict.backToLogin}
+          </button>
+        </form>
+      ) : (
+        <form onSubmit={handleForgotConfirm} className="space-y-5">
+          {error && (
+            <p className="text-sm font-bold text-red-700 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-center" role="alert">
+              {error}
+            </p>
+          )}
+          {success && (
+            <p className="text-sm font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 text-center" role="status">
+              {success}
+            </p>
+          )}
+          <div className="space-y-1.5">
+            <label htmlFor="forgot-code" className="text-xs font-bold text-neutral-500 uppercase tracking-wider ms-1">{dict.forgotCode}</label>
+            <input id="forgot-code" type="text" required inputMode="numeric" value={otpCode} onChange={(e) => { setOtpCode(e.target.value); setError(''); }} autoComplete="one-time-code" className="w-full border border-neutral-200 rounded-2xl px-5 py-4 bg-white focus:border-red-700 outline-none focus:ring-4 focus:ring-red-700/10 transition-all font-medium text-neutral-900" />
+          </div>
           <div className="space-y-1.5">
             <label htmlFor="forgot-new" className="text-xs font-bold text-neutral-500 uppercase tracking-wider ms-1">{dict.newPassword}</label>
-            <input id="forgot-new" type="password" required minLength={6} value={newPass} onChange={(e) => { setNewPass(e.target.value); setError(''); }} autoComplete="new-password" className="w-full border border-neutral-200 rounded-2xl px-5 py-4 bg-white focus:border-red-700 outline-none focus:ring-4 focus:ring-red-700/10 transition-all font-medium text-neutral-900" />
+            <input id="forgot-new" type="password" required minLength={8} value={newPass} onChange={(e) => { setNewPass(e.target.value); setError(''); }} autoComplete="new-password" className="w-full border border-neutral-200 rounded-2xl px-5 py-4 bg-white focus:border-red-700 outline-none focus:ring-4 focus:ring-red-700/10 transition-all font-medium text-neutral-900" />
           </div>
           <div className="space-y-1.5">
             <label htmlFor="forgot-confirm" className="text-xs font-bold text-neutral-500 uppercase tracking-wider ms-1">{dict.confirmPassword}</label>
-            <input id="forgot-confirm" type="password" required minLength={6} value={confirmPass} onChange={(e) => { setConfirmPass(e.target.value); setError(''); }} autoComplete="new-password" className="w-full border border-neutral-200 rounded-2xl px-5 py-4 bg-white focus:border-red-700 outline-none focus:ring-4 focus:ring-red-700/10 transition-all font-medium text-neutral-900" />
+            <input id="forgot-confirm" type="password" required minLength={8} value={confirmPass} onChange={(e) => { setConfirmPass(e.target.value); setError(''); }} autoComplete="new-password" className="w-full border border-neutral-200 rounded-2xl px-5 py-4 bg-white focus:border-red-700 outline-none focus:ring-4 focus:ring-red-700/10 transition-all font-medium text-neutral-900" />
           </div>
           <button type="submit" disabled={loading} className="w-full bg-red-700 text-white font-bold py-4 rounded-2xl hover:bg-red-800 transition-all shadow-sm disabled:opacity-50">
             {loading ? '...' : dict.forgotSubmit}
           </button>
           <button
             type="button"
-            onClick={() => { setMode('login'); setError(''); setSuccess(''); }}
+            onClick={() => { setForgotStep('request'); setError(''); setSuccess(''); }}
+            className="w-full text-sm font-bold text-neutral-600 hover:text-red-700"
+          >
+            {dict.forgotRequestCode}
+          </button>
+          <button
+            type="button"
+            onClick={() => { setMode('login'); setForgotStep('request'); setError(''); setSuccess(''); }}
             className="w-full text-sm font-bold text-neutral-600 hover:text-red-700"
           >
             {dict.backToLogin}
@@ -2141,6 +2215,7 @@ function AdminDashboard({
       });
       if (res.ok) {
         const data = await res.json();
+        if (data.warning) alert(data.warning);
         if (data.issue) {
           setTickets((prev) => prev.map((ticket) => (ticket.id === id ? data.issue : ticket)));
           if (selectedTicketIdRef.current === id) {
@@ -2401,7 +2476,7 @@ function AdminDashboard({
   const handleResetStaffPassword = async (e) => {
     e.preventDefault();
     if (!resetStaffTarget?.id) return;
-    if (resetStaffPass.length < 6) {
+    if (resetStaffPass.length < 8) {
       alert(dict.passwordTooShort);
       return;
     }
@@ -3228,7 +3303,7 @@ function AdminDashboard({
                     <input
                       type="password"
                       required
-                      minLength={6}
+                      minLength={8}
                       value={resetStaffPass}
                       onChange={(e) => setResetStaffPass(e.target.value)}
                       placeholder={dict.newPassword}
@@ -3237,7 +3312,7 @@ function AdminDashboard({
                     <input
                       type="password"
                       required
-                      minLength={6}
+                      minLength={8}
                       value={resetStaffConfirm}
                       onChange={(e) => setResetStaffConfirm(e.target.value)}
                       placeholder={dict.confirmPassword}
@@ -3291,7 +3366,7 @@ function AdminDashboard({
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <input value={newStaffName} onChange={(e) => setNewStaffName(e.target.value)} placeholder={dict.staffFullName} required className="w-full border border-neutral-200 rounded-2xl px-5 py-4 bg-neutral-50 backdrop-blur-xl outline-none focus:border-red-700 focus:ring-4 focus:ring-red-700/10 transition-all font-bold shadow-sm text-neutral-900" />
                       <input value={newStaffUser} onChange={(e) => setNewStaffUser(e.target.value)} placeholder={dict.newStaffUser} required className="w-full border border-neutral-200 rounded-2xl px-5 py-4 bg-neutral-50 backdrop-blur-xl outline-none focus:border-red-700 focus:ring-4 focus:ring-red-700/10 transition-all font-bold shadow-sm text-neutral-900" />
-                      <input type="password" value={newStaffPass} onChange={(e) => setNewStaffPass(e.target.value)} placeholder={dict.staffPassword} required minLength={6} className="w-full border border-neutral-200 rounded-2xl px-5 py-4 bg-neutral-50 backdrop-blur-xl outline-none focus:border-red-700 focus:ring-4 focus:ring-red-700/10 transition-all font-bold shadow-sm text-neutral-900 md:col-span-2" />
+                      <input type="password" value={newStaffPass} onChange={(e) => setNewStaffPass(e.target.value)} placeholder={dict.staffPassword} required minLength={8} className="w-full border border-neutral-200 rounded-2xl px-5 py-4 bg-neutral-50 backdrop-blur-xl outline-none focus:border-red-700 focus:ring-4 focus:ring-red-700/10 transition-all font-bold shadow-sm text-neutral-900 md:col-span-2" />
                       <input type="tel" value={newStaffPhone} onChange={(e) => setNewStaffPhone(e.target.value)} placeholder={dict.staffPhone} required className="w-full border border-neutral-200 rounded-2xl px-5 py-4 bg-neutral-50 backdrop-blur-xl outline-none focus:border-red-700 focus:ring-4 focus:ring-red-700/10 transition-all font-bold shadow-sm text-neutral-900" dir="ltr" />
                       <input type="email" value={newStaffEmail} onChange={(e) => setNewStaffEmail(e.target.value)} placeholder={dict.staffEmail} required className="w-full border border-neutral-200 rounded-2xl px-5 py-4 bg-neutral-50 backdrop-blur-xl outline-none focus:border-red-700 focus:ring-4 focus:ring-red-700/10 transition-all font-bold shadow-sm text-neutral-900" dir="ltr" />
                       <select value={newStaffRole} onChange={(e) => setNewStaffRole(e.target.value)} className="w-full border border-neutral-200 rounded-2xl px-5 py-4 bg-neutral-50 backdrop-blur-xl outline-none focus:border-red-700 focus:ring-4 focus:ring-red-700/10 transition-all font-bold shadow-sm text-neutral-900 appearance-none">
