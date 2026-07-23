@@ -217,6 +217,33 @@ function resolveApiBase() {
 
 const API_BASE = resolveApiBase();
 
+/** Live site origin for phone-camera QR links (Replit: set VITE_PUBLIC_BASE_URL). */
+function publicAppOrigin() {
+  const fromEnv = String(import.meta.env.VITE_PUBLIC_BASE_URL || '')
+    .trim()
+    .replace(/\/$/, '');
+  if (fromEnv) return fromEnv;
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return window.location.origin.replace(/\/$/, '');
+  }
+  return '';
+}
+
+/**
+ * Phone cameras only open the app when the QR encodes a URL.
+ * Payload token stays the same as printed stickers ("MGS Camp - A-01");
+ * legacy plain-text stickers still resolve via in-app scanner.
+ */
+function buildRoomQrUrl(tokenOrKey) {
+  const token = String(tokenOrKey || '').trim();
+  if (!token) return '';
+  const base = publicAppOrigin();
+  if (!base) return token;
+  const url = new URL(base.endsWith('/') ? base : `${base}/`);
+  url.searchParams.set('token', token);
+  return url.toString();
+}
+
 function parseIssuesResponse(data) {
   const list = Array.isArray(data) ? data : (data.issues || data.tickets || []);
   return list.map((item) => item.payload || item);
@@ -260,13 +287,17 @@ function extractTokenFromScan(scannedText) {
   if (!raw) return '';
   try {
     const url = new URL(raw);
-    const token = url.searchParams.get('token');
+    const token = url.searchParams.get('token') || url.searchParams.get('room');
     if (token) return token.trim();
     // Some scanners wrap the payload; try hash query too.
     if (url.hash && url.hash.includes('token=')) {
       const hashParams = new URLSearchParams(url.hash.replace(/^#/, '').replace(/^\?/, ''));
       const hashToken = hashParams.get('token');
       if (hashToken) return hashToken.trim();
+    }
+    // Phone camera sometimes opens Google search with the plain sticker text as q=
+    if (/google\./i.test(url.hostname) && url.searchParams.get('q')) {
+      return String(url.searchParams.get('q')).trim();
     }
   } catch {
     /* raw token string (legacy stickers) */
@@ -337,6 +368,7 @@ const t = {
     filterStatus: 'Status', filterPriority: 'Priority', filterDepartment: 'Department', filterLocation: 'Location / Room',
     filterDateFrom: 'From', filterDateTo: 'To', applyFilters: 'Apply',
     otherRequired: 'Notes are required when "Other" is selected.',
+    qrCameraHint: 'Phone camera needs a link QR. Already-printed text stickers: open the site → Scan (in-app). Do not reprint unless you want camera deep-links.',
     scanCancel: 'Cancel Scan', scanNotFound: 'QR code does not match a known room.', scanError: 'Camera unavailable. Allow camera access or select the room manually.',
     scanSuccess: 'Room selected',
     loginTitle: 'Command Center', loginSubtitle: 'Authorized personnel only',
@@ -456,6 +488,7 @@ const t = {
     filterStatus: 'الحالة', filterPriority: 'الأولوية', filterDepartment: 'القسم', filterLocation: 'الموقع / الغرفة',
     filterDateFrom: 'من', filterDateTo: 'إلى', applyFilters: 'تطبيق',
     otherRequired: 'الملاحظات مطلوبة عند اختيار "أخرى".',
+    qrCameraHint: 'كاميرا الجوال تحتاج QR برابط. الملصقات النصية المطبوعة: افتح الموقع ← Scan من داخل التطبيق. لا تعِد الطباعة إلا إذا تبي فتح الكاميرا مباشرة.',
     scanCancel: 'إلغاء المسح', scanNotFound: 'رمز QR لا يطابق أي موقع معروف.', scanError: 'الكاميرا غير متاحة. اسمح بالوصول أو اختر الموقع يدوياً.',
     scanSuccess: 'تم تحديد الموقع',
     loginTitle: 'لوحة القيادة', loginSubtitle: 'للموظفين المصرح لهم فقط',
@@ -3114,6 +3147,10 @@ function AdminDashboard({
                 <button type="button" onClick={() => setShowRoomModal(false)} className="btn-icon"><X size={20} /></button>
               </div>
             </div>
+            <p className="text-xs font-medium text-slate-600 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 mb-6 print:hidden">
+              {dict.qrCameraHint}
+            </p>
+
             <div className="hidden print:flex print:justify-center print:mb-8">
               <BrandLogo className="h-16 w-auto object-contain" />
             </div>
@@ -3131,8 +3168,9 @@ function AdminDashboard({
               {section.locations.map((locationKey) => {
                 const { camp, roomName } = parseLocationKey(locationKey);
                 const dbRoom = dbRoomByLocationKey.get(locationKey);
-                // Prefer stored DB token so printed stickers stay identical (never rewrite payload).
-                const qrPayload = String(dbRoom?.token || locationKey).trim();
+                // Same room token as stickers; wrapped in URL so phone camera opens FMC (not Google).
+                const stickerToken = String(dbRoom?.token || locationKey).trim();
+                const qrPayload = buildRoomQrUrl(stickerToken);
                 return (
                 <div
                   key={locationKey}
