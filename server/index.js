@@ -1377,7 +1377,11 @@ app.get('/api/issues', requireDb, authenticateToken, async (req, res) => {
   try {
     const filters = parseIssueFilters(req.query);
     const mySite = userSite(req.user);
-    if (mySite) filters.site = mySite;
+    if (mySite) {
+      filters.site = mySite;
+      // Always include tickets assigned to this user, even outside their site.
+      if (req.user?.user) filters.assigneeUsername = req.user.user;
+    }
     const issues = await fetchAllIssues(req.db, filters);
     res.status(200).json({ issues });
   } catch {
@@ -1527,15 +1531,43 @@ app.put('/api/issues/:ticketNumber', requireDb, authenticateToken, requireStaff,
     if (newAssignee && newAssignee !== current.assignee) {
       try {
         const assigneeUser = await req.db.query(
-          'SELECT id FROM users WHERE LOWER(username) = LOWER($1) AND is_active = true',
+          `SELECT id, phone, username, full_name FROM users
+           WHERE LOWER(username) = LOWER($1) AND is_active = true`,
           [newAssignee],
         );
-        if (assigneeUser.rowCount) {
+        const assigneeRow = assigneeUser.rows[0] || null;
+        if (assigneeRow) {
           await createNotification(req.db, {
-            userId: assigneeUser.rows[0].id,
+            userId: assigneeRow.id,
             message: `You have been assigned a new ticket: ${ticketNumber}`,
             ticketNumber,
           });
+        }
+
+        let phone = String(assigneeRow?.phone || '').trim();
+        const uname = String(assigneeRow?.username || newAssignee).trim().toLowerCase();
+        if (!phone) {
+          const dir = USERS[uname]
+            || Object.values(USERS).find((u) => String(u.username || '').toLowerCase() === uname);
+          phone = String(dir?.phone || '').trim();
+        }
+
+        if (phone) {
+          let roomName = '';
+          try {
+            const roomRow = await req.db.query('SELECT name FROM rooms WHERE id = $1', [current.room_id]);
+            roomName = roomRow.rows[0]?.name || '';
+          } catch { /* ignore */ }
+          const summary = ['Assigned to you', roomName, current.asset_name || current.issue_type]
+            .filter(Boolean)
+            .join(' — ')
+            .slice(0, 200);
+          console.log(`[whatsapp] Queuing assignment alert to ${phone} for ${ticketNumber}`);
+          sendWhatsAppNotification(phone, ticketNumber, 'admin', summary)
+            .then((result) => console.log('[whatsapp] assignment result:', JSON.stringify(result)))
+            .catch((err) => console.error('[whatsapp] assignment notify failed:', err?.message || err));
+        } else {
+          console.warn(`[whatsapp] assignee "${newAssignee}" has no phone — skipping WhatsApp`);
         }
       } catch (err) {
         console.error('[notifications] assignment insert failed:', err.message);

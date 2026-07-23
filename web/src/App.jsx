@@ -1969,33 +1969,6 @@ function AdminDashboard({
 
   const selectedCampFilter = filters.site ? siteToCampLabel(filters.site) : '';
 
-  const visibleTickets = useMemo(() => {
-    let filtered = tickets;
-
-    // 1. Enforce RBAC (security layer)
-    const isGlobalAdmin = currentUser.role === 'admin'
-      || currentUser.camp === 'All'
-      || adminRole === 'viewer';
-    if (!isGlobalAdmin) {
-      filtered = filtered.filter((t) => {
-        const ticketCamp = resolveTicketCamp(t, roomCampByRoomId);
-        return campMatchesAdminSite(ticketCamp, currentUser.camp);
-      });
-    }
-
-    // 2. Apply UI site/camp dropdown filter (main admin only)
-    if (selectedCampFilter && selectedCampFilter !== 'All') {
-      filtered = filtered.filter((t) => {
-        const ticketCamp = resolveTicketCamp(t, roomCampByRoomId);
-        return campMatchesAdminSite(ticketCamp, selectedCampFilter);
-      });
-    }
-
-    return filtered;
-  }, [tickets, currentUser, selectedCampFilter, roomCampByRoomId, adminRole]);
-
-  const activeTickets = visibleTickets.filter((t) => !t.isDeleted);
-  const trashedTickets = visibleTickets.filter((t) => t.isDeleted);
   const isMine = (ticket) => {
     const assignee = normId(ticket?.assignee);
     if (!assignee) return false;
@@ -2011,6 +1984,36 @@ function AdminDashboard({
     if (staff && normId(staff.full_name) === assignee) return true;
     return false;
   };
+
+  const visibleTickets = useMemo(() => {
+    let filtered = tickets;
+
+    // 1. Enforce RBAC (security layer) — always keep tickets assigned to me
+    const isGlobalAdmin = currentUser.role === 'admin'
+      || currentUser.camp === 'All'
+      || adminRole === 'viewer';
+    if (!isGlobalAdmin) {
+      filtered = filtered.filter((t) => {
+        if (isMine(t)) return true;
+        const ticketCamp = resolveTicketCamp(t, roomCampByRoomId);
+        return campMatchesAdminSite(ticketCamp, currentUser.camp);
+      });
+    }
+
+    // 2. Apply UI site/camp dropdown filter (main admin only)
+    if (selectedCampFilter && selectedCampFilter !== 'All') {
+      filtered = filtered.filter((t) => {
+        if (isMine(t)) return true;
+        const ticketCamp = resolveTicketCamp(t, roomCampByRoomId);
+        return campMatchesAdminSite(ticketCamp, selectedCampFilter);
+      });
+    }
+
+    return filtered;
+  }, [tickets, currentUser, selectedCampFilter, roomCampByRoomId, adminRole, sessionUser, sessionName, adminUser, allStaff]);
+
+  const activeTickets = visibleTickets.filter((t) => !t.isDeleted);
+  const trashedTickets = visibleTickets.filter((t) => t.isDeleted);
   // Assigned technicians may be role facility OR sub_admin — they still need
   // upload-fix-photo / close-ticket. Do not gate those actions on !isAdmin.
   const canActAsAssignedTech = (ticket) => !isViewer && isMine(ticket);

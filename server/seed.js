@@ -307,6 +307,8 @@ export async function fetchAllIssues(db, filters = {}) {
     roomId,
     priority,
     site,
+    // When set with site, also return tickets assigned to this username (cross-site).
+    assigneeUsername,
     dateFrom,
     dateTo,
   } = filters;
@@ -334,7 +336,13 @@ export async function fetchAllIssues(db, filters = {}) {
     conditions.push(`fi.priority = $${n++}`);
     params.push(priority);
   }
-  if (site) {
+  if (site && assigneeUsername) {
+    conditions.push(
+      `(r.site = $${n} OR LOWER(TRIM(COALESCE(fi.assignee, ''))) = LOWER($${n + 1}))`,
+    );
+    params.push(site, String(assigneeUsername).trim());
+    n += 2;
+  } else if (site) {
     conditions.push(`r.site = $${n++}`);
     params.push(site);
   }
