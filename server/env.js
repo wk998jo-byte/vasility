@@ -18,6 +18,9 @@ export function loadEnv() {
     if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
       val = val.slice(1, -1);
     }
-    if (!(key in process.env)) process.env[key] = val;
+    // Prefer existing non-empty env (e.g. Replit Secrets). Allow .env to fill blanks.
+    if (!(key in process.env) || String(process.env[key] || '').trim() === '') {
+      process.env[key] = val;
+    }
   }
 }

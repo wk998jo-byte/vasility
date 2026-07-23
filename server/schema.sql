@@ -79,6 +79,7 @@ CREATE TABLE IF NOT EXISTS users (
   phone TEXT NOT NULL DEFAULT '',
   email TEXT NOT NULL DEFAULT '',
   site TEXT,
+  title TEXT NOT NULL DEFAULT '',
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -131,11 +132,12 @@ UPDATE facility_issues SET unit_price = cost WHERE unit_price = 0 AND cost > 0;
 ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
 ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('admin', 'site_admin', 'sub_admin', 'facility', 'viewer'));
 
--- Migration: full user profile (name, phone, email) + site assignment.
+-- Migration: full user profile (name, phone, email, title) + site assignment.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS full_name TEXT NOT NULL DEFAULT '';
 ALTER TABLE users ADD COLUMN IF NOT EXISTS phone TEXT NOT NULL DEFAULT '';
 ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT NOT NULL DEFAULT '';
 ALTER TABLE users ADD COLUMN IF NOT EXISTS site TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS title TEXT NOT NULL DEFAULT '';
 
 CREATE INDEX IF NOT EXISTS idx_facility_issues_status ON facility_issues (status);
 CREATE INDEX IF NOT EXISTS idx_facility_issues_room ON facility_issues (room_id);

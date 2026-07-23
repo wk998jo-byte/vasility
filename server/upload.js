@@ -4,8 +4,19 @@ let uploadMiddleware = null;
 let cloudinary = null;
 
 export async function initCloudinaryUpload() {
-  const raw = process.env.CLOUDINARY_URL || '';
-  if (!raw) {
+  // Prefer CLOUDINARY_URL; also support discrete vars from the Cloudinary dashboard.
+  let raw = process.env.CLOUDINARY_URL || '';
+  if (!raw.trim()) {
+    const cloud = (process.env.CLOUDINARY_CLOUD_NAME || '').trim();
+    const key = (process.env.CLOUDINARY_API_KEY || '').trim();
+    const secret = (process.env.CLOUDINARY_API_SECRET || '').trim();
+    if (cloud && key && secret) {
+      raw = `cloudinary://${key}:${secret}@${cloud}`;
+    }
+  }
+
+  if (!raw.trim()) {
+    console.warn('[upload] CLOUDINARY_URL not set — photo uploads disabled. Add it to .env to enable.');
     return null;
   }
 
@@ -38,6 +49,7 @@ export async function initCloudinaryUpload() {
     },
   });
 
+  console.log('[upload] Cloudinary ready (folder: ssc-facility-issues)');
   return uploadMiddleware;
 }
 

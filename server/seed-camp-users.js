@@ -33,6 +33,7 @@ export async function seedCampUsers(db) {
     const fullName = user.name || username;
     const phone = user.phone || '';
     const email = placeholderEmail(username);
+    const title = user.title || '';
     const passwordHash = await bcrypt.hash(passwordForRole(role), 12);
 
     const { rows } = await db.query(
@@ -44,16 +45,16 @@ export async function seedCampUsers(db) {
       await db.query(
         `UPDATE users
          SET role = $1, full_name = $2, phone = $3, email = $4, site = $5,
-             password_hash = $6, is_active = true
-         WHERE id = $7`,
-        [role, fullName, phone, email, site, passwordHash, rows[0].id],
+             title = $6, password_hash = $7, is_active = true
+         WHERE id = $8`,
+        [role, fullName, phone, email, site, title, passwordHash, rows[0].id],
       );
       updated += 1;
     } else {
       await db.query(
-        `INSERT INTO users (username, password_hash, role, is_active, full_name, phone, email, site)
-         VALUES ($1, $2, $3, true, $4, $5, $6, $7)`,
-        [username, passwordHash, role, fullName, phone, email, site],
+        `INSERT INTO users (username, password_hash, role, is_active, full_name, phone, email, site, title)
+         VALUES ($1, $2, $3, true, $4, $5, $6, $7, $8)`,
+        [username, passwordHash, role, fullName, phone, email, site, title],
       );
       console.log(`[seed-camp-users] Created "${username}" (${role})`);
       created += 1;

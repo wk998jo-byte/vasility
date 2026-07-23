@@ -8,7 +8,7 @@ import rateLimit from 'express-rate-limit';
 import { loadEnv } from './env.js';
 import { getPool, initDb, checkDb, withTransaction } from './db.js';
 import { sendNewIssueNotification } from './notify.js';
-import { sendWhatsAppNotification, sendWhatsAppWelcome, sendWhatsAppNewTicketAlert } from './whatsapp.js';
+import { sendWhatsAppNotification, sendWhatsAppWelcome, sendWhatsAppNewTicketAlert, checkTwilioConfig } from './whatsapp.js';
 import { USERS, getWhatsAppTargetsForCamp, siteToCamp, campsMatch } from './users-data.js';
 import { initCloudinaryUpload, getUploadMiddleware, uploadBufferToCloudinary } from './upload.js';
 import {
@@ -29,6 +29,9 @@ import {
   insertIssueComment,
   toPublicIssue,
 } from './seed.js';
+
+// Bypass local Windows SSL/Proxy inspection for Twilio requests
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
 loadEnv();
 
@@ -93,7 +96,7 @@ const loginLimiter = process.env.NODE_ENV === 'production'
     })
   : (_req, _res, next) => next();
 
-const VALID_STATUSES = new Set(['New', 'In Progress', 'Resolved', 'Closed', 'Rejected']);
+const VALID_STATUSES = new Set(['New', 'In Progress', 'Resolved', 'Completed', 'Closed', 'Rejected']);
 const VALID_PRIORITIES = new Set(['Low', 'Medium', 'High']);
 const VALID_ISSUES = new Set([
   'Broken / Not Working', 'Leaking', 'Electrical Issue', 'Needs Cleaning',
@@ -355,6 +358,44 @@ app.post('/api/auth/login', loginLimiter, requireDb, async (req, res) => {
   }
 });
 
+app.get('/api/auth/me', requireDb, authenticateToken, async (req, res) => {
+  const userId = req.user?.sub;
+  if (!userId) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+
+  try {
+    const { rows } = await req.db.query(
+      `SELECT username, full_name, phone, email, role, site, title
+       FROM users WHERE id = $1 AND is_active = true`,
+      [userId],
+    );
+    const user = rows[0];
+    if (!user) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    const camp = user.role === 'admin' || !user.site
+      ? 'All'
+      : (siteToCamp(user.site) || user.site);
+
+    res.status(200).json({
+      username: user.username,
+      name: user.full_name || user.username,
+      title: user.title || '',
+      role: user.role,
+      camp,
+      site: user.site || null,
+      phone: user.phone || '',
+      email: user.email || '',
+    });
+  } catch {
+    res.status(500).json({ error: 'Failed to load profile' });
+  }
+});
+
 app.put('/api/auth/change-password', requireDb, authenticateToken, async (req, res) => {
   const oldPassword = req.body?.oldPassword;
   const newPassword = req.body?.newPassword;
@@ -396,7 +437,7 @@ app.put('/api/auth/change-password', requireDb, authenticateToken, async (req, r
       'UPDATE users SET password_hash = $1 WHERE id = $2',
       [passwordHash, userId],
     );
-    res.status(200).json({ ok: true });
+    res.status(200).json({ ok: true, message: 'Password updated successfully' });
   } catch {
     res.status(500).json({ error: 'Failed to change password' });
   }
@@ -878,9 +919,22 @@ app.post('/api/issues', issueSubmitLimiter, requireDb, async (req, res) => {
 
     sendNewIssueNotification(issue).catch(() => {});
     if (reporterPhone) {
+      console.log('\n--- META DEBUG: TRIGGERING WHATSAPP ---');
+      console.log('Target Phone:', reporterPhone);
+      console.log('Ticket ID:', ticketNumber);
+      console.log('Path: welcome template to reporter (on ticket create)');
       // Fire-and-forget so the HTTP response is never delayed by WhatsApp.
       sendWhatsAppWelcome(reporterPhone, ticketNumber)
-        .catch((err) => console.error('[whatsapp] welcome message failed:', err?.message || err));
+        .then((result) => {
+          console.log('[whatsapp] welcome result:', JSON.stringify(result));
+        })
+        .catch((err) => {
+          console.error('\n❌ META WHATSAPP FATAL ERROR ❌');
+          console.error('Error Message:', err?.message || err);
+          console.error('---------------------------\n');
+        });
+    } else {
+      console.warn('[whatsapp] No reporter phone on ticket — skipping welcome WhatsApp');
     }
     createNotification(req.db, {
       role: 'admin',
@@ -891,8 +945,14 @@ app.post('/api/issues', issueSubmitLimiter, requireDb, async (req, res) => {
     const adminSummary = [issue?.roomName || issue?.room_name, assetName, issueType]
       .filter(Boolean).join(' — ');
     // WhatsApp RBAC fan-out (USERS + DB) — fire-and-forget; never blocks HTTP response.
+    console.log('[whatsapp] Queuing admin RBAC fan-out for ticket', ticketNumber);
     notifyAdminsOfNewTicket(req.db, resolvedRoomId, ticketNumber, adminSummary, issue)
-      .catch((err) => console.error('[whatsapp] admin alert failed:', err?.message || err));
+      .then(() => console.log('[whatsapp] admin fan-out finished for', ticketNumber))
+      .catch((err) => {
+        console.error('\n❌ META WHATSAPP FATAL ERROR ❌');
+        console.error('Error Message:', err?.message || err);
+        console.error('---------------------------\n');
+      });
 
     res.status(201).json({ ok: true, issue: toPublicIssue(issue) });
   } catch (err) {
@@ -1115,7 +1175,7 @@ app.post('/api/issues/:ticketNumber/resolution', requireDb, authenticateToken, (
     });
 
     if (ticket.status !== 'Resolved' && ticket.reporter_phone) {
-      sendWhatsAppNotification(ticket.reporter_phone, ticketNumber, 'Resolved')
+      sendWhatsAppNotification(ticket.reporter_phone, req.params.ticketNumber, 'done')
         .catch((err) => console.error('[whatsapp] notify failed:', err?.message || err));
     }
 
@@ -1307,8 +1367,12 @@ app.put('/api/issues/:ticketNumber', requireDb, authenticateToken, requireStaff,
       }
     }
 
-    if (newStatus !== current.status && (newStatus === 'Resolved' || newStatus === 'Closed') && current.reporter_phone) {
-      sendWhatsAppNotification(current.reporter_phone, ticketNumber, newStatus)
+    if (
+      newStatus !== current.status
+      && (newStatus === 'Resolved' || newStatus === 'Completed' || newStatus === 'Closed')
+      && current.reporter_phone
+    ) {
+      sendWhatsAppNotification(current.reporter_phone, req.params.ticketNumber, 'done')
         .catch((err) => console.error('[whatsapp] notify failed:', err?.message || err));
     }
 
@@ -1434,6 +1498,8 @@ async function start() {
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`Facility Maintenance Center (FMC) → http://0.0.0.0:${PORT}`);
   });
+
+  checkTwilioConfig();
 
   if (!JWT_SECRET) {
     console.warn('[auth] Set JWT_SECRET in .env for admin login.');

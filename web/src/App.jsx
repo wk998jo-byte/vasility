@@ -4,7 +4,7 @@ import { Scanner } from '@yudiel/react-qr-scanner';
 import {
   Check, QrCode, Search, LayoutGrid, LogOut, Trash2, RotateCcw,
   X, Plus, Printer, Globe, ArrowRight, Pencil, Users,
-  Bell, Camera, ImagePlus,
+  Bell, Camera, ImagePlus, User, Briefcase, MapPin, Phone, ShieldCheck,
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import {
@@ -157,15 +157,16 @@ function resolveTicketCamp(ticket, roomCampByRoomId) {
 }
 
 function resolveApiBase() {
+  // Production / same-origin (Express serving web/dist): always use relative /api
+  if (!import.meta.env.DEV) return '/api';
+
   const raw = import.meta.env.VITE_API_URL;
   if (raw) {
     const base = String(raw).replace(/\/$/, '');
     return base.endsWith('/api') ? base : `${base}/api`;
   }
-  if (import.meta.env.DEV && window.location.port === '5173') {
-    return `${window.location.protocol}//${window.location.hostname}:8081/api`;
-  }
-  return '/api';
+  // Vite dev server (5173) → Express API
+  return `${window.location.protocol}//${window.location.hostname}:8081/api`;
 }
 
 const API_BASE = resolveApiBase();
@@ -346,6 +347,14 @@ const t = {
     reportDateCol: 'Date', reportLocationAsset: 'Location / Asset', reportAssignee: 'Assignee',
     reportGenerated: 'Generated', reportCompany: 'Facility Maintenance Center — FMC (Bin Quraya)',
     reportNoTickets: 'No tickets in this period.',
+    profile: 'Profile', myProfile: 'My Profile', profileSubtitle: 'Account details and security',
+    assignedCamp: 'Assigned Camp', titleLabel: 'Title', phoneLabel: 'Phone',
+    changePassword: 'Change Password', currentPassword: 'Current Password',
+    newPassword: 'New Password', confirmPassword: 'Confirm New Password',
+    updatePassword: 'Update Password', passwordUpdated: 'Password updated successfully.',
+    passwordMismatch: 'New passwords do not match.', passwordTooShort: 'Password must be at least 6 characters.',
+    wrongCurrentPassword: 'Current password is incorrect.', profileLoadError: 'Failed to load profile.',
+    allCamps: 'All Sites', loadingProfile: 'Loading profile…',
   },
   ar: {
     request: 'طلب صيانة', track: 'تتبع', admin: 'لوحة القيادة', adminLogin: 'دخول الإدارة',
@@ -439,6 +448,14 @@ const t = {
     reportDateCol: 'التاريخ', reportLocationAsset: 'الموقع / الأصل', reportAssignee: 'الفني المسؤول',
     reportGenerated: 'تاريخ الإنشاء', reportCompany: 'مركز صيانة المرافق FMC (بن قرية)',
     reportNoTickets: 'لا توجد تذاكر في هذه الفترة.',
+    profile: 'الملف الشخصي', myProfile: 'ملفي الشخصي', profileSubtitle: 'بيانات الحساب والأمان',
+    assignedCamp: 'المخيم المعيّن', titleLabel: 'المسمى الوظيفي', phoneLabel: 'الهاتف',
+    changePassword: 'تغيير كلمة المرور', currentPassword: 'كلمة المرور الحالية',
+    newPassword: 'كلمة المرور الجديدة', confirmPassword: 'تأكيد كلمة المرور الجديدة',
+    updatePassword: 'تحديث كلمة المرور', passwordUpdated: 'تم تحديث كلمة المرور بنجاح.',
+    passwordMismatch: 'كلمتا المرور الجديدتان غير متطابقتين.', passwordTooShort: 'يجب أن تكون كلمة المرور 6 أحرف على الأقل.',
+    wrongCurrentPassword: 'كلمة المرور الحالية غير صحيحة.', profileLoadError: 'فشل تحميل الملف الشخصي.',
+    allCamps: 'كل المواقع', loadingProfile: 'جاري تحميل الملف الشخصي…',
   },
 };
 
@@ -508,6 +525,7 @@ export default function App() {
     localStorage.removeItem('ssc_admin_user');
     setAdminToken('');
     setAdminRole('');
+    setAdminSite('');
     setView('request');
   };
 
@@ -545,6 +563,18 @@ export default function App() {
               />
             )}
             {adminToken && (
+              <button
+                type="button"
+                onClick={() => setView('profile')}
+                className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-bold transition-colors ${view === 'profile' ? 'bg-red-50 text-red-700' : 'hover:bg-neutral-50 text-neutral-600 hover:text-red-700'}`}
+                aria-label={dict.profile}
+                title={dict.profile}
+              >
+                <User size={18} />
+                <span className="hidden sm:inline">{dict.profile}</span>
+              </button>
+            )}
+            {adminToken && (
               <button type="button" onClick={handleLogout} className="p-2.5 rounded-xl hover:bg-red-50 text-neutral-600 hover:text-red-700 transition-colors" aria-label={dict.logout}>
                 <LogOut size={18} />
               </button>
@@ -560,6 +590,11 @@ export default function App() {
       <main className="pt-28 pb-12 px-4 sm:px-6 max-w-7xl mx-auto min-h-[90vh] animate-fade-in">
         {view === 'request' && <RequestForm dict={dict} lang={lang} />}
         {view === 'track' && <TrackingPortal dict={dict} />}
+        {view === 'profile' && (
+          adminToken
+            ? <UserProfile dict={dict} adminToken={adminToken} />
+            : <AdminLogin dict={dict} setToken={setAdminToken} setRole={setAdminRole} setSite={setAdminSite} />
+        )}
         {view === 'admin' && (
           adminToken
             ? (
@@ -578,6 +613,211 @@ export default function App() {
             : <AdminLogin dict={dict} setToken={setAdminToken} setRole={setAdminRole} setSite={setAdminSite} />
         )}
       </main>
+    </div>
+  );
+}
+
+function UserProfile({ dict, adminToken }) {
+  const [profile, setProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [oldPassword, setOldPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [formError, setFormError] = useState('');
+  const [formSuccess, setFormSuccess] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setLoadError('');
+    fetch(`${API_BASE}/auth/me`, {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    })
+      .then(async (res) => {
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || dict.profileLoadError);
+        if (!cancelled) setProfile(data);
+      })
+      .catch(() => {
+        if (!cancelled) setLoadError(dict.profileLoadError);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [adminToken, dict.profileLoadError]);
+
+  const roleLabel = (role) => dict[`role_${role}`] || role;
+
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    setFormError('');
+    setFormSuccess('');
+
+    if (newPassword.length < 6) {
+      setFormError(dict.passwordTooShort);
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setFormError(dict.passwordMismatch);
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const res = await fetch(`${API_BASE}/auth/change-password`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${adminToken}`,
+        },
+        body: JSON.stringify({ oldPassword, newPassword }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setFormError(
+          res.status === 401
+            ? dict.wrongCurrentPassword
+            : (data.error || dict.backendError),
+        );
+        return;
+      }
+      setFormSuccess(data.message || dict.passwordUpdated);
+      setOldPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch {
+      setFormError(dict.backendError);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="max-w-3xl mx-auto">
+        <p className="text-center text-slate-500 font-medium py-16">{dict.loadingProfile}</p>
+      </div>
+    );
+  }
+
+  if (loadError || !profile) {
+    return (
+      <div className="max-w-3xl mx-auto">
+        <p className="text-center text-red-700 font-bold py-16" role="alert">{loadError || dict.profileLoadError}</p>
+      </div>
+    );
+  }
+
+  const infoItems = [
+    { icon: User, label: dict.name, value: profile.name || profile.username },
+    { icon: Briefcase, label: dict.titleLabel, value: profile.title || '—' },
+    { icon: ShieldCheck, label: dict.staffRole, value: roleLabel(profile.role) },
+    { icon: MapPin, label: dict.assignedCamp, value: profile.camp === 'All' ? dict.allCamps : (profile.camp || '—') },
+    { icon: Phone, label: dict.phoneLabel, value: profile.phone || '—' },
+  ];
+
+  return (
+    <div className="max-w-3xl mx-auto space-y-8">
+      <div className="text-center sm:text-start">
+        <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">{dict.myProfile}</h1>
+        <p className="text-slate-500 text-sm font-medium mt-2">{dict.profileSubtitle}</p>
+      </div>
+
+      <section className="bg-white border border-slate-200 rounded-[2rem] p-6 sm:p-8 shadow-sm">
+        <div className="flex items-center gap-4 mb-8">
+          <div className="w-14 h-14 rounded-2xl bg-red-50 border border-red-100 flex items-center justify-center">
+            <User size={28} className="text-red-700" />
+          </div>
+          <div>
+            <p className="text-xl font-extrabold text-slate-900">{profile.name || profile.username}</p>
+            <p className="text-sm font-bold text-slate-500">@{profile.username}</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {infoItems.map(({ icon: Icon, label, value }) => (
+            <div key={label} className="flex items-start gap-3 border border-slate-200 rounded-2xl px-4 py-4 bg-white">
+              <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center shrink-0">
+                <Icon size={18} className="text-slate-700" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">{label}</p>
+                <p className="font-bold text-slate-900 mt-1 break-words" dir="auto">{value}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="bg-white border border-slate-200 rounded-[2rem] p-6 sm:p-8 shadow-sm">
+        <h2 className="text-xl font-extrabold tracking-tight text-slate-900 mb-6">{dict.changePassword}</h2>
+        <form onSubmit={handleChangePassword} className="space-y-4 max-w-lg">
+          {formError && (
+            <p className="text-sm font-bold text-red-700 bg-red-50 border border-red-200 rounded-xl px-4 py-3" role="alert">
+              {formError}
+            </p>
+          )}
+          {formSuccess && (
+            <p className="text-sm font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3" role="status">
+              {formSuccess}
+            </p>
+          )}
+          <div>
+            <label htmlFor="profile-current-password" className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
+              {dict.currentPassword}
+            </label>
+            <input
+              id="profile-current-password"
+              type="password"
+              required
+              value={oldPassword}
+              onChange={(e) => { setOldPassword(e.target.value); setFormError(''); setFormSuccess(''); }}
+              autoComplete="current-password"
+              className="w-full border border-slate-200 rounded-2xl px-5 py-4 bg-white outline-none focus:border-red-700 focus:ring-4 focus:ring-red-700/10 transition-all font-medium text-slate-900"
+            />
+          </div>
+          <div>
+            <label htmlFor="profile-new-password" className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
+              {dict.newPassword}
+            </label>
+            <input
+              id="profile-new-password"
+              type="password"
+              required
+              minLength={6}
+              value={newPassword}
+              onChange={(e) => { setNewPassword(e.target.value); setFormError(''); setFormSuccess(''); }}
+              autoComplete="new-password"
+              className="w-full border border-slate-200 rounded-2xl px-5 py-4 bg-white outline-none focus:border-red-700 focus:ring-4 focus:ring-red-700/10 transition-all font-medium text-slate-900"
+            />
+          </div>
+          <div>
+            <label htmlFor="profile-confirm-password" className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
+              {dict.confirmPassword}
+            </label>
+            <input
+              id="profile-confirm-password"
+              type="password"
+              required
+              minLength={6}
+              value={confirmPassword}
+              onChange={(e) => { setConfirmPassword(e.target.value); setFormError(''); setFormSuccess(''); }}
+              autoComplete="new-password"
+              className="w-full border border-slate-200 rounded-2xl px-5 py-4 bg-white outline-none focus:border-red-700 focus:ring-4 focus:ring-red-700/10 transition-all font-medium text-slate-900"
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={saving}
+            className="w-full sm:w-auto bg-red-700 text-white font-extrabold px-8 py-4 rounded-2xl hover:bg-red-800 transition-colors shadow-sm disabled:opacity-50"
+          >
+            {saving ? dict.sending : dict.updatePassword}
+          </button>
+        </form>
+      </section>
     </div>
   );
 }
@@ -1384,7 +1624,6 @@ function AdminDashboard({
   const [newStaffSite, setNewStaffSite] = useState('');
   const [adminRooms, setAdminRooms] = useState([]);
   const [departments, setDepartments] = useState([]);
-  const [facilityUsers, setFacilityUsers] = useState([]);
   const [ticketHistory, setTicketHistory] = useState([]);
   const [newRoomName, setNewRoomName] = useState('');
   const [newRoomAssets, setNewRoomAssets] = useState('');
@@ -1429,10 +1668,6 @@ function AdminDashboard({
     fetch(`${API_BASE}/departments`)
       .then((r) => r.json())
       .then((data) => setDepartments(data.departments || []))
-      .catch(console.error);
-    fetch(`${API_BASE}/users?role=facility`, { headers: { Authorization: `Bearer ${adminToken}` } })
-      .then((r) => r.json())
-      .then((data) => setFacilityUsers(data.users || []))
       .catch(console.error);
   }, [adminToken]);
 
@@ -1488,6 +1723,19 @@ function AdminDashboard({
     () => buildLocationSections(Object.keys(INITIAL_ROOM_DATA)),
     [],
   );
+
+  const groupedTechnicians = useMemo(() => {
+    const usersList = typeof USERS !== 'undefined' ? Object.values(USERS) : [];
+    return usersList.reduce((acc, user) => {
+      // Only include subadmins/facility staff (exclude main admins from being assigned work if desired, or keep them)
+      if (user.role === 'admin') return acc;
+
+      const campName = user.camp || 'General';
+      if (!acc[campName]) acc[campName] = [];
+      acc[campName].push(user);
+      return acc;
+    }, {});
+  }, []);
 
   const siteOptions = useMemo(() => (
     [...new Set([
@@ -1866,10 +2114,6 @@ function AdminDashboard({
         resetStaffForm();
         setShowAddStaffModal(false);
         loadStaff();
-        fetch(`${API_BASE}/users?role=facility`, { headers: { Authorization: `Bearer ${adminToken}` } })
-          .then((r) => r.json())
-          .then((data) => setFacilityUsers(data.users || []))
-          .catch(console.error);
       } else {
         const data = await res.json().catch(() => ({}));
         alert(data.error || dict.backendError);
@@ -1888,7 +2132,6 @@ function AdminDashboard({
       });
       if (res.ok) {
         loadStaff();
-        setFacilityUsers((prev) => prev.filter((u) => u.id !== userId));
       } else {
         const data = await res.json().catch(() => ({}));
         alert(data.error || dict.backendError);
@@ -2202,7 +2445,7 @@ function AdminDashboard({
             </div>
 
             <div className="space-y-6 print:hidden">
-              {isAdmin ? (
+              {adminRole === 'admin' ? (
                 <div>
                   <label className="text-[10px] font-extrabold text-neutral-400 block mb-2 uppercase tracking-widest">{dict.assign}</label>
                   <select
@@ -2210,9 +2453,15 @@ function AdminDashboard({
                     onChange={(e) => setPendingAssignee(e.target.value)}
                     className="w-full border border-neutral-200 rounded-2xl px-5 py-4 bg-neutral-50 backdrop-blur-xl focus:border-red-700 outline-none transition-all shadow-sm font-bold"
                   >
-                    <option value="">{dict.selectPlaceholder}</option>
-                    {facilityUsers.map((user) => (
-                      <option key={user.id} value={user.username}>{user.username}</option>
+                    <option value="">-- Select Technician --</option>
+                    {Object.entries(groupedTechnicians).map(([camp, techs]) => (
+                      <optgroup key={camp} label={`📍 ${camp}`}>
+                        {techs.map((tech) => (
+                          <option key={tech.username} value={tech.username}>
+                            {tech.name} - {tech.title}
+                          </option>
+                        ))}
+                      </optgroup>
                     ))}
                   </select>
                   {pendingAssignee && pendingAssignee !== (selectedTicket.assignee || '') && (

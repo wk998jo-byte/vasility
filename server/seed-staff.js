@@ -16,20 +16,22 @@ export async function seedOfficialStaff(db) {
       [username],
     );
 
+    const title = staff.title || '';
+
     if (rows.length) {
       await db.query(
         `UPDATE users
          SET role = $1, full_name = $2, phone = $3, email = $4, site = $5,
-             password_hash = $6, is_active = true
-         WHERE id = $7`,
-        [staff.role, staff.fullName, staff.phone, staff.email, staff.site, passwordHash, rows[0].id],
+             title = $6, password_hash = $7, is_active = true
+         WHERE id = $8`,
+        [staff.role, staff.fullName, staff.phone, staff.email, staff.site, title, passwordHash, rows[0].id],
       );
       console.log(`[seed-staff] Updated "${username}" (${staff.role})`);
     } else {
       await db.query(
-        `INSERT INTO users (username, password_hash, role, is_active, full_name, phone, email, site)
-         VALUES ($1, $2, $3, true, $4, $5, $6, $7)`,
-        [username, passwordHash, staff.role, staff.fullName, staff.phone, staff.email, staff.site],
+        `INSERT INTO users (username, password_hash, role, is_active, full_name, phone, email, site, title)
+         VALUES ($1, $2, $3, true, $4, $5, $6, $7, $8)`,
+        [username, passwordHash, staff.role, staff.fullName, staff.phone, staff.email, staff.site, title],
       );
       console.log(`[seed-staff] Created "${username}" (${staff.role})`);
     }
