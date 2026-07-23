@@ -237,6 +237,7 @@ export async function generateTicketNumber(db) {
 }
 
 export function mapIssueRow(row) {
+  const roomSite = row.room_site || row.site || '';
   return {
     id: row.ticket_number,
     ticketNumber: row.ticket_number,
@@ -247,6 +248,8 @@ export function mapIssueRow(row) {
     email: row.reporter_email || '',
     room: row.room_name,
     roomId: row.room_id,
+    site: roomSite || null,
+    siteLabel: roomSite ? siteToCampLabel(roomSite) : null,
     departmentId: row.department_id,
     departmentName: row.department_name_en || row.department_name || null,
     asset: row.asset_name,
@@ -269,7 +272,7 @@ export function mapIssueRow(row) {
 
 export async function fetchIssueByTicketNumber(db, ticketNumber) {
   const { rows } = await db.query(
-    `SELECT fi.*, r.name AS room_name, d.name_en AS department_name_en
+    `SELECT fi.*, r.name AS room_name, r.site AS room_site, d.name_en AS department_name_en
      FROM facility_issues fi
      JOIN rooms r ON r.id = fi.room_id
      LEFT JOIN departments d ON d.id = fi.department_id
@@ -289,7 +292,7 @@ export function toPublicIssue(issue) {
 
 export async function fetchIssueForTracking(db, ticketNumber, employeeId) {
   const { rows } = await db.query(
-    `SELECT fi.*, r.name AS room_name, d.name_en AS department_name_en
+    `SELECT fi.*, r.name AS room_name, r.site AS room_site, d.name_en AS department_name_en
      FROM facility_issues fi
      JOIN rooms r ON r.id = fi.room_id
      LEFT JOIN departments d ON d.id = fi.department_id
@@ -358,7 +361,7 @@ export async function fetchAllIssues(db, filters = {}) {
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
   const { rows } = await db.query(
-    `SELECT fi.*, r.name AS room_name, d.name_en AS department_name_en
+    `SELECT fi.*, r.name AS room_name, r.site AS room_site, d.name_en AS department_name_en
      FROM facility_issues fi
      JOIN rooms r ON r.id = fi.room_id
      LEFT JOIN departments d ON d.id = fi.department_id
@@ -375,7 +378,7 @@ export async function resolveRoomByToken(db, token) {
 
   const loadRoom = async (roomId) => {
     const { rows } = await db.query(
-      `SELECT r.id, r.name, r.floor, r.is_active, r.department_id,
+      `SELECT r.id, r.name, r.floor, r.site, r.is_active, r.department_id,
               d.id AS dept_id, d.code AS department_code, d.name_en AS department_name_en, d.name_ar AS department_name_ar
        FROM rooms r
        LEFT JOIN departments d ON d.id = r.department_id
@@ -393,6 +396,8 @@ export async function resolveRoomByToken(db, token) {
         id: room.id,
         name: room.name,
         floor: room.floor,
+        site: room.site || null,
+        siteLabel: siteToCampLabel(room.site),
         departmentId: room.department_id,
         department: room.dept_id
           ? {

@@ -144,6 +144,19 @@ function campMatchesAdminSite(camp, adminSite) {
   return false;
 }
 
+function formatTicketSite(ticket, roomCampByRoomId) {
+  if (ticket?.siteLabel) return ticket.siteLabel;
+  if (ticket?.site) return siteToCampLabel(ticket.site);
+  return resolveTicketCamp(ticket, roomCampByRoomId) || '';
+}
+
+function formatTicketLocation(ticket, roomCampByRoomId) {
+  const site = formatTicketSite(ticket, roomCampByRoomId);
+  const room = String(ticket?.room || '').trim();
+  if (site && room) return `${site} · ${room}`;
+  return site || room || '—';
+}
+
 /** Resolve a ticket's camp label for RBAC (room DB site, "Camp - Room" key, or ticket.site). */
 function resolveTicketCamp(ticket, roomCampByRoomId) {
   if (ticket.camp) return ticket.camp;
@@ -298,7 +311,7 @@ const t = {
     deleteLocation: 'Delete Location',
     facilityDepartment: 'Facility Department',
     dhahranRooms: 'Dhahran Rooms', mgsRooms: 'MGS Rooms',
-    filterSite: 'All Sites', site: 'Site (e.g. Dhahran, MGS)', roomsSuffix: 'Rooms',
+    filterSite: 'All Sites', site: 'Site (e.g. Dhahran, MGS)', siteName: 'Site', roomsSuffix: 'Rooms',
     manageLocations: 'Manage Locations', locationManager: 'Location Manager',
     addLocation: 'Add Location', addNewLocation: 'Add New Location',
     roomName: 'Room Name', floor: 'Floor', assetsComma: 'Assets (comma separated)',
@@ -414,7 +427,7 @@ const t = {
     deleteLocation: 'حذف الموقع',
     facilityDepartment: 'إدارة المرافق',
     dhahranRooms: 'غرف الظهران', mgsRooms: 'غرف MGS',
-    filterSite: 'كل المواقع', site: 'الموقع (مثال: الظهران، MGS)', roomsSuffix: 'غرف',
+    filterSite: 'كل المواقع', site: 'الموقع (مثال: الظهران، MGS)', siteName: 'الموقع / السايت', roomsSuffix: 'غرف',
     manageLocations: 'إدارة المواقع', locationManager: 'مدير المواقع',
     addLocation: 'إضافة موقع', addNewLocation: 'إضافة موقع جديد',
     roomName: 'اسم الغرفة', floor: 'الطابق', assetsComma: 'الأصول (مفصولة بفاصلة)',
@@ -1172,6 +1185,7 @@ function RequestForm({ dict, lang }) {
   });
   const [qrToken, setQrToken] = useState('');
   const [resolvedRoomName, setResolvedRoomName] = useState('');
+  const [resolvedSiteLabel, setResolvedSiteLabel] = useState('');
   const [departmentName, setDepartmentName] = useState('');
   const [assets, setAssets] = useState([]);
   const [hasValidToken, setHasValidToken] = useState(false);
@@ -1227,6 +1241,7 @@ function RequestForm({ dict, lang }) {
       : (room.department?.nameEn || '');
     setForm((prev) => ({ ...prev, roomId: room.id, asset: '' }));
     setResolvedRoomName(room.name);
+    setResolvedSiteLabel(room.siteLabel || siteToCampLabel(room.site) || room.site || '');
     setDepartmentName(deptLabel);
     setAssets(resolved.assets || []);
     setQrToken(token);
@@ -1429,11 +1444,19 @@ function RequestForm({ dict, lang }) {
         <hr className="section-divider" />
 
         <div className="space-y-6 bg-neutral-50 p-6 rounded-3xl border border-neutral-100">
-          <div>
-            <label className="text-sm font-bold text-neutral-900 block mb-2">{dict.room}</label>
-            <div className="w-full border border-neutral-200 rounded-2xl px-5 py-4 bg-neutral-100 font-medium">
-              {resolvedRoomName}
-              <p className="text-xs text-neutral-500 mt-1">{dict.roomLocked}</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            <div>
+              <label className="text-sm font-bold text-neutral-900 block mb-2">{dict.siteName}</label>
+              <div className="w-full border border-neutral-200 rounded-2xl px-5 py-4 bg-neutral-100 font-extrabold text-red-800">
+                {resolvedSiteLabel || '—'}
+              </div>
+            </div>
+            <div>
+              <label className="text-sm font-bold text-neutral-900 block mb-2">{dict.room}</label>
+              <div className="w-full border border-neutral-200 rounded-2xl px-5 py-4 bg-neutral-100 font-medium">
+                {resolvedRoomName}
+                <p className="text-xs text-neutral-500 mt-1">{dict.roomLocked}</p>
+              </div>
             </div>
           </div>
           <div>
@@ -1651,7 +1674,9 @@ function TrackingPortal({ dict }) {
             <div className="flex justify-between items-start mb-8">
               <div>
                 <h3 className="text-2xl font-extrabold tracking-tight mb-1 text-neutral-900">{ticket.issue}</h3>
-                <p className="text-neutral-500 font-medium">{ticket.room} — {ticket.asset}</p>
+                <p className="text-neutral-500 font-medium">
+                  {formatTicketLocation(ticket)} — {ticket.asset}
+                </p>
                 {ticket.status === 'Rejected' && ticket.rejectionReason && (
                   <p className="text-sm text-red-700 mt-2 font-bold">{ticket.rejectionReason}</p>
                 )}
@@ -2579,7 +2604,9 @@ function AdminDashboard({
                     </span>
                   )}
                 </td>
-                <td className="px-8 py-5 truncate max-w-[200px] font-bold text-neutral-700">{ticket.room}</td>
+                <td className="px-8 py-5 truncate max-w-[240px] font-bold text-neutral-700">
+                  {formatTicketLocation(ticket, roomCampByRoomId)}
+                </td>
                 <td className="px-8 py-5 font-extrabold text-neutral-900">{ticket.issue}</td>
                 <td className="px-8 py-5">
                   <span className={`px-3 py-1 rounded-xl text-[11px] font-extrabold uppercase tracking-widest ${statusBadgeClass(ticket.status)}`}>
@@ -2628,8 +2655,23 @@ function AdminDashboard({
               <BrandLogo className="h-10 w-auto object-contain mb-6 print:block" />
               <p className="text-[10px] font-extrabold text-neutral-400 uppercase tracking-widest mb-2">{dict.workOrder}</p>
               <h2 className="text-4xl font-mono font-extrabold tracking-tight text-neutral-900">{selectedTicket.id}</h2>
-              <p className="mt-4 font-bold text-lg text-neutral-800">{selectedTicket.room} <span className="text-neutral-400">—</span> {selectedTicket.asset}</p>
-              <p className="text-neutral-500 mt-2 font-medium">{selectedTicket.issue}</p>
+              <div className="mt-4 space-y-2">
+                <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                  <span className="text-[10px] font-extrabold text-neutral-400 uppercase tracking-widest">{dict.siteName}</span>
+                  <span className="font-extrabold text-red-800">
+                    {formatTicketSite(selectedTicket, roomCampByRoomId) || '—'}
+                  </span>
+                </div>
+                <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                  <span className="text-[10px] font-extrabold text-neutral-400 uppercase tracking-widest">{dict.location}</span>
+                  <span className="font-bold text-lg text-neutral-800">{selectedTicket.room || '—'}</span>
+                </div>
+                <p className="font-bold text-neutral-700">
+                  {selectedTicket.asset}
+                  {selectedTicket.asset && selectedTicket.issue ? <span className="text-neutral-400"> — </span> : null}
+                  {selectedTicket.issue}
+                </p>
+              </div>
               
               <div className="mt-6 bg-neutral-50 border border-neutral-200 rounded-2xl px-5 py-4 shadow-sm">
                 <p className="text-[10px] font-extrabold text-neutral-400 uppercase tracking-widest mb-2">{dict.userNotes}</p>
@@ -3317,7 +3359,7 @@ function PrintableReport({ config, dict }) {
               <tr key={t.id} className="print:break-inside-avoid">
                 <td className="border-2 border-black px-4 py-3 font-mono font-bold">{t.id}</td>
                 <td className="border-2 border-black px-4 py-3 font-bold">{new Date(t.createdAt).toLocaleDateString()}</td>
-                <td className="border-2 border-black px-4 py-3 font-bold">{t.room}{t.asset ? ` / ${t.asset}` : ''}</td>
+                <td className="border-2 border-black px-4 py-3 font-bold">{formatTicketLocation(t)}{t.asset ? ` / ${t.asset}` : ''}</td>
                 <td className="border-2 border-black px-4 py-3 font-bold">{t.issue}</td>
                 <td className="border-2 border-black px-4 py-3 font-bold">{t.assignee || '—'}</td>
                 <td className="border-2 border-black px-4 py-3 font-bold">{t.status}</td>
