@@ -4,3 +4,5 @@ web/dist/
 .DS_Store
 Thumbs.db
 *.pdf
+users-backup.sql
+*-backup.sql

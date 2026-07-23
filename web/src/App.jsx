@@ -3,7 +3,7 @@ import { countSlaBreached } from './sla';
 import { Scanner } from '@yudiel/react-qr-scanner';
 import {
   Check, QrCode, Search, LayoutGrid, LogOut, Trash2, RotateCcw,
-  X, Plus, Printer, Globe, ArrowRight, Pencil, Users,
+  X, Plus, Printer, Globe, ArrowRight, Pencil, Users, KeyRound,
   Bell, Camera, ImagePlus, User, Briefcase, MapPin, Phone, ShieldCheck,
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
@@ -354,6 +354,19 @@ const t = {
     updatePassword: 'Update Password', passwordUpdated: 'Password updated successfully.',
     passwordMismatch: 'New passwords do not match.', passwordTooShort: 'Password must be at least 6 characters.',
     wrongCurrentPassword: 'Current password is incorrect.', profileLoadError: 'Failed to load profile.',
+    forgotPassword: 'Forgot password?',
+    forgotTitle: 'Reset Password',
+    forgotSubtitle: 'Enter your username and the phone number registered on your account.',
+    forgotPhone: 'Registered phone',
+    forgotSubmit: 'Reset Password',
+    forgotSuccess: 'Password updated. You can log in now.',
+    forgotMismatch: 'Username and registered phone do not match.',
+    backToLogin: 'Back to login',
+    resetPassword: 'Reset Password',
+    resetPasswordFor: 'Reset password for',
+    resetPasswordSuccess: 'Password reset successfully.',
+    deleteStaffFailed: 'Could not delete user.',
+    deleteStaffSuccess: 'User deleted.',
     allCamps: 'All Sites', loadingProfile: 'Loading profile…',
   },
   ar: {
@@ -455,6 +468,19 @@ const t = {
     updatePassword: 'تحديث كلمة المرور', passwordUpdated: 'تم تحديث كلمة المرور بنجاح.',
     passwordMismatch: 'كلمتا المرور الجديدتان غير متطابقتين.', passwordTooShort: 'يجب أن تكون كلمة المرور 6 أحرف على الأقل.',
     wrongCurrentPassword: 'كلمة المرور الحالية غير صحيحة.', profileLoadError: 'فشل تحميل الملف الشخصي.',
+    forgotPassword: 'نسيت كلمة المرور؟',
+    forgotTitle: 'إعادة تعيين كلمة المرور',
+    forgotSubtitle: 'أدخل اسم المستخدم ورقم الجوال المسجّل في حسابك.',
+    forgotPhone: 'رقم الجوال المسجّل',
+    forgotSubmit: 'إعادة التعيين',
+    forgotSuccess: 'تم تحديث كلمة المرور. يمكنك تسجيل الدخول الآن.',
+    forgotMismatch: 'اسم المستخدم ورقم الجوال غير متطابقين.',
+    backToLogin: 'العودة لتسجيل الدخول',
+    resetPassword: 'إعادة تعيين كلمة المرور',
+    resetPasswordFor: 'إعادة تعيين كلمة المرور لـ',
+    resetPasswordSuccess: 'تم إعادة تعيين كلمة المرور بنجاح.',
+    deleteStaffFailed: 'تعذر حذف المستخدم.',
+    deleteStaffSuccess: 'تم حذف المستخدم.',
     allCamps: 'كل المواقع', loadingProfile: 'جاري تحميل الملف الشخصي…',
   },
 };
@@ -925,14 +951,20 @@ function NavBtn({ active, onClick, children }) {
 }
 
 function AdminLogin({ setToken, setRole, setSite, dict }) {
+  const [mode, setMode] = useState('login'); // login | forgot
   const [user, setUser] = useState('');
   const [pass, setPass] = useState('');
+  const [phone, setPhone] = useState('');
+  const [newPass, setNewPass] = useState('');
+  const [confirmPass, setConfirmPass] = useState('');
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async (e) => {
     e.preventDefault();
     setError('');
+    setSuccess('');
     setLoading(true);
     try {
       const res = await fetch(`${API_BASE}/auth/login`, {
@@ -961,6 +993,50 @@ function AdminLogin({ setToken, setRole, setSite, dict }) {
     }
   };
 
+  const handleForgot = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+    if (newPass.length < 6) {
+      setError(dict.passwordTooShort);
+      return;
+    }
+    if (newPass !== confirmPass) {
+      setError(dict.passwordMismatch);
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/auth/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: user.trim(),
+          phone: phone.trim(),
+          newPassword: newPass,
+          confirmPassword: confirmPass,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setSuccess(data.message || dict.forgotSuccess);
+        setPass('');
+        setNewPass('');
+        setConfirmPass('');
+        setTimeout(() => {
+          setMode('login');
+          setSuccess('');
+        }, 2000);
+      } else {
+        setError(data.error || dict.forgotMismatch);
+      }
+    } catch {
+      setError(dict.backendError);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="max-w-md mx-auto mt-12 lg:mt-24 glass-panel p-8 sm:p-10 rounded-[2.5rem] animate-slide-up relative overflow-hidden">
       <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-red-600 to-red-700" />
@@ -968,27 +1044,87 @@ function AdminLogin({ setToken, setRole, setSite, dict }) {
         <div className="bg-white w-20 h-20 mx-auto rounded-2xl shadow-sm flex items-center justify-center mb-6">
           <BrandLogo className="h-12 w-auto object-contain" />
         </div>
-        <h2 className="text-3xl font-extrabold tracking-tighter text-neutral-900">{dict.loginTitle}</h2>
-        <p className="text-neutral-500 text-sm mt-2 font-medium">{dict.loginSubtitle}</p>
+        <h2 className="text-3xl font-extrabold tracking-tighter text-neutral-900">
+          {mode === 'forgot' ? dict.forgotTitle : dict.loginTitle}
+        </h2>
+        <p className="text-neutral-500 text-sm mt-2 font-medium">
+          {mode === 'forgot' ? dict.forgotSubtitle : dict.loginSubtitle}
+        </p>
       </div>
-      <form onSubmit={handleLogin} className="space-y-5">
-        {error && (
-          <p className="text-sm font-bold text-red-700 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-center" role="alert">
-            {error}
-          </p>
-        )}
-        <div className="space-y-1.5">
-          <label htmlFor="admin-login-username" className="text-xs font-bold text-neutral-500 uppercase tracking-wider ms-1">{dict.username}</label>
-          <input id="admin-login-username" type="text" placeholder={dict.username} required value={user} onChange={(e) => { setUser(e.target.value); setError(''); }} autoCapitalize="none" autoCorrect="off" spellCheck={false} autoComplete="username" className="w-full border border-neutral-200 rounded-2xl px-5 py-4 bg-white focus:border-red-700 outline-none focus:ring-4 focus:ring-red-700/10 transition-all font-medium text-neutral-900" />
-        </div>
-        <div className="space-y-1.5">
-          <label htmlFor="admin-login-password" className="text-xs font-bold text-neutral-500 uppercase tracking-wider ms-1">{dict.password}</label>
-          <input id="admin-login-password" type="password" placeholder={dict.password} required value={pass} onChange={(e) => { setPass(e.target.value); setError(''); }} autoComplete="current-password" className="w-full border border-neutral-200 rounded-2xl px-5 py-4 bg-white focus:border-red-700 outline-none focus:ring-4 focus:ring-red-700/10 transition-all font-medium text-neutral-900" />
-        </div>
-        <button type="submit" disabled={loading} className="w-full bg-red-700 text-white font-bold py-4 rounded-2xl mt-8 hover:bg-red-800 hover:text-white transition-all duration-300 shadow-sm hover:shadow-md hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed">
-          {loading ? '...' : dict.loginBtn}
-        </button>
-      </form>
+
+      {mode === 'login' ? (
+        <form onSubmit={handleLogin} className="space-y-5">
+          {error && (
+            <p className="text-sm font-bold text-red-700 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-center" role="alert">
+              {error}
+            </p>
+          )}
+          {success && (
+            <p className="text-sm font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 text-center" role="status">
+              {success}
+            </p>
+          )}
+          <div className="space-y-1.5">
+            <label htmlFor="admin-login-username" className="text-xs font-bold text-neutral-500 uppercase tracking-wider ms-1">{dict.username}</label>
+            <input id="admin-login-username" type="text" placeholder={dict.username} required value={user} onChange={(e) => { setUser(e.target.value); setError(''); }} autoCapitalize="none" autoCorrect="off" spellCheck={false} autoComplete="username" className="w-full border border-neutral-200 rounded-2xl px-5 py-4 bg-white focus:border-red-700 outline-none focus:ring-4 focus:ring-red-700/10 transition-all font-medium text-neutral-900" />
+          </div>
+          <div className="space-y-1.5">
+            <label htmlFor="admin-login-password" className="text-xs font-bold text-neutral-500 uppercase tracking-wider ms-1">{dict.password}</label>
+            <input id="admin-login-password" type="password" placeholder={dict.password} required value={pass} onChange={(e) => { setPass(e.target.value); setError(''); }} autoComplete="current-password" className="w-full border border-neutral-200 rounded-2xl px-5 py-4 bg-white focus:border-red-700 outline-none focus:ring-4 focus:ring-red-700/10 transition-all font-medium text-neutral-900" />
+          </div>
+          <div className="text-end">
+            <button
+              type="button"
+              onClick={() => { setMode('forgot'); setError(''); setSuccess(''); }}
+              className="text-sm font-bold text-red-700 hover:underline"
+            >
+              {dict.forgotPassword}
+            </button>
+          </div>
+          <button type="submit" disabled={loading} className="w-full bg-red-700 text-white font-bold py-4 rounded-2xl mt-2 hover:bg-red-800 hover:text-white transition-all duration-300 shadow-sm hover:shadow-md hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed">
+            {loading ? '...' : dict.loginBtn}
+          </button>
+        </form>
+      ) : (
+        <form onSubmit={handleForgot} className="space-y-5">
+          {error && (
+            <p className="text-sm font-bold text-red-700 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-center" role="alert">
+              {error}
+            </p>
+          )}
+          {success && (
+            <p className="text-sm font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 text-center" role="status">
+              {success}
+            </p>
+          )}
+          <div className="space-y-1.5">
+            <label htmlFor="forgot-username" className="text-xs font-bold text-neutral-500 uppercase tracking-wider ms-1">{dict.username}</label>
+            <input id="forgot-username" type="text" required value={user} onChange={(e) => { setUser(e.target.value); setError(''); }} autoCapitalize="none" autoComplete="username" className="w-full border border-neutral-200 rounded-2xl px-5 py-4 bg-white focus:border-red-700 outline-none focus:ring-4 focus:ring-red-700/10 transition-all font-medium text-neutral-900" />
+          </div>
+          <div className="space-y-1.5">
+            <label htmlFor="forgot-phone" className="text-xs font-bold text-neutral-500 uppercase tracking-wider ms-1">{dict.forgotPhone}</label>
+            <input id="forgot-phone" type="tel" required value={phone} onChange={(e) => { setPhone(e.target.value); setError(''); }} placeholder="+9665XXXXXXXX" autoComplete="tel" className="w-full border border-neutral-200 rounded-2xl px-5 py-4 bg-white focus:border-red-700 outline-none focus:ring-4 focus:ring-red-700/10 transition-all font-medium text-neutral-900" />
+          </div>
+          <div className="space-y-1.5">
+            <label htmlFor="forgot-new" className="text-xs font-bold text-neutral-500 uppercase tracking-wider ms-1">{dict.newPassword}</label>
+            <input id="forgot-new" type="password" required minLength={6} value={newPass} onChange={(e) => { setNewPass(e.target.value); setError(''); }} autoComplete="new-password" className="w-full border border-neutral-200 rounded-2xl px-5 py-4 bg-white focus:border-red-700 outline-none focus:ring-4 focus:ring-red-700/10 transition-all font-medium text-neutral-900" />
+          </div>
+          <div className="space-y-1.5">
+            <label htmlFor="forgot-confirm" className="text-xs font-bold text-neutral-500 uppercase tracking-wider ms-1">{dict.confirmPassword}</label>
+            <input id="forgot-confirm" type="password" required minLength={6} value={confirmPass} onChange={(e) => { setConfirmPass(e.target.value); setError(''); }} autoComplete="new-password" className="w-full border border-neutral-200 rounded-2xl px-5 py-4 bg-white focus:border-red-700 outline-none focus:ring-4 focus:ring-red-700/10 transition-all font-medium text-neutral-900" />
+          </div>
+          <button type="submit" disabled={loading} className="w-full bg-red-700 text-white font-bold py-4 rounded-2xl hover:bg-red-800 transition-all shadow-sm disabled:opacity-50">
+            {loading ? '...' : dict.forgotSubmit}
+          </button>
+          <button
+            type="button"
+            onClick={() => { setMode('login'); setError(''); setSuccess(''); }}
+            className="w-full text-sm font-bold text-neutral-600 hover:text-red-700"
+          >
+            {dict.backToLogin}
+          </button>
+        </form>
+      )}
     </div>
   );
 }
@@ -1610,6 +1746,10 @@ function AdminDashboard({
   const [showAddRoomForm, setShowAddRoomForm] = useState(false);
   const [showStaffModal, setShowStaffModal] = useState(false);
   const [showAddStaffModal, setShowAddStaffModal] = useState(false);
+  const [resetStaffTarget, setResetStaffTarget] = useState(null);
+  const [resetStaffPass, setResetStaffPass] = useState('');
+  const [resetStaffConfirm, setResetStaffConfirm] = useState('');
+  const [resetStaffBusy, setResetStaffBusy] = useState(false);
   const [editingRoom, setEditingRoom] = useState(null);
   const [editRoomName, setEditRoomName] = useState('');
   const [editRoomFloor, setEditRoomFloor] = useState('');
@@ -2128,9 +2268,13 @@ function AdminDashboard({
   };
 
   const handleDeleteStaff = async (userId, username) => {
+    if (!userId) {
+      alert(dict.deleteStaffFailed);
+      return;
+    }
     if (!window.confirm(`Remove staff user "${username}"?`)) return;
     try {
-      const res = await fetch(`${API_BASE}/users/${userId}`, {
+      const res = await fetch(`${API_BASE}/users/${encodeURIComponent(userId)}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${adminToken}` },
       });
@@ -2138,10 +2282,44 @@ function AdminDashboard({
         loadStaff();
       } else {
         const data = await res.json().catch(() => ({}));
+        alert(data.error || dict.deleteStaffFailed);
+      }
+    } catch {
+      alert(dict.deleteStaffFailed);
+    }
+  };
+
+  const handleResetStaffPassword = async (e) => {
+    e.preventDefault();
+    if (!resetStaffTarget?.id) return;
+    if (resetStaffPass.length < 6) {
+      alert(dict.passwordTooShort);
+      return;
+    }
+    if (resetStaffPass !== resetStaffConfirm) {
+      alert(dict.passwordMismatch);
+      return;
+    }
+    setResetStaffBusy(true);
+    try {
+      const res = await fetch(`${API_BASE}/users/${encodeURIComponent(resetStaffTarget.id)}/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken}` },
+        body: JSON.stringify({ newPassword: resetStaffPass }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        alert(dict.resetPasswordSuccess);
+        setResetStaffTarget(null);
+        setResetStaffPass('');
+        setResetStaffConfirm('');
+      } else {
         alert(data.error || dict.backendError);
       }
     } catch {
       alert(dict.backendError);
+    } finally {
+      setResetStaffBusy(false);
     }
   };
 
@@ -2859,13 +3037,89 @@ function AdminDashboard({
                     && (isMainAdmin
                       ? user.role !== 'admin'
                       : ['sub_admin', 'facility'].includes(user.role)) && (
-                    <button type="button" onClick={() => handleDeleteStaff(user.id, user.username)} className="w-10 h-10 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 flex items-center justify-center shrink-0 transition-colors" aria-label={dict.deleteStaff}>
-                      <Trash2 size={16} />
-                    </button>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {isManager && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setResetStaffTarget(user);
+                            setResetStaffPass('');
+                            setResetStaffConfirm('');
+                          }}
+                          className="w-10 h-10 rounded-xl bg-neutral-100 hover:bg-neutral-200 text-neutral-700 flex items-center justify-center transition-colors"
+                          aria-label={dict.resetPassword}
+                          title={dict.resetPassword}
+                        >
+                          <KeyRound size={16} />
+                        </button>
+                      )}
+                      <button type="button" onClick={() => handleDeleteStaff(user.id, user.username)} className="w-10 h-10 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 flex items-center justify-center transition-colors" aria-label={dict.deleteStaff}>
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
                   )}
                 </li>
               ))}
             </ul>
+            {resetStaffTarget && (
+              <div className="absolute inset-0 z-20 flex items-center justify-center p-4 sm:p-6">
+                <div
+                  className="absolute inset-0 bg-neutral-900/50 backdrop-blur-sm"
+                  onClick={() => !resetStaffBusy && setResetStaffTarget(null)}
+                  aria-hidden
+                />
+                <form
+                  onSubmit={handleResetStaffPassword}
+                  className="modal-panel max-w-md w-full p-8 relative z-10"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <h3 className="text-xl font-extrabold text-neutral-900 mb-2">{dict.resetPassword}</h3>
+                  <p className="text-sm font-medium text-neutral-500 mb-6">
+                    {dict.resetPasswordFor}{' '}
+                    <span className="font-extrabold text-neutral-900">
+                      {resetStaffTarget.full_name || resetStaffTarget.username}
+                    </span>
+                  </p>
+                  <div className="space-y-4">
+                    <input
+                      type="password"
+                      required
+                      minLength={6}
+                      value={resetStaffPass}
+                      onChange={(e) => setResetStaffPass(e.target.value)}
+                      placeholder={dict.newPassword}
+                      className="w-full border border-neutral-200 rounded-2xl px-5 py-4 bg-neutral-50 outline-none focus:border-red-700 font-bold"
+                    />
+                    <input
+                      type="password"
+                      required
+                      minLength={6}
+                      value={resetStaffConfirm}
+                      onChange={(e) => setResetStaffConfirm(e.target.value)}
+                      placeholder={dict.confirmPassword}
+                      className="w-full border border-neutral-200 rounded-2xl px-5 py-4 bg-neutral-50 outline-none focus:border-red-700 font-bold"
+                    />
+                    <div className="flex gap-3 pt-2">
+                      <button
+                        type="submit"
+                        disabled={resetStaffBusy}
+                        className="flex-1 bg-red-700 text-white py-4 rounded-2xl font-extrabold disabled:opacity-50"
+                      >
+                        {resetStaffBusy ? '...' : dict.resetPassword}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={resetStaffBusy}
+                        onClick={() => setResetStaffTarget(null)}
+                        className="flex-1 border-2 border-neutral-200 py-4 rounded-2xl font-extrabold"
+                      >
+                        {dict.cancel}
+                      </button>
+                    </div>
+                  </div>
+                </form>
+              </div>
+            )}
             {showAddStaffModal && (
               <div className="absolute inset-0 z-20 flex items-center justify-center p-4 sm:p-6">
                 <div

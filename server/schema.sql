@@ -179,7 +179,7 @@ CREATE TABLE IF NOT EXISTS issue_status_history (
   issue_id UUID NOT NULL REFERENCES facility_issues(id) ON DELETE CASCADE,
   from_status TEXT,
   to_status TEXT NOT NULL,
-  changed_by UUID REFERENCES users(id),
+  changed_by UUID REFERENCES users(id) ON DELETE SET NULL,
   note TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );

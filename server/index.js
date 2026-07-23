@@ -533,38 +533,168 @@ app.post('/api/users', requireDb, authenticateToken, requireManager, async (req,
 app.delete('/api/users/:id', requireDb, authenticateToken, requireManager, async (req, res) => {
   const userId = req.params.id;
 
-  if (req.user?.sub === userId) {
+  if (!UUID_RE.test(userId)) {
+    res.status(400).json({ error: 'Invalid user id' });
+    return;
+  }
+
+  if (String(req.user?.sub || '') === String(userId)) {
     res.status(400).json({ error: 'Cannot delete your own account' });
     return;
   }
 
   try {
+    const { rows: targetRows } = await req.db.query(
+      'SELECT id, username, role, site FROM users WHERE id = $1',
+      [userId],
+    );
+    const target = targetRows[0];
+    if (!target) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
     // Site admins may only delete sub-admins / facility staff of their own site.
     if (req.user?.role === 'site_admin') {
-      const { rows } = await req.db.query('SELECT role, site FROM users WHERE id = $1', [userId]);
-      const target = rows[0];
-      if (!target) {
-        res.status(404).json({ error: 'User not found' });
-        return;
-      }
       const mySite = userSite(req.user);
       const allowedRole = target.role === 'sub_admin' || target.role === 'facility';
       if (!allowedRole || target.site !== mySite) {
         res.status(403).json({ error: 'Not allowed to delete this user' });
         return;
       }
+    } else if (req.user?.role === 'admin' && target.role === 'admin') {
+      res.status(403).json({ error: 'Cannot delete another admin account' });
+      return;
     }
-    const { rowCount } = await req.db.query(
-      'DELETE FROM users WHERE id = $1',
-      [userId],
-    );
-    if (!rowCount) {
+
+    await withTransaction(req.db, async (client) => {
+      // Clear FK references that block hard delete (no ON DELETE SET NULL in schema).
+      await client.query(
+        'UPDATE issue_status_history SET changed_by = NULL WHERE changed_by = $1',
+        [userId],
+      );
+      const { rowCount } = await client.query(
+        'DELETE FROM users WHERE id = $1',
+        [userId],
+      );
+      if (!rowCount) {
+        const err = new Error('User not found');
+        err.status = 404;
+        throw err;
+      }
+    });
+
+    res.status(200).json({ ok: true });
+  } catch (err) {
+    if (err?.status === 404) {
       res.status(404).json({ error: 'User not found' });
       return;
     }
-    res.status(200).json({ ok: true });
-  } catch {
-    res.status(500).json({ error: 'Failed to delete user' });
+    console.error('[users] delete failed:', err.message);
+    res.status(500).json({ error: err.message || 'Failed to delete user' });
+  }
+});
+
+/** Admin/site-admin resets another user's password. */
+app.post('/api/users/:id/reset-password', requireDb, authenticateToken, requireManager, async (req, res) => {
+  const userId = req.params.id;
+  const newPassword = req.body?.newPassword ?? req.body?.password;
+
+  if (!UUID_RE.test(userId)) {
+    res.status(400).json({ error: 'Invalid user id' });
+    return;
+  }
+  if (!newPassword || String(newPassword).length < 6) {
+    res.status(400).json({ error: 'password must be at least 6 characters' });
+    return;
+  }
+  if (String(req.user?.sub || '') === String(userId)) {
+    res.status(400).json({ error: 'Use Profile to change your own password' });
+    return;
+  }
+
+  try {
+    const { rows } = await req.db.query(
+      'SELECT id, username, role, site FROM users WHERE id = $1 AND is_active = true',
+      [userId],
+    );
+    const target = rows[0];
+    if (!target) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    if (req.user?.role === 'site_admin') {
+      const mySite = userSite(req.user);
+      const allowedRole = target.role === 'sub_admin' || target.role === 'facility';
+      if (!allowedRole || target.site !== mySite) {
+        res.status(403).json({ error: 'Not allowed to reset this user password' });
+        return;
+      }
+    }
+
+    const passwordHash = await bcrypt.hash(String(newPassword), 12);
+    await req.db.query(
+      'UPDATE users SET password_hash = $1 WHERE id = $2',
+      [passwordHash, userId],
+    );
+    res.status(200).json({ ok: true, username: target.username });
+  } catch (err) {
+    console.error('[users] reset-password failed:', err.message);
+    res.status(500).json({ error: 'Failed to reset password' });
+  }
+});
+
+/**
+ * Forgot password — username + registered phone must match, then set a new password.
+ * No email/WhatsApp dependency (internal staff tool).
+ */
+app.post('/api/auth/forgot-password', requireDb, async (req, res) => {
+  const username = typeof req.body?.username === 'string' ? req.body.username.trim() : '';
+  const phone = typeof req.body?.phone === 'string' ? req.body.phone.trim() : '';
+  const newPassword = req.body?.newPassword ?? req.body?.password;
+  const confirmPassword = req.body?.confirmPassword;
+
+  if (!username || !phone) {
+    res.status(400).json({ error: 'username and phone required' });
+    return;
+  }
+  if (!newPassword || String(newPassword).length < 6) {
+    res.status(400).json({ error: 'password must be at least 6 characters' });
+    return;
+  }
+  if (confirmPassword !== undefined && String(confirmPassword) !== String(newPassword)) {
+    res.status(400).json({ error: 'passwords do not match' });
+    return;
+  }
+
+  try {
+    const { rows } = await req.db.query(
+      `SELECT id, phone FROM users
+       WHERE LOWER(username) = LOWER($1) AND is_active = true`,
+      [username],
+    );
+    const user = rows[0];
+    const normalizeDigits = (p) => String(p || '').replace(/\D/g, '');
+    const phoneOk = user
+      && normalizeDigits(user.phone)
+      && normalizeDigits(user.phone) === normalizeDigits(phone);
+
+    // Same generic error whether user missing or phone mismatch (no enumeration).
+    if (!phoneOk) {
+      res.status(400).json({ error: 'Username and registered phone do not match' });
+      return;
+    }
+
+    const passwordHash = await bcrypt.hash(String(newPassword), 12);
+    await req.db.query(
+      'UPDATE users SET password_hash = $1 WHERE id = $2',
+      [passwordHash, user.id],
+    );
+    res.status(200).json({ ok: true, message: 'Password updated. You can log in now.' });
+  } catch (err) {
+    console.error('[auth] forgot-password failed:', err.message);
+    res.status(500).json({ error: 'Failed to reset password' });
   }
 });
 
