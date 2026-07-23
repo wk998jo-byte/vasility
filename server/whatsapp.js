@@ -87,6 +87,52 @@ function messagingServiceSid() {
   return (process.env.TWILIO_MESSAGING_SERVICE_SID || '').trim().replace(/^whatsapp:/i, '');
 }
 
+/**
+ * Working Meta-approved Content SIDs for WhatsApp sender +15739201367.
+ * Replit Secrets often keep stale HX… values that fail with 63027 — these defaults win
+ * when env is empty or points at a known-broken template.
+ */
+const DEFAULT_CONTENT_SIDS = {
+  welcome: 'HX6e9593b826b3e3a2ab3d3b2e64589c18',
+  admin: 'HX5ac827c6ea10ff3114d5602d575f7d67',
+  done: 'HXbd1985f4517e39cd2993d3f250fea082',
+};
+
+const BROKEN_CONTENT_SIDS = new Set([
+  'HX8aaa173e0ba33a1e1c70a86d30145760',
+  'HX25116fe96cb6108b3d0cf15ae0976c61',
+  'HX9987669bbd573aef9e2b262e0885ee65',
+  'HXedd8ac15e8550aa79632a21952975979',
+  'HXd949820e6285392ff22e530e4916576d',
+  'HXde6c9601982c421afb35e4eddc1ddbbc',
+  'HXf825e099272ac519a3ba5e3fa4874f1a',
+  'HX2b69ca2ce94e62a45418349217067770',
+  'HXf4924771f61551f63c36abcc4cdb3eef',
+  'HX10af1e421f41ffe5b686d51cddf58c03',
+  'HX73f31b62d0b77fab0bd8e29798fc4399',
+  'HX7c245fc8b58f513dd9f00ae8e66bdb4b',
+]);
+
+function resolveContentSid(role) {
+  const envKey = role === 'admin'
+    ? 'TWILIO_TEMPLATE_ADMIN'
+    : role === 'done'
+      ? 'TWILIO_TEMPLATE_DONE'
+      : 'TWILIO_TEMPLATE_WELCOME';
+  const fallbackKey = role === 'done' ? 'TWILIO_TEMPLATE_SID' : '';
+  const fromEnv = (process.env[envKey] || (fallbackKey ? process.env[fallbackKey] : '') || '').trim();
+  const defaults = DEFAULT_CONTENT_SIDS[role === 'admin' ? 'admin' : role === 'done' ? 'done' : 'welcome'];
+
+  if (!fromEnv) return defaults;
+  if (BROKEN_CONTENT_SIDS.has(fromEnv) || fromEnv === defaults) {
+    if (BROKEN_CONTENT_SIDS.has(fromEnv)) {
+      console.warn(`[whatsapp] Ignoring broken ${envKey}=${fromEnv} → using ${defaults}`);
+    }
+    return defaults;
+  }
+  return fromEnv;
+}
+
 function toStrictE164(phone) {
   const e164 = formatWhatsAppPhone(phone);
   const digits = String(e164 || phone || '').replace(/\D/g, '');
@@ -148,6 +194,7 @@ export function checkTwilioConfig() {
   }
   console.log('[whatsapp] Twilio Content API templates configured — WhatsApp alerts enabled.');
   if (fromWa) console.log(`[whatsapp] From sender: ${fromWa}`);
+  console.log(`[whatsapp] templates welcome=${resolveContentSid('welcome')} admin=${resolveContentSid('admin')} done=${resolveContentSid('done')}`);
   if (messagingServiceSid()) {
     console.log(`[sms] MessagingServiceSid=${messagingServiceSid()}`);
   }
@@ -286,26 +333,24 @@ export async function sendWhatsAppNotification(phone, ticketId, role = 'user', e
           let contentVariables = '';
 
           if (role === 'admin') {
-            contentSid = (process.env.TWILIO_TEMPLATE_ADMIN || '').trim();
+            contentSid = resolveContentSid('admin');
             contentVariables = JSON.stringify({
               1: String(ticketId),
               2: String(extraDetails || 'No details'),
             });
           } else if (role === 'done') {
-            contentSid = (
-              process.env.TWILIO_TEMPLATE_DONE
-              || process.env.TWILIO_TEMPLATE_SID
-              || ''
-            ).trim();
+            contentSid = resolveContentSid('done');
             contentVariables = JSON.stringify({
               1: String(ticketId),
             });
           } else {
-            contentSid = (process.env.TWILIO_TEMPLATE_WELCOME || '').trim();
+            contentSid = resolveContentSid('welcome');
             contentVariables = JSON.stringify({
               1: String(ticketId),
             });
           }
+
+          console.log(`[whatsapp] role=${role} contentSid=${contentSid}`);
 
           if (!contentSid) {
             console.error(`[whatsapp] missing contentSid for role=${role}`);
