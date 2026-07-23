@@ -13,26 +13,42 @@ export function siteToCampLabel(site) {
   const s = String(site || '').trim();
   if (!s) return '';
   if (/^dhahran$/i.test(s)) return 'Dhahran Camp';
-  if (/^mgs$/i.test(s)) return 'MGS Camp';
+  if (/^mgs\s*bq$/i.test(s)) return 'MGS BQ';
+  if (/^mgs\s*pmt$/i.test(s)) return 'MGS PMT';
+  // Legacy combined MGS → BQ inventory (MGS BQ CAMP.xlsx)
+  if (/^mgs$/i.test(s) || /^mgs camp$/i.test(s)) return 'MGS BQ';
   if (/^khurais$/i.test(s)) return 'Khurais Camp';
   if (/^juaymah$/i.test(s) || /^juyamah$/i.test(s)) return 'Juaymah Camp';
-  if (/^madina camp 1$/i.test(s) || /^tcf-?1$/i.test(s)) return 'Madina Camp 1';
-  if (/^madina camp 2$/i.test(s) || /^tcf-?2$/i.test(s)) return 'Madina Camp 2';
+  if (/^madina camp 1\s*bq$/i.test(s)) return 'Madina Camp 1 BQ';
+  if (/^madina camp 1\s*pmt$/i.test(s) || /^sapmt\s*tcf-?1$/i.test(s)) return 'Madina Camp 1 PMT';
+  if (/^madina camp 2\s*bq$/i.test(s)) return 'Madina Camp 2 BQ';
+  if (/^madina camp 2\s*pmt$/i.test(s) || /^sapmt\s*tcf-?2$/i.test(s)) return 'Madina Camp 2 PMT';
+  // Legacy combined Madina → current inventory sources
+  if (/^madina camp 1$/i.test(s) || /^tcf-?1$/i.test(s)) return 'Madina Camp 1 PMT';
+  if (/^madina camp 2$/i.test(s) || /^tcf-?2$/i.test(s)) return 'Madina Camp 2 BQ';
   if (/^jubail$/i.test(s)) return 'Jubail Camp';
-  if (/camp$/i.test(s)) return s;
+  if (/camp$/i.test(s) || /\s(bq|pmt)$/i.test(s)) return s;
   return `${s} Camp`;
 }
 
 /** Camp label → DB rooms.site value. */
 export function campLabelToSite(camp) {
   const c = String(camp || '').trim();
-  if (c === 'MGS Camp' || /^mgs$/i.test(c)) return 'MGS';
+  if (/^mgs\s*bq$/i.test(c)) return 'MGS BQ';
+  if (/^mgs\s*pmt$/i.test(c)) return 'MGS PMT';
+  // Legacy QR stickers / assignments
+  if (c === 'MGS Camp' || /^mgs$/i.test(c)) return 'MGS BQ';
   if (c === 'Dhahran Camp' || /^dhahran$/i.test(c)) return 'Dhahran';
   if (c === 'Khurais Camp' || /^khurais$/i.test(c)) return 'Khurais';
   if (c === 'Juaymah Camp' || /^juaymah$/i.test(c) || /^juyamah$/i.test(c)) return 'Juaymah';
   if (c === 'Jubail Camp' || /^jubail$/i.test(c)) return 'Jubail';
-  if (c === 'Madina Camp 1' || /^tcf-?1$/i.test(c)) return 'Madina Camp 1';
-  if (c === 'Madina Camp 2' || /^tcf-?2$/i.test(c)) return 'Madina Camp 2';
+  if (/^madina camp 1\s*bq$/i.test(c)) return 'Madina Camp 1 BQ';
+  if (/^madina camp 1\s*pmt$/i.test(c)) return 'Madina Camp 1 PMT';
+  if (/^madina camp 2\s*bq$/i.test(c)) return 'Madina Camp 2 BQ';
+  if (/^madina camp 2\s*pmt$/i.test(c)) return 'Madina Camp 2 PMT';
+  if (c === 'Madina Camp 1' || /^tcf-?1$/i.test(c)) return 'Madina Camp 1 PMT';
+  if (c === 'Madina Camp 2' || /^tcf-?2$/i.test(c)) return 'Madina Camp 2 BQ';
+  if (/\s(bq|pmt)$/i.test(c)) return c;
   return c.replace(/\s+Camp$/i, '').trim() || c;
 }
 
@@ -86,15 +102,18 @@ export async function seedUsers(db) {
     console.log(`[seed] Created admin user "${adminUser}"`);
 
     const facilityUser = process.env.FACILITY_USER || 'facility_user';
-    const facilityPass = process.env.FACILITY_PASS || process.env.STAFF_DEFAULT_PASSWORD || 'Staff2026@@';
-    const facilityHash = await bcrypt.hash(facilityPass, 12);
-    await db.query(
-      `INSERT INTO users (username, password_hash, role, is_active)
-       VALUES ($1, $2, 'facility', true)`,
-      [facilityUser, facilityHash],
-    );
-    console.log(`[seed] Created facility user "${facilityUser}"`);
-
+    const facilityPass = process.env.FACILITY_PASS || process.env.STAFF_DEFAULT_PASSWORD || '';
+    if (!facilityPass) {
+      console.warn('[seed] FACILITY_PASS / STAFF_DEFAULT_PASSWORD required to seed facility user');
+    } else {
+      const facilityHash = await bcrypt.hash(facilityPass, 12);
+      await db.query(
+        `INSERT INTO users (username, password_hash, role, is_active)
+         VALUES ($1, $2, 'facility', true)`,
+        [facilityUser, facilityHash],
+      );
+      console.log(`[seed] Created facility user "${facilityUser}"`);
+    }
     await seedViewerUser(db);
 
     return { seeded: true };
@@ -270,8 +289,14 @@ export function mapIssueRow(row) {
   const MGS_FLOORS = new Set(['A Block', 'B Block', 'C Block', 'Mess Hall', 'Gym Hall']);
   let roomSite = row.room_site || row.site || '';
   const floor = row.room_floor || row.floor || '';
-  // Correct mis-seeded Dhahran site on known MGS floors.
-  if (MGS_FLOORS.has(floor)) roomSite = 'MGS';
+  // Correct mis-seeded Dhahran/legacy MGS site on known MGS-block floors → MGS BQ.
+  // Do not overwrite an explicit MGS PMT assignment.
+  if (
+    MGS_FLOORS.has(floor)
+    && (!roomSite || /^(mgs|mgs camp|dhahran)$/i.test(String(roomSite).trim()))
+  ) {
+    roomSite = 'MGS BQ';
+  }
   return {
     id: row.ticket_number,
     ticketNumber: row.ticket_number,
@@ -376,8 +401,15 @@ export async function fetchAllIssues(db, filters = {}) {
     params.push(priority);
   }
   if (assigneeOnly) {
-    conditions.push(`LOWER(TRIM(COALESCE(fi.assignee, ''))) = LOWER($${n++})`);
-    params.push(String(assigneeOnly).trim());
+    const aliases = (Array.isArray(assigneeOnly) ? assigneeOnly : [assigneeOnly])
+      .map((v) => String(v || '').trim().toLowerCase())
+      .filter(Boolean);
+    if (aliases.length) {
+      conditions.push(`LOWER(TRIM(COALESCE(fi.assignee, ''))) = ANY($${n++}::text[])`);
+      params.push(aliases);
+    } else {
+      conditions.push('FALSE');
+    }
   } else if (site && assigneeUsername) {
     const aliases = siteFilterAliases(site);
     conditions.push(
@@ -434,7 +466,12 @@ export async function resolveRoomByToken(db, token) {
     );
     const MGS_FLOORS = new Set(['A Block', 'B Block', 'C Block', 'Mess Hall', 'Gym Hall']);
     let site = room.site || null;
-    if (MGS_FLOORS.has(room.floor)) site = 'MGS';
+    if (
+      MGS_FLOORS.has(room.floor)
+      && (!site || /^(mgs|mgs camp|dhahran)$/i.test(String(site).trim()))
+    ) {
+      site = 'MGS BQ';
+    }
     return {
       room: {
         id: room.id,

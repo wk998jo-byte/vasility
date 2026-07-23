@@ -167,6 +167,33 @@ function authenticateToken(req, res, next) {
 const ADMIN_ROLES = new Set(['admin', 'site_admin', 'sub_admin']);
 const SITE_SCOPED_ROLES = new Set(['site_admin', 'sub_admin', 'facility']);
 
+/** Username + full_name aliases for assignee matching (legacy name-stored tickets). */
+async function assigneeAliasesFor(db, user) {
+  const aliases = new Set();
+  const username = String(user?.user || '').trim();
+  if (username) aliases.add(username.toLowerCase());
+  if (user?.sub) {
+    try {
+      const { rows } = await db.query(
+        'SELECT username, full_name FROM users WHERE id = $1 AND is_active = true',
+        [user.sub],
+      );
+      const row = rows[0];
+      if (row?.username) aliases.add(String(row.username).trim().toLowerCase());
+      if (row?.full_name) aliases.add(String(row.full_name).trim().toLowerCase());
+    } catch {
+      // keep username-only
+    }
+  }
+  return [...aliases].filter(Boolean);
+}
+
+function isAssigneeMatch(assigneeRaw, aliases) {
+  const assignee = String(assigneeRaw || '').trim().toLowerCase();
+  if (!assignee || !aliases?.length) return false;
+  return aliases.includes(assignee);
+}
+
 // Main admin only.
 function requireAdmin(req, res, next) {
   if (req.user?.role !== 'admin') {
@@ -478,12 +505,15 @@ app.get('/api/users', requireDb, authenticateToken, async (req, res) => {
 
   try {
     const users = await fetchUsers(req.db, { role });
-    const isManager = req.user?.role === 'admin' || req.user?.role === 'site_admin';
+    const canListStaff = req.user?.role === 'admin'
+      || req.user?.role === 'site_admin'
+      || req.user?.role === 'sub_admin';
     const mySite = userSite(req.user);
     const scoped = mySite
       ? users.filter((u) => !u.site || u.site === mySite || u.role === 'admin')
       : users;
-    const sanitized = isManager
+    // sub_admin needs full staff rows to assign technicians (phone/name/site).
+    const sanitized = canListStaff
       ? scoped
       : scoped.map(({ id, username }) => ({ id, username }));
     res.status(200).json({ users: sanitized });
@@ -1442,7 +1472,7 @@ app.post('/api/issues/:ticketNumber/resolution', requireDb, authenticateToken, (
       }
     });
 
-    if (ticket.status !== 'Resolved' && ticket.reporter_phone) {
+    if (ticket.status !== 'Resolved' && ticket.status !== 'Completed' && ticket.status !== 'Closed' && ticket.reporter_phone) {
       sendWhatsAppNotification(ticket.reporter_phone, req.params.ticketNumber, 'done')
         .catch((err) => console.error('[whatsapp] notify failed:', err?.message || err));
     }
@@ -1485,16 +1515,31 @@ app.get('/api/issues/track', requireDb, async (req, res) => {
 app.get('/api/issues', requireDb, authenticateToken, async (req, res) => {
   try {
     const filters = parseIssueFilters(req.query);
-    const mySite = userSite(req.user);
     const role = req.user?.role;
-    if (mySite) {
-      filters.site = mySite;
-      // Always include tickets assigned to this user, even outside their site.
-      if (req.user?.user) filters.assigneeUsername = req.user.user;
-    } else if (role === 'facility' && req.user?.user) {
-      // Facility without a site: only tickets assigned to them.
-      filters.assigneeOnly = req.user.user;
+    const mySite = userSite(req.user);
+
+    if (role === 'admin') {
+      // Main admin: all tickets (optional UI site filter).
+    } else if (role === 'site_admin' || role === 'sub_admin') {
+      // Site managers/sub-admins: own site + anything assigned to them (cross-site).
+      if (mySite) {
+        filters.site = mySite;
+        if (req.user?.user) filters.assigneeUsername = req.user.user;
+      } else if (req.user?.user) {
+        filters.assigneeOnly = await assigneeAliasesFor(req.db, req.user);
+      }
+    } else {
+      // Facility / viewer / others: assigned tickets only.
+      const aliases = await assigneeAliasesFor(req.db, req.user);
+      if (!aliases.length) {
+        res.status(200).json({ issues: [] });
+        return;
+      }
+      filters.assigneeOnly = aliases;
+      delete filters.site;
+      delete filters.assigneeUsername;
     }
+
     const issues = await fetchAllIssues(req.db, filters);
     res.status(200).json({ issues });
   } catch {
@@ -1519,18 +1564,21 @@ app.get('/api/issues/:ticketNumber/history', requireDb, authenticateToken, async
     }
 
     const row = issue.rows[0];
+    const role = req.user?.role;
+    const aliases = await assigneeAliasesFor(req.db, req.user);
+    const isAssignee = isAssigneeMatch(row.assignee, aliases);
     const mySite = userSite(req.user);
-    const username = String(req.user?.user || '').trim().toLowerCase();
-    const assignee = String(row.assignee || '').trim().toLowerCase();
-    const isAssignee = Boolean(username && assignee && username === assignee);
-    if (mySite) {
-      const siteOk = String(row.room_site || '').toLowerCase() === String(mySite).toLowerCase()
+    if (role === 'admin') {
+      // ok
+    } else if (role === 'site_admin' || role === 'sub_admin') {
+      const siteOk = !mySite
+        || String(row.room_site || '').toLowerCase() === String(mySite).toLowerCase()
         || siteToCamp(row.room_site) === siteToCamp(mySite);
       if (!siteOk && !isAssignee) {
-        res.status(403).json({ error: 'Not allowed to view history of another site' });
+        res.status(403).json({ error: 'Not allowed to view this ticket history' });
         return;
       }
-    } else if (req.user?.role === 'facility' && !isAssignee) {
+    } else if (!isAssignee) {
       res.status(403).json({ error: 'Not allowed to view this ticket history' });
       return;
     }
@@ -1560,28 +1608,28 @@ app.put('/api/issues/:ticketNumber', requireDb, authenticateToken, requireStaff,
     const current = existing.rows[0];
     const newStatus = body.status ?? current.status;
     // Any admin tier may manage ticket status/cost; site-scoped roles only within their site.
-    const isAdmin = ADMIN_ROLES.has(req.user?.role);
-    const canDelete = req.user?.role === 'admin' || req.user?.role === 'site_admin';
     const role = req.user?.role;
-    const username = String(req.user?.user || '').trim().toLowerCase();
-    const currentAssignee = String(current.assignee || '').trim().toLowerCase();
-    const isAssignee = Boolean(username && currentAssignee && username === currentAssignee);
-
+    const isAdmin = ADMIN_ROLES.has(role);
+    const isMainAdmin = role === 'admin';
+    const canAssign = role === 'admin' || role === 'site_admin' || role === 'sub_admin';
+    const canDelete = role === 'admin' || role === 'site_admin';
+    const aliases = await assigneeAliasesFor(req.db, req.user);
+    const isAssignee = isAssigneeMatch(current.assignee, aliases);
     const mySite = userSite(req.user);
-    if (mySite) {
+
+    if (isMainAdmin) {
+      // full access
+    } else if (role === 'site_admin' || role === 'sub_admin') {
       const roomSite = await req.db.query('SELECT site FROM rooms WHERE id = $1', [current.room_id]);
       const ticketSite = roomSite.rows[0]?.site || '';
-      const siteOk = String(ticketSite).toLowerCase() === String(mySite).toLowerCase()
+      const siteOk = !mySite
+        || String(ticketSite).toLowerCase() === String(mySite).toLowerCase()
         || siteToCamp(ticketSite) === siteToCamp(mySite);
-      // Assignees may update (e.g. close) even when the ticket is outside their home site.
       if (!siteOk && !isAssignee) {
         res.status(403).json({ error: 'Not allowed to manage tickets of another site' });
         return;
       }
-    }
-
-    // Facility staff may only mutate tickets assigned to them.
-    if (role === 'facility' && !isAssignee) {
+    } else if (!isAssignee) {
       res.status(403).json({ error: 'Only the assigned technician can update this ticket' });
       return;
     }
@@ -1608,9 +1656,9 @@ app.put('/api/issues/:ticketNumber', requireDb, authenticateToken, requireStaff,
       ? newUnitPrice * newUnits
       : (isAdmin && body.cost !== undefined ? Number(body.cost) || 0 : current.cost);
     const newParts = isAdmin && body.parts !== undefined ? body.parts : current.parts;
-    let newAssignee = isAdmin && body.assignee !== undefined ? String(body.assignee).trim() : current.assignee;
+    let newAssignee = canAssign && body.assignee !== undefined ? String(body.assignee).trim() : current.assignee;
     // Prefer canonical DB username when assignee was stored as a display name.
-    if (isAdmin && body.assignee !== undefined && newAssignee) {
+    if (canAssign && body.assignee !== undefined && newAssignee) {
       try {
         const found = await req.db.query(
           `SELECT username FROM users
@@ -1680,7 +1728,10 @@ app.put('/api/issues/:ticketNumber', requireDb, authenticateToken, requireStaff,
       try {
         const assigneeUser = await req.db.query(
           `SELECT id, phone, username, full_name FROM users
-           WHERE LOWER(username) = LOWER($1) AND is_active = true`,
+           WHERE is_active = true
+             AND (LOWER(username) = LOWER($1) OR LOWER(COALESCE(full_name, '')) = LOWER($1))
+           ORDER BY CASE WHEN LOWER(username) = LOWER($1) THEN 0 ELSE 1 END
+           LIMIT 1`,
           [newAssignee],
         );
         const assigneeRow = assigneeUser.rows[0] || null;
@@ -1694,9 +1745,16 @@ app.put('/api/issues/:ticketNumber', requireDb, authenticateToken, requireStaff,
 
         let phone = String(assigneeRow?.phone || '').trim();
         const uname = String(assigneeRow?.username || newAssignee).trim().toLowerCase();
+        const fullName = String(assigneeRow?.full_name || '').trim().toLowerCase();
         if (!phone) {
           const dir = USERS[uname]
-            || Object.values(USERS).find((u) => String(u.username || '').toLowerCase() === uname);
+            || Object.values(USERS).find((u) => {
+              const uName = String(u.username || '').toLowerCase();
+              const uFull = String(u.name || '').toLowerCase();
+              return uName === uname
+                || (fullName && uFull === fullName)
+                || uFull === String(newAssignee).trim().toLowerCase();
+            });
           phone = String(dir?.phone || '').trim();
         }
 
@@ -1723,9 +1781,13 @@ app.put('/api/issues/:ticketNumber', requireDb, authenticateToken, requireStaff,
       }
     }
 
+    // Done WhatsApp once: only when entering Resolved/Completed/Closed from a non-done status.
+    // Avoid duplicate when photo upload sets Resolved then user clicks Close.
+    const doneStatuses = new Set(['Resolved', 'Completed', 'Closed']);
     if (
       newStatus !== current.status
-      && (newStatus === 'Resolved' || newStatus === 'Completed' || newStatus === 'Closed')
+      && doneStatuses.has(newStatus)
+      && !doneStatuses.has(current.status)
       && current.reporter_phone
     ) {
       sendWhatsAppNotification(current.reporter_phone, req.params.ticketNumber, 'done')
@@ -1823,8 +1885,26 @@ app.delete('/api/issues/:ticketNumber', requireDb, authenticateToken, requireAdm
 app.get('/api/tickets', requireDb, authenticateToken, async (req, res) => {
   try {
     const filters = parseIssueFilters(req.query);
+    const role = req.user?.role;
     const mySite = userSite(req.user);
-    if (mySite) filters.site = mySite;
+    if (role === 'admin') {
+      // all
+    } else if (role === 'site_admin' || role === 'sub_admin') {
+      if (mySite) {
+        filters.site = mySite;
+        if (req.user?.user) filters.assigneeUsername = req.user.user;
+      } else if (req.user?.user) {
+        filters.assigneeOnly = await assigneeAliasesFor(req.db, req.user);
+      }
+    } else {
+      const aliases = await assigneeAliasesFor(req.db, req.user);
+      if (!aliases.length) {
+        res.status(200).json({ tickets: [] });
+        return;
+      }
+      filters.assigneeOnly = aliases;
+      delete filters.site;
+    }
     const issues = await fetchAllIssues(req.db, filters);
     res.status(200).json({ tickets: issues });
   } catch {

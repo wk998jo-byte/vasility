@@ -2,13 +2,16 @@ import { describe, it, expect } from 'vitest';
 import { getWhatsAppTargetsForCamp, campsMatch } from '../../server/users-data.js';
 
 describe('WhatsApp RBAC', () => {
-  it('campsMatch treats MGS and MGS Camp as equal', () => {
-    expect(campsMatch('MGS Camp', 'MGS')).toBe(true);
-    expect(campsMatch('Dhahran Camp', 'MGS Camp')).toBe(false);
+  it('keeps MGS BQ and MGS PMT as separate sites', () => {
+    expect(campsMatch('MGS BQ', 'MGS BQ')).toBe(true);
+    expect(campsMatch('MGS BQ', 'MGS PMT')).toBe(false);
+    expect(campsMatch('Madina Camp 1 BQ', 'Madina Camp 1 PMT')).toBe(false);
+    expect(campsMatch('MGS Camp', 'MGS BQ')).toBe(true); // legacy combined → BQ
+    expect(campsMatch('Dhahran Camp', 'MGS BQ')).toBe(false);
   });
 
-  it('MGS ticket notifies main admins and MGS sub-admins only', () => {
-    const targets = getWhatsAppTargetsForCamp('MGS Camp');
+  it('MGS BQ ticket notifies main admins and MGS BQ sub-admins only', () => {
+    const targets = getWhatsAppTargetsForCamp('MGS BQ');
     const phones = targets.map((t) => t.username);
 
     expect(phones).toContain('m.irfan');

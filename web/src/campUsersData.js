@@ -46,7 +46,7 @@ export const USERS = {
     phone: "",
     role: "subadmin",
     title: "Electrician",
-    camp: "Madina Camp 1",
+    camp: "Madina Camp 1 PMT",
   },
   "noor": {
     username: "noor",
@@ -54,7 +54,7 @@ export const USERS = {
     phone: "",
     role: "subadmin",
     title: "Plumber",
-    camp: "Madina Camp 1",
+    camp: "Madina Camp 1 PMT",
   },
   "pramod": {
     username: "pramod",
@@ -62,7 +62,7 @@ export const USERS = {
     phone: "",
     role: "subadmin",
     title: "Stp Plant Operator",
-    camp: "Madina Camp 1",
+    camp: "Madina Camp 1 PMT",
   },
   "rijwan": {
     username: "rijwan",
@@ -70,7 +70,7 @@ export const USERS = {
     phone: "",
     role: "subadmin",
     title: "Carpenter",
-    camp: "Madina Camp 1",
+    camp: "Madina Camp 1 PMT",
   },
   "mohdsadiq": {
     username: "mohdsadiq",
@@ -78,7 +78,7 @@ export const USERS = {
     phone: "",
     role: "subadmin",
     title: "Ac Technician",
-    camp: "Madina Camp 1",
+    camp: "Madina Camp 1 PMT",
   },
   "arthur": {
     username: "arthur",
@@ -86,7 +86,7 @@ export const USERS = {
     phone: "",
     role: "subadmin",
     title: "Foreman Welder",
-    camp: "Madina Camp 1",
+    camp: "Madina Camp 1 PMT",
   },
   "edwin": {
     username: "edwin",
@@ -94,7 +94,7 @@ export const USERS = {
     phone: "",
     role: "subadmin",
     title: "Fabricator/Welder",
-    camp: "Madina Camp 1",
+    camp: "Madina Camp 1 PMT",
   },
   "kadeem": {
     username: "kadeem",
@@ -374,7 +374,7 @@ export const USERS = {
     phone: "",
     role: "subadmin",
     title: "Electrician",
-    camp: "MGS Camp",
+    camp: "MGS BQ",
   },
   "mannu": {
     username: "mannu",
@@ -382,7 +382,7 @@ export const USERS = {
     phone: "",
     role: "subadmin",
     title: "Auto Electrician",
-    camp: "MGS Camp",
+    camp: "MGS BQ",
   },
   "juvy": {
     username: "juvy",
@@ -390,7 +390,7 @@ export const USERS = {
     phone: "",
     role: "subadmin",
     title: "Plumber",
-    camp: "MGS Camp",
+    camp: "MGS BQ",
   },
   "sanjip": {
     username: "sanjip",
@@ -398,7 +398,7 @@ export const USERS = {
     phone: "",
     role: "subadmin",
     title: "Civil",
-    camp: "MGS Camp",
+    camp: "MGS BQ",
   },
   "mohammedshoukat": {
     username: "mohammedshoukat",
@@ -406,7 +406,7 @@ export const USERS = {
     phone: "",
     role: "subadmin",
     title: "Landscape",
-    camp: "MGS Camp",
+    camp: "MGS BQ",
   },
   "alam": {
     username: "alam",
@@ -414,7 +414,7 @@ export const USERS = {
     phone: "",
     role: "subadmin",
     title: "Landscape",
-    camp: "MGS Camp",
+    camp: "MGS BQ",
   },
   "m.irfan": {
     username: "m.irfan",
@@ -438,7 +438,7 @@ export const USERS = {
     phone: "+966570822231",
     role: "subadmin",
     title: "Camp Sub-Admin",
-    camp: "MGS Camp",
+    camp: "MGS BQ",
   },
   "shakir.sabir": {
     username: "shakir.sabir",
@@ -446,7 +446,7 @@ export const USERS = {
     phone: "+966598512638",
     role: "subadmin",
     title: "Camp Sub-Admin",
-    camp: "Madina Camp 1",
+    camp: "Madina Camp 1 PMT",
   },
   "shaik.rahmatullah": {
     username: "shaik.rahmatullah",
@@ -454,7 +454,7 @@ export const USERS = {
     phone: "+966572399416",
     role: "subadmin",
     title: "Camp Sub-Admin",
-    camp: "Madina Camp 2",
+    camp: "Madina Camp 2 BQ",
   },
   "haja.fakruddin": {
     username: "haja.fakruddin",

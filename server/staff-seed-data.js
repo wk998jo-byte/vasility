@@ -30,8 +30,8 @@ export const OFFICIAL_STAFF = [
     phone: '+966570822231',
     email: 'ansar.basha@binquraya.local',
     role: 'sub_admin',
-    site: 'MGS',
-    camp: 'MGS Camp',
+    site: 'MGS BQ',
+    camp: 'MGS BQ',
   },
   {
     username: 'shakir.sabir',
@@ -40,8 +40,8 @@ export const OFFICIAL_STAFF = [
     phone: '+966598512638',
     email: 'shakir.sabir@binquraya.local',
     role: 'sub_admin',
-    site: 'Madina Camp 1',
-    camp: 'Madina Camp 1',
+    site: 'Madina Camp 1 PMT',
+    camp: 'Madina Camp 1 PMT',
   },
   {
     username: 'shaik.rahmatullah',
@@ -50,8 +50,8 @@ export const OFFICIAL_STAFF = [
     phone: '+966572399416',
     email: 'shaik.rahmatullah@binquraya.local',
     role: 'sub_admin',
-    site: 'Madina Camp 2',
-    camp: 'Madina Camp 2',
+    site: 'Madina Camp 2 BQ',
+    camp: 'Madina Camp 2 BQ',
   },
   {
     username: 'haja.fakruddin',

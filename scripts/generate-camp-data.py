@@ -73,9 +73,22 @@ def normalize_camp(raw, fallback=""):
         return None
     if "ALL" in t or "GLOBAL" in t:
         return "All"
+    # BQ / PMT splits (check before bare MGS / Madina)
+    if "MGS" in t and "PMT" in t:
+        return "MGS PMT"
+    if "MGS" in t and "BQ" in t:
+        return "MGS BQ"
     if "MGS" in t:
-        return "MGS Camp"
-    if "DHAHRAN" in t or "DHAHRAN" in t:
+        return "MGS BQ"
+    if ("MADINA CAMP 1" in t or "TCF-1" in t or "TCF1" in t) and "BQ" in t:
+        return "Madina Camp 1 BQ"
+    if ("MADINA CAMP 1" in t or "TCF-1" in t or "TCF1" in t) and ("PMT" in t or "SAPMT" in t):
+        return "Madina Camp 1 PMT"
+    if ("MADINA CAMP 2" in t or "TCF-2" in t or "TCF2" in t) and "BQ" in t:
+        return "Madina Camp 2 BQ"
+    if ("MADINA CAMP 2" in t or "TCF-2" in t or "TCF2" in t) and ("PMT" in t or "SAPMT" in t):
+        return "Madina Camp 2 PMT"
+    if "DHAHRAN" in t:
         return "Dhahran Camp"
     if "JUBAIL" in t:
         return "Jubail Camp"
@@ -86,9 +99,9 @@ def normalize_camp(raw, fallback=""):
     if "TCF3" in t or "TCF-3" in t or "CAMP 3" in t:
         return "TCF3 Camp"
     if "TCF-1" in t or "TCF1" in t or "MADINAH" in t or "MADINA CAMP 1" in t or "YANBU" in t:
-        return "Madina Camp 1"
+        return "Madina Camp 1 PMT"
     if "TCF-2" in t or "TCF2" in t or "MADINA CAMP 2" in t:
-        return "Madina Camp 2"
+        return "Madina Camp 2 BQ"
     # first line only if multi-line assignment
     first = clean(raw).split("/")[0].split(",")[0]
     return first.title() if first else None
@@ -101,11 +114,11 @@ OFFICIAL_STAFF = [
     {"username": "abdulaziz.bq", "name": "Abdulaziz Bin Quraya", "phone": "+966535555844",
      "title": "Facility and Maintenance Operations Manager", "role": "admin", "camp": "All"},
     {"username": "ansar.basha", "name": "Ansar Basha", "phone": "+966570822231",
-     "title": "Camp Sub-Admin", "role": "subadmin", "camp": "MGS Camp"},
+     "title": "Camp Sub-Admin", "role": "subadmin", "camp": "MGS BQ"},
     {"username": "shakir.sabir", "name": "Shakir Hussain Sabir", "phone": "+966598512638",
-     "title": "Camp Sub-Admin", "role": "subadmin", "camp": "Madina Camp 1"},
+     "title": "Camp Sub-Admin", "role": "subadmin", "camp": "Madina Camp 1 PMT"},
     {"username": "shaik.rahmatullah", "name": "Shaik Rahmatullah", "phone": "+966572399416",
-     "title": "Camp Sub-Admin", "role": "subadmin", "camp": "Madina Camp 2"},
+     "title": "Camp Sub-Admin", "role": "subadmin", "camp": "Madina Camp 2 BQ"},
     {"username": "haja.fakruddin", "name": "Haja Fakruddin", "phone": "+966530739703",
      "title": "Camp Sub-Admin", "role": "subadmin", "camp": "Juaymah Camp"},
     {"username": "jack.dhahran", "name": "Jack", "phone": "+966552650673",

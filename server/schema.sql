@@ -39,18 +39,27 @@ CREATE INDEX IF NOT EXISTS idx_rooms_active ON rooms (is_active) WHERE is_active
 ALTER TABLE rooms ADD COLUMN IF NOT EXISTS site TEXT;
 ALTER TABLE rooms ALTER COLUMN site SET DEFAULT 'Dhahran';
 UPDATE rooms SET site = CASE
-  WHEN floor IN ('A Block', 'B Block', 'C Block', 'Mess Hall', 'Gym Hall') THEN 'MGS'
+  WHEN floor IN ('A Block', 'B Block', 'C Block', 'Mess Hall', 'Gym Hall') THEN 'MGS BQ'
   ELSE 'Dhahran'
 END WHERE site IS NULL;
 
--- Fix MGS rooms that were incorrectly stored as Dhahran (or other values).
+-- Fix MGS-block rooms that were incorrectly stored as Dhahran (legacy combined site → BQ).
 UPDATE rooms
-SET site = 'MGS'
+SET site = 'MGS BQ'
 WHERE floor IN ('A Block', 'B Block', 'C Block', 'Mess Hall', 'Gym Hall')
-  AND COALESCE(site, '') <> 'MGS';
+  AND LOWER(TRIM(COALESCE(site, ''))) IN ('', 'dhahran', 'mgs', 'mgs camp');
 
--- Normalize camp-style site labels to canonical DB codes.
-UPDATE rooms SET site = 'MGS' WHERE LOWER(TRIM(site)) IN ('mgs camp', 'mgs');
+-- Normalize camp-style site labels to canonical DB codes (BQ/PMT split).
+UPDATE rooms SET site = 'MGS BQ' WHERE LOWER(TRIM(site)) IN ('mgs camp', 'mgs', 'mgs bq');
+UPDATE rooms SET site = 'MGS PMT' WHERE LOWER(TRIM(site)) IN ('mgs pmt');
+UPDATE rooms SET site = 'Madina Camp 1 PMT'
+  WHERE LOWER(TRIM(site)) IN ('madina camp 1', 'madina camp 1 pmt', 'tcf-1', 'tcf1');
+UPDATE rooms SET site = 'Madina Camp 1 BQ'
+  WHERE LOWER(TRIM(site)) IN ('madina camp 1 bq');
+UPDATE rooms SET site = 'Madina Camp 2 BQ'
+  WHERE LOWER(TRIM(site)) IN ('madina camp 2', 'madina camp 2 bq', 'tcf-2', 'tcf2');
+UPDATE rooms SET site = 'Madina Camp 2 PMT'
+  WHERE LOWER(TRIM(site)) IN ('madina camp 2 pmt');
 UPDATE rooms SET site = 'Dhahran' WHERE LOWER(TRIM(site)) IN ('dhahran camp', 'dhahran');
 UPDATE rooms SET site = 'Khurais' WHERE LOWER(TRIM(site)) IN ('khurais camp', 'khurais');
 UPDATE rooms SET site = 'Juaymah' WHERE LOWER(TRIM(site)) IN ('juaymah camp', 'juyamah camp', 'juaymah', 'juyamah');
@@ -68,6 +77,21 @@ CREATE TABLE IF NOT EXISTS room_qr_tokens (
 
 CREATE INDEX IF NOT EXISTS idx_room_qr_tokens_token ON room_qr_tokens (token) WHERE is_active = true;
 CREATE INDEX IF NOT EXISTS idx_room_qr_tokens_room ON room_qr_tokens (room_id);
+
+-- Refresh static QR payloads after site rename (legacy stickers still resolve via campLabelToSite).
+UPDATE room_qr_tokens
+SET token = REGEXP_REPLACE(token, '^MGS Camp - ', 'MGS BQ - ')
+WHERE token LIKE 'MGS Camp - %';
+UPDATE room_qr_tokens
+SET token = REGEXP_REPLACE(token, '^Madina Camp 1 - ', 'Madina Camp 1 PMT - ')
+WHERE token LIKE 'Madina Camp 1 - %'
+  AND token NOT LIKE 'Madina Camp 1 BQ - %'
+  AND token NOT LIKE 'Madina Camp 1 PMT - %';
+UPDATE room_qr_tokens
+SET token = REGEXP_REPLACE(token, '^Madina Camp 2 - ', 'Madina Camp 2 BQ - ')
+WHERE token LIKE 'Madina Camp 2 - %'
+  AND token NOT LIKE 'Madina Camp 2 BQ - %'
+  AND token NOT LIKE 'Madina Camp 2 PMT - %';
 
 -- ─── Room assets ─────────────────────────────────────────────────────────────
 
@@ -97,6 +121,18 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS users_username_lower_idx ON users (LOWER(username));
+
+-- Keep user site assignments aligned with the BQ/PMT split.
+UPDATE users SET site = 'MGS BQ' WHERE LOWER(TRIM(COALESCE(site, ''))) IN ('mgs', 'mgs camp', 'mgs bq');
+UPDATE users SET site = 'MGS PMT' WHERE LOWER(TRIM(COALESCE(site, ''))) IN ('mgs pmt');
+UPDATE users SET site = 'Madina Camp 1 PMT'
+  WHERE LOWER(TRIM(COALESCE(site, ''))) IN ('madina camp 1', 'madina camp 1 pmt', 'tcf-1', 'tcf1');
+UPDATE users SET site = 'Madina Camp 1 BQ'
+  WHERE LOWER(TRIM(COALESCE(site, ''))) IN ('madina camp 1 bq');
+UPDATE users SET site = 'Madina Camp 2 BQ'
+  WHERE LOWER(TRIM(COALESCE(site, ''))) IN ('madina camp 2', 'madina camp 2 bq', 'tcf-2', 'tcf2');
+UPDATE users SET site = 'Madina Camp 2 PMT'
+  WHERE LOWER(TRIM(COALESCE(site, ''))) IN ('madina camp 2 pmt');
 
 -- ─── Facility issues ─────────────────────────────────────────────────────────
 

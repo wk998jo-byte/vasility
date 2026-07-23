@@ -26,11 +26,14 @@ export const INITIAL_ROOM_DATA = {
   ...DHAHRAN_OFFICE_ROOMS,
 };
 
-/** All camp/project labels — matches SubAdmin assignments (show every site in Location Manager). */
+/** All camp/project labels — BQ and PMT are separate sites. */
 export const ALL_CAMP_LABELS = [
-  'MGS Camp',
-  'Madina Camp 1',
-  'Madina Camp 2',
+  'MGS BQ',
+  'MGS PMT',
+  'Madina Camp 1 BQ',
+  'Madina Camp 1 PMT',
+  'Madina Camp 2 BQ',
+  'Madina Camp 2 PMT',
   'Khurais Camp',
   'Juaymah Camp',
   'Dhahran Camp',
@@ -47,13 +50,20 @@ export const CAMP_DATA_STATS = {
 /** Camp label → DB site value (inverse of siteToCampLabel). */
 function campLabelToSite(camp) {
   const c = String(camp || '').trim();
-  if (c === 'MGS Camp' || /^mgs$/i.test(c)) return 'MGS';
+  if (/^mgs\s*bq$/i.test(c)) return 'MGS BQ';
+  if (/^mgs\s*pmt$/i.test(c)) return 'MGS PMT';
+  if (c === 'MGS Camp' || /^mgs$/i.test(c)) return 'MGS BQ';
   if (c === 'Dhahran Camp' || /^dhahran$/i.test(c)) return 'Dhahran';
   if (c === 'Khurais Camp' || /^khurais$/i.test(c)) return 'Khurais';
   if (c === 'Juaymah Camp' || /^juaymah$/i.test(c) || /^juyamah$/i.test(c)) return 'Juaymah';
   if (c === 'Jubail Camp' || /^jubail$/i.test(c)) return 'Jubail';
-  if (c === 'Madina Camp 1' || /^tcf-?1$/i.test(c)) return 'Madina Camp 1';
-  if (c === 'Madina Camp 2' || /^tcf-?2$/i.test(c)) return 'Madina Camp 2';
+  if (/^madina camp 1\s*bq$/i.test(c)) return 'Madina Camp 1 BQ';
+  if (/^madina camp 1\s*pmt$/i.test(c)) return 'Madina Camp 1 PMT';
+  if (/^madina camp 2\s*bq$/i.test(c)) return 'Madina Camp 2 BQ';
+  if (/^madina camp 2\s*pmt$/i.test(c)) return 'Madina Camp 2 PMT';
+  if (c === 'Madina Camp 1' || /^tcf-?1$/i.test(c)) return 'Madina Camp 1 PMT';
+  if (c === 'Madina Camp 2' || /^tcf-?2$/i.test(c)) return 'Madina Camp 2 BQ';
+  if (/\s(bq|pmt)$/i.test(c)) return c;
   return c.replace(/\s+Camp$/i, '').trim() || c;
 }
 
@@ -62,13 +72,19 @@ function siteToCampLabel(site) {
   const s = String(site || '').trim();
   if (!s) return '';
   if (/^dhahran$/i.test(s)) return 'Dhahran Camp';
-  if (/^mgs$/i.test(s)) return 'MGS Camp';
+  if (/^mgs\s*bq$/i.test(s)) return 'MGS BQ';
+  if (/^mgs\s*pmt$/i.test(s)) return 'MGS PMT';
+  if (/^mgs$/i.test(s) || /^mgs camp$/i.test(s)) return 'MGS BQ';
   if (/^khurais$/i.test(s)) return 'Khurais Camp';
   if (/^juaymah$/i.test(s) || /^juyamah$/i.test(s)) return 'Juaymah Camp';
-  if (/^madina camp 1$/i.test(s) || /^tcf-?1$/i.test(s)) return 'Madina Camp 1';
-  if (/^madina camp 2$/i.test(s) || /^tcf-?2$/i.test(s)) return 'Madina Camp 2';
+  if (/^madina camp 1\s*bq$/i.test(s)) return 'Madina Camp 1 BQ';
+  if (/^madina camp 1\s*pmt$/i.test(s)) return 'Madina Camp 1 PMT';
+  if (/^madina camp 2\s*bq$/i.test(s)) return 'Madina Camp 2 BQ';
+  if (/^madina camp 2\s*pmt$/i.test(s)) return 'Madina Camp 2 PMT';
+  if (/^madina camp 1$/i.test(s) || /^tcf-?1$/i.test(s)) return 'Madina Camp 1 PMT';
+  if (/^madina camp 2$/i.test(s) || /^tcf-?2$/i.test(s)) return 'Madina Camp 2 BQ';
   if (/^jubail$/i.test(s)) return 'Jubail Camp';
-  if (/camp$/i.test(s)) return s;
+  if (/camp$/i.test(s) || /\s(bq|pmt)$/i.test(s)) return s;
   return `${s} Camp`;
 }
 
@@ -1851,13 +1867,14 @@ function AdminDashboard({
   const isMainAdmin = adminRole === 'admin';
   const isManager = adminRole === 'admin' || adminRole === 'site_admin';
   const isAdmin = isManager || adminRole === 'sub_admin';
+  const canAssign = isMainAdmin || adminRole === 'site_admin' || adminRole === 'sub_admin';
   const isSiteScoped = adminRole === 'site_admin' || adminRole === 'sub_admin';
   const isViewer = adminRole === 'viewer';
   const [printReportConfig, setPrintReportConfig] = useState(null);
   const [selectedTicket, setSelectedTicket] = useState(null);
   const selectedTicketIdRef = useRef(null);
   selectedTicketIdRef.current = selectedTicket?.id || null;
-  const [showMineOnly, setShowMineOnly] = useState(!isAdmin && !isViewer);
+  const [showMineOnly, setShowMineOnly] = useState(false);
   const [pendingAssignee, setPendingAssignee] = useState('');
   const [comments, setComments] = useState([]);
   const [commentDraft, setCommentDraft] = useState('');
@@ -1930,7 +1947,7 @@ function AdminDashboard({
   useEffect(() => {
     loadTickets();
     loadRooms();
-    if (isManager) loadStaff();
+    if (isManager || canAssign) loadStaff();
     fetch(`${API_BASE}/departments`)
       .then((r) => r.json())
       .then((data) => setDepartments(data.departments || []))
@@ -2002,7 +2019,10 @@ function AdminDashboard({
 
   const roomSite = (r) => {
     // Known MGS floors always map to MGS even if rooms.site was mis-seeded as Dhahran.
-    if (MGS_FLOORS.has(r?.floor)) return 'MGS';
+    if (MGS_FLOORS.has(r?.floor)) {
+      const cur = String(r?.site || '').trim();
+      if (!cur || /^(mgs|mgs camp|dhahran)$/i.test(cur)) return 'MGS BQ';
+    }
     if (r?.site) return canonicalSite(r.site) || String(r.site).trim();
     return '';
   };
@@ -2045,9 +2065,10 @@ function AdminDashboard({
 
   const siteOptions = useMemo(() => (
     [...new Set([
+      ...ALL_CAMP_LABELS.map((c) => campLabelToSite(c)),
       ...adminRooms.map(roomSite),
       ...locationSections.map((s) => campLabelToSite(s.camp)),
-    ])].filter(Boolean).sort()
+    ])].filter(Boolean).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
   ), [adminRooms, locationSections]);
 
   const dbRoomByLocationKey = useMemo(() => {
@@ -2072,13 +2093,6 @@ function AdminDashboard({
     window.addEventListener('afterprint', onAfterPrint);
     return () => window.removeEventListener('afterprint', onAfterPrint);
   }, []);
-
-  const currentUser = useMemo(() => ({
-    role: adminRole === 'sub_admin' ? 'subadmin' : adminRole,
-    camp: (adminRole === 'admin' || /^all$/i.test(String(adminSite || '').trim()))
-      ? 'All'
-      : siteToCampLabel(adminSite),
-  }), [adminRole, adminSite]);
 
   const roomCampByRoomId = useMemo(() => {
     const map = new Map();
@@ -2109,19 +2123,21 @@ function AdminDashboard({
   const visibleTickets = useMemo(() => {
     let filtered = tickets;
 
-    // 1. Enforce RBAC (security layer) — always keep tickets assigned to me
-    const isGlobalAdmin = currentUser.role === 'admin'
-      || currentUser.camp === 'All'
-      || adminRole === 'viewer';
-    if (!isGlobalAdmin) {
+    if (isMainAdmin) {
+      // all
+    } else if (isSiteScoped) {
+      // Site / sub admins: tickets for their site + anything assigned to them.
       filtered = filtered.filter((t) => {
         if (isMine(t)) return true;
         const ticketCamp = resolveTicketCamp(t, roomCampByRoomId);
-        return campMatchesAdminSite(ticketCamp, currentUser.camp);
+        return campMatchesAdminSite(ticketCamp, adminSite);
       });
+    } else {
+      // Facility / viewer: assigned only.
+      filtered = filtered.filter((t) => isMine(t));
     }
 
-    // 2. Apply UI site/camp dropdown filter (strict — do not bypass for assignees)
+    // Optional UI site/camp dropdown filter
     if (selectedCampFilter && selectedCampFilter !== 'All') {
       filtered = filtered.filter((t) => {
         const ticketCamp = resolveTicketCamp(t, roomCampByRoomId);
@@ -2130,7 +2146,7 @@ function AdminDashboard({
     }
 
     return filtered;
-  }, [tickets, currentUser, selectedCampFilter, roomCampByRoomId, adminRole, sessionUser, sessionName, adminUser, allStaff]);
+  }, [tickets, selectedCampFilter, roomCampByRoomId, isMainAdmin, isSiteScoped, adminSite, sessionUser, sessionName, adminUser, allStaff]);
 
   const activeTickets = visibleTickets.filter((t) => !t.isDeleted);
   const trashedTickets = visibleTickets.filter((t) => t.isDeleted);
@@ -2140,7 +2156,7 @@ function AdminDashboard({
   const myTickets = activeTickets.filter(isMine);
   const displayTickets = showTicketTrash
     ? trashedTickets
-    : (showMineOnly ? myTickets : activeTickets);
+    : ((isMainAdmin || isSiteScoped) && showMineOnly ? myTickets : activeTickets);
 
   const statusNew = activeTickets.filter((t) => t.status === 'New' || t.status === 'Pending').length;
   const inProgress = activeTickets.filter((t) => t.status === 'In Progress').length;
@@ -2198,9 +2214,9 @@ function AdminDashboard({
       payload.unitPrice = merged.unitPrice;
       payload.units = merged.units;
       payload.parts = merged.parts;
-      payload.assignee = merged.assignee || '';
       payload.isDeleted = merged.isDeleted;
-    } else if (Object.prototype.hasOwnProperty.call(updates, 'assignee')) {
+    }
+    if (canAssign || Object.prototype.hasOwnProperty.call(updates, 'assignee')) {
       payload.assignee = merged.assignee || '';
     }
 
@@ -2378,7 +2394,7 @@ function AdminDashboard({
     setEditingRoom(room);
     setEditRoomName(room.name);
     setEditRoomFloor(room.floor || '');
-    setEditRoomSite(room.site || (MGS_FLOORS.has(room.floor) ? 'MGS' : 'Dhahran'));
+    setEditRoomSite(room.site || (MGS_FLOORS.has(room.floor) ? 'MGS BQ' : 'Dhahran'));
   };
 
   const handleSaveRoomEdit = async (e) => {
@@ -2612,7 +2628,7 @@ function AdminDashboard({
         </>
       )}
 
-      {!isViewer && !showTicketTrash && (
+      {(isMainAdmin || isSiteScoped) && !showTicketTrash && (
         <div className="flex gap-2 mb-4 print:hidden">
           <button
             type="button"
@@ -2662,7 +2678,6 @@ function AdminDashboard({
           <option value="">{dict.filterLocation}</option>
           {filterRoomOptions.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
         </select>
-        {isMainAdmin && (
         <select
           value={filters.site}
           onChange={(e) => setFilters({ ...filters, site: e.target.value })}
@@ -2671,7 +2686,6 @@ function AdminDashboard({
           <option value="">{dict.filterSite}</option>
           {siteOptions.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
-        )}
         <input type="date" value={filters.dateFrom} onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })} className="border border-neutral-200 rounded-2xl px-5 py-3 text-sm font-bold bg-neutral-50 backdrop-blur-xl focus:border-red-700 outline-none transition-all shadow-sm" placeholder={dict.filterDateFrom} />
         <input type="date" value={filters.dateTo} onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })} className="border border-neutral-200 rounded-2xl px-5 py-3 text-sm font-bold bg-neutral-50 backdrop-blur-xl focus:border-red-700 outline-none transition-all shadow-sm" placeholder={dict.filterDateTo} />
         <button type="button" onClick={loadTickets} className="bg-red-700 text-white hover:bg-red-800 hover:text-white px-6 py-3 rounded-2xl text-sm font-extrabold shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5">{dict.applyFilters}</button>
@@ -2828,7 +2842,7 @@ function AdminDashboard({
             </div>
 
             <div className="space-y-6 print:hidden">
-              {isManager ? (
+              {canAssign ? (
                 <div>
                   <label className="text-[10px] font-extrabold text-neutral-400 block mb-2 uppercase tracking-widest">{dict.assign}</label>
                   <select

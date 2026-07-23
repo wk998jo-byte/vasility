@@ -57,22 +57,22 @@ export async function seedCampRooms(pool) {
     // 1. Ensure all rooms exist (skip ones already present).
     const { rowCount: created } = await client.query(
       `INSERT INTO rooms (department_id, name, floor, site, is_active)
-       SELECT $1, t.name, t.floor, 'MGS', true
+       SELECT $1, t.name, t.floor, 'MGS BQ', true
        FROM unnest($2::text[], $3::text[]) AS t(name, floor)
        WHERE NOT EXISTS (
          SELECT 1 FROM rooms r
          WHERE r.department_id = $1
-           AND COALESCE(r.site, '') = 'MGS'
+           AND COALESCE(r.site, '') = 'MGS BQ'
            AND r.name = t.name
        )`,
       [deptId, names, floors],
     );
 
-    // Ensure site stays MGS for camp rooms (covers older rows seeded without site).
+    // Ensure site stays MGS BQ for camp rooms (covers older rows seeded as MGS / Dhahran).
     await client.query(
-      `UPDATE rooms SET site = 'MGS'
+      `UPDATE rooms SET site = 'MGS BQ'
        WHERE department_id = $1 AND name = ANY($2::text[])
-         AND (site IS NULL OR site = '' OR site = 'Dhahran')`,
+         AND LOWER(TRIM(COALESCE(site, ''))) IN ('', 'dhahran', 'mgs', 'mgs camp', 'mgs bq')`,
       [deptId, names],
     );
 
