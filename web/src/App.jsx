@@ -2182,10 +2182,15 @@ function AdminDashboard({
     if (r?.site) return canonicalSite(r.site) || String(r.site).trim();
     return '';
   };
-  const locationSections = useMemo(
-    () => buildLocationSections(Object.keys(INITIAL_ROOM_DATA)),
-    [],
-  );
+  const locationSections = useMemo(() => {
+    // Static sticker inventory + any rooms created in Staff/DB (Add Location).
+    const keys = new Set(Object.keys(INITIAL_ROOM_DATA));
+    for (const room of adminRooms) {
+      const { qrValue } = getRoomLocationParts(room, roomSite);
+      if (qrValue) keys.add(qrValue);
+    }
+    return buildLocationSections([...keys]);
+  }, [adminRooms]);
 
   const groupedTechnicians = useMemo(() => {
     // Active DB staff only — deleted/inactive users must not appear in assign list.
