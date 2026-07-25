@@ -3298,6 +3298,18 @@ function AdminDashboard({
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
+                {isManager && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNewRoomSite('');
+                      setShowAddRoomForm(true);
+                    }}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-red-700 text-white font-bold text-sm hover:bg-red-800 transition-colors"
+                  >
+                    <Plus size={16} /> {dict.addLocation}
+                  </button>
+                )}
                 <button type="button" onClick={() => window.print()} className="btn-icon" aria-label={dict.print}><Printer size={20} /></button>
                 <button type="button" onClick={() => setShowRoomModal(false)} className="btn-icon"><X size={20} /></button>
               </div>
@@ -3356,7 +3368,14 @@ function AdminDashboard({
                 );
               })}
               {isManager && (isMainAdmin || campMatchesAnyAdminSite(section.camp, adminSites)) && (
-              <button type="button" onClick={() => setShowAddRoomForm(true)} className="print:hidden border-2 border-dashed border-slate-200 rounded-xl p-6 flex flex-col items-center justify-center text-slate-400 hover:text-red-700 hover:border-red-600 min-h-[180px] transition-colors">
+              <button
+                type="button"
+                onClick={() => {
+                  setNewRoomSite(campLabelToSite(section.camp) || '');
+                  setShowAddRoomForm(true);
+                }}
+                className="print:hidden border-2 border-dashed border-slate-200 rounded-xl p-6 flex flex-col items-center justify-center text-slate-400 hover:text-red-700 hover:border-red-600 min-h-[180px] transition-colors cursor-pointer relative z-10"
+              >
                 <Plus size={32} className="mb-2" />
                 <span className="font-bold text-sm">{dict.addLocation}</span>
               </button>
@@ -3364,27 +3383,31 @@ function AdminDashboard({
             </div>
             </div>
             ))}
-
-            {showAddRoomForm && (
-              <form onSubmit={handleSaveRoom} className="mt-8 p-6 surface-muted rounded-2xl space-y-4 print:hidden">
-                <h3 className="font-extrabold text-lg text-neutral-900">{dict.addNewLocation}</h3>
-                <input value={newRoomName} onChange={(e) => setNewRoomName(e.target.value)} placeholder={dict.roomName} required className="w-full border border-neutral-200 rounded-xl px-4 py-3 bg-neutral-50 outline-none focus:border-red-700 focus:ring-4 focus:ring-red-700/10 transition-all font-medium" />
-                <select value={newRoomDept} onChange={(e) => setNewRoomDept(e.target.value)} required className="w-full border border-neutral-200 rounded-xl px-4 py-3 bg-neutral-50 outline-none focus:border-red-700 transition-all font-medium">
-                  <option value="">{dict.department}</option>
-                  {departments.map((d) => <option key={d.id} value={d.id}>{d.name_en}</option>)}
-                </select>
-                <input value={newRoomSite} onChange={(e) => setNewRoomSite(e.target.value)} placeholder={dict.site} list="site-options" className="w-full border border-neutral-200 rounded-xl px-4 py-3 bg-neutral-50 outline-none focus:border-red-700 focus:ring-4 focus:ring-red-700/10 transition-all font-medium" />
-                <datalist id="site-options">
-                  {siteOptions.map((s) => <option key={s} value={s} />)}
-                </datalist>
-                <textarea value={newRoomAssets} onChange={(e) => setNewRoomAssets(e.target.value)} placeholder={dict.assetsComma} rows={2} className="w-full border border-neutral-200 rounded-xl px-4 py-3 bg-neutral-50 outline-none resize-none focus:border-red-700 focus:ring-4 focus:ring-red-700/10 transition-all font-medium" />
-                <div className="flex gap-2">
-                  <button type="submit" className="bg-red-700 text-white hover:bg-red-800 hover:text-white px-6 py-2.5 rounded-xl font-bold transition-colors">{dict.saveRoom}</button>
-                  <button type="button" onClick={() => setShowAddRoomForm(false)} className="px-6 py-2.5 rounded-xl font-bold border border-neutral-200 text-neutral-700 hover:bg-neutral-50 transition-colors">{dict.cancel}</button>
-                </div>
-              </form>
-            )}
           </div>
+        </div>
+      )}
+
+      {showAddRoomForm && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center print:hidden p-4">
+          <div className="modal-backdrop" onClick={() => setShowAddRoomForm(false)} />
+          <form onSubmit={handleSaveRoom} className="modal-panel max-w-md p-8 space-y-5 animate-slide-up overflow-hidden">
+            <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-red-600 to-red-700" />
+            <h3 className="text-2xl font-extrabold tracking-tight text-neutral-900">{dict.addNewLocation}</h3>
+            <input value={newRoomName} onChange={(e) => setNewRoomName(e.target.value)} placeholder={dict.roomName} required className="w-full border border-neutral-200 rounded-2xl px-5 py-4 bg-neutral-50 outline-none focus:border-red-700 focus:ring-4 focus:ring-red-700/10 transition-all font-bold shadow-sm text-neutral-900" />
+            <select value={newRoomDept} onChange={(e) => setNewRoomDept(e.target.value)} required className="w-full border border-neutral-200 rounded-2xl px-5 py-4 bg-neutral-50 outline-none focus:border-red-700 transition-all font-bold shadow-sm text-neutral-900">
+              <option value="">{dict.department}</option>
+              {departments.map((d) => <option key={d.id} value={d.id}>{d.name_en}</option>)}
+            </select>
+            <input value={newRoomSite} onChange={(e) => setNewRoomSite(e.target.value)} placeholder={dict.site} list="site-options" className="w-full border border-neutral-200 rounded-2xl px-5 py-4 bg-neutral-50 outline-none focus:border-red-700 focus:ring-4 focus:ring-red-700/10 transition-all font-bold shadow-sm text-neutral-900" />
+            <datalist id="site-options">
+              {siteOptions.map((s) => <option key={s} value={s} />)}
+            </datalist>
+            <textarea value={newRoomAssets} onChange={(e) => setNewRoomAssets(e.target.value)} placeholder={dict.assetsComma} rows={2} className="w-full border border-neutral-200 rounded-2xl px-5 py-4 bg-neutral-50 outline-none resize-none focus:border-red-700 focus:ring-4 focus:ring-red-700/10 transition-all font-bold shadow-sm text-neutral-900" />
+            <div className="flex gap-3 pt-2">
+              <button type="submit" className="flex-1 bg-red-700 text-white hover:bg-red-800 py-4 rounded-2xl font-extrabold transition-all shadow-sm hover:shadow-md">{dict.saveRoom}</button>
+              <button type="button" onClick={() => setShowAddRoomForm(false)} className="flex-1 py-4 rounded-2xl font-extrabold border-2 border-neutral-200 hover:bg-neutral-50 text-neutral-700 transition-all">{dict.cancel}</button>
+            </div>
+          </form>
         </div>
       )}
 
