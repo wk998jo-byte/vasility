@@ -1,4 +1,4 @@
-run = "sh -c 'npm run build:web && PORT=8080 npm start'"
+run = "bash scripts/replit-run.sh"
 modules = ["nodejs-20", "postgresql-16", "python-3.11"]
 
 [packager]
