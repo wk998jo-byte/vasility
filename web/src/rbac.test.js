@@ -22,13 +22,31 @@ describe('WhatsApp RBAC', () => {
     expect(phones).not.toContain('muzammil.khurais');
   });
 
+  it('MGS PMT ticket notifies Saroj, not Ansar', () => {
+    const targets = getWhatsAppTargetsForCamp('MGS PMT');
+    const phones = targets.map((t) => t.username);
+
+    expect(phones).toContain('m.irfan');
+    expect(phones).toContain('saroj.chettri');
+    expect(phones).not.toContain('ansar.basha');
+  });
+
   it('Dhahran ticket excludes MGS sub-admin', () => {
     const targets = getWhatsAppTargetsForCamp('Dhahran Camp');
     const phones = targets.map((t) => t.username);
 
     expect(phones).toContain('jack.dhahran');
-    expect(phones).toContain('saroj.chettri');
+    expect(phones).toContain('jose.mathew');
+    expect(phones).toContain('hassan.ahmouda');
     expect(phones).not.toContain('ansar.basha');
+    expect(phones).not.toContain('saroj.chettri');
     expect(phones).not.toContain('muzammil.khurais');
+  });
+
+  it('Madina Camp 1 BQ notifies Shakir', () => {
+    const targets = getWhatsAppTargetsForCamp('Madina Camp 1 BQ');
+    const phones = targets.map((t) => t.username);
+    expect(phones).toContain('shakir.sabir');
+    expect(phones).not.toContain('aftab.ansari');
   });
 });

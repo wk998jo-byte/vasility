@@ -27,6 +27,9 @@ export function siteToCampLabel(site) {
   if (/^madina camp 1$/i.test(s) || /^tcf-?1$/i.test(s)) return 'Madina Camp 1 PMT';
   if (/^madina camp 2$/i.test(s) || /^tcf-?2$/i.test(s)) return 'Madina Camp 2 BQ';
   if (/^jubail$/i.test(s)) return 'Jubail Camp';
+  if (/^salasil$/i.test(s)) return 'Salasil Camp';
+  if (/^zuluf$/i.test(s)) return 'Zuluf Camp';
+  if (/^madina camp 3$/i.test(s) || /^tcf-?3$/i.test(s)) return 'Madina Camp 3';
   if (/camp$/i.test(s) || /\s(bq|pmt)$/i.test(s)) return s;
   return `${s} Camp`;
 }
@@ -42,10 +45,13 @@ export function campLabelToSite(camp) {
   if (c === 'Khurais Camp' || /^khurais$/i.test(c)) return 'Khurais';
   if (c === 'Juaymah Camp' || /^juaymah$/i.test(c) || /^juyamah$/i.test(c)) return 'Juaymah';
   if (c === 'Jubail Camp' || /^jubail$/i.test(c)) return 'Jubail';
+  if (c === 'Salasil Camp' || /^salasil$/i.test(c)) return 'Salasil';
+  if (c === 'Zuluf Camp' || /^zuluf$/i.test(c)) return 'Zuluf';
   if (/^madina camp 1\s*bq$/i.test(c)) return 'Madina Camp 1 BQ';
   if (/^madina camp 1\s*pmt$/i.test(c)) return 'Madina Camp 1 PMT';
   if (/^madina camp 2\s*bq$/i.test(c)) return 'Madina Camp 2 BQ';
   if (/^madina camp 2\s*pmt$/i.test(c)) return 'Madina Camp 2 PMT';
+  if (/^madina camp 3$/i.test(c) || /^tcf-?3$/i.test(c)) return 'Madina Camp 3';
   if (c === 'Madina Camp 1' || /^tcf-?1$/i.test(c)) return 'Madina Camp 1 PMT';
   if (c === 'Madina Camp 2' || /^tcf-?2$/i.test(c)) return 'Madina Camp 2 BQ';
   if (/\s(bq|pmt)$/i.test(c)) return c;
@@ -369,13 +375,22 @@ export async function fetchAllIssues(db, filters = {}) {
     roomId,
     priority,
     site,
-    // When set with site, also return tickets assigned to this username (cross-site).
+    // Multiple sites (OR) — preferred over single `site` when present.
+    sites,
+    // When set with site(s), also return tickets assigned to these aliases (cross-site).
     assigneeUsername,
+    assigneeAliases,
     // When set without site, return ONLY tickets assigned to this username.
     assigneeOnly,
     dateFrom,
     dateTo,
   } = filters;
+
+  const siteList = (Array.isArray(sites) && sites.length
+    ? sites
+    : (site ? [site] : []))
+    .map((s) => String(s || '').trim())
+    .filter(Boolean);
 
   const conditions = [];
   const params = [];
@@ -410,15 +425,20 @@ export async function fetchAllIssues(db, filters = {}) {
     } else {
       conditions.push('FALSE');
     }
-  } else if (site && assigneeUsername) {
-    const aliases = siteFilterAliases(site);
+  } else if (siteList.length && (assigneeAliases?.length || assigneeUsername)) {
+    const siteAliases = [...new Set(siteList.flatMap((s) => siteFilterAliases(s)))];
+    const people = (Array.isArray(assigneeAliases) && assigneeAliases.length
+      ? assigneeAliases
+      : [assigneeUsername])
+      .map((v) => String(v || '').trim().toLowerCase())
+      .filter(Boolean);
     conditions.push(
-      `(LOWER(TRIM(COALESCE(r.site, ''))) = ANY($${n}::text[]) OR LOWER(TRIM(COALESCE(fi.assignee, ''))) = LOWER($${n + 1}))`,
+      `(LOWER(TRIM(COALESCE(r.site, ''))) = ANY($${n}::text[]) OR LOWER(TRIM(COALESCE(fi.assignee, ''))) = ANY($${n + 1}::text[]))`,
     );
-    params.push(aliases.map((a) => a.toLowerCase()), String(assigneeUsername).trim());
+    params.push(siteAliases.map((a) => a.toLowerCase()), people);
     n += 2;
-  } else if (site) {
-    const aliases = siteFilterAliases(site);
+  } else if (siteList.length) {
+    const aliases = [...new Set(siteList.flatMap((s) => siteFilterAliases(s)))];
     conditions.push(`LOWER(TRIM(COALESCE(r.site, ''))) = ANY($${n++}::text[])`);
     params.push(aliases.map((a) => a.toLowerCase()));
   }
@@ -528,14 +548,20 @@ export async function fetchPublicRooms(db) {
 
 export async function fetchUsers(db, { role } = {}) {
   const params = [];
-  let sql = 'SELECT id, username, role, is_active, full_name, phone, email, site, title, created_at FROM users WHERE is_active = true';
+  let sql = `SELECT id, username, role, is_active, full_name, phone, email, site, sites, title, created_at
+             FROM users WHERE is_active = true`;
   if (role) {
     sql += ' AND role = $1';
     params.push(role);
   }
   sql += ' ORDER BY username';
   const { rows } = await db.query(sql, params);
-  return rows;
+  return rows.map((row) => ({
+    ...row,
+    sites: Array.isArray(row.sites) && row.sites.length
+      ? row.sites
+      : (row.site ? [row.site] : []),
+  }));
 }
 
 export async function fetchIssueComments(db, issueId) {

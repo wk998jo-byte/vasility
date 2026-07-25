@@ -110,6 +110,13 @@ CREATE TABLE IF NOT EXISTS users (
 
 CREATE UNIQUE INDEX IF NOT EXISTS users_username_lower_idx ON users (LOWER(username));
 
+-- Multi-site access for site_admin / sub_admin / facility (primary site kept in `site`).
+ALTER TABLE users ADD COLUMN IF NOT EXISTS sites TEXT[];
+UPDATE users
+SET sites = ARRAY[site]
+WHERE site IS NOT NULL AND TRIM(site) <> ''
+  AND (sites IS NULL OR cardinality(sites) = 0);
+
 -- Keep user site assignments aligned with the BQ/PMT split.
 UPDATE users SET site = 'MGS BQ' WHERE LOWER(TRIM(COALESCE(site, ''))) IN ('mgs', 'mgs camp', 'mgs bq');
 UPDATE users SET site = 'MGS PMT' WHERE LOWER(TRIM(COALESCE(site, ''))) IN ('mgs pmt');
@@ -121,6 +128,35 @@ UPDATE users SET site = 'Madina Camp 2 BQ'
   WHERE LOWER(TRIM(COALESCE(site, ''))) IN ('madina camp 2', 'madina camp 2 bq', 'tcf-2', 'tcf2');
 UPDATE users SET site = 'Madina Camp 2 PMT'
   WHERE LOWER(TRIM(COALESCE(site, ''))) IN ('madina camp 2 pmt');
+
+-- Keep sites[] in sync with renamed primary site (and normalize legacy labels in arrays).
+UPDATE users
+SET sites = ARRAY[site]
+WHERE site IS NOT NULL AND TRIM(site) <> ''
+  AND (
+    sites IS NULL
+    OR cardinality(sites) = 0
+    OR (cardinality(sites) = 1 AND sites[1] IS DISTINCT FROM site)
+  );
+
+UPDATE users
+SET sites = (
+  SELECT ARRAY_AGG(DISTINCT v ORDER BY v)
+  FROM (
+    SELECT CASE
+      WHEN LOWER(TRIM(s)) IN ('mgs', 'mgs camp', 'mgs bq') THEN 'MGS BQ'
+      WHEN LOWER(TRIM(s)) IN ('mgs pmt') THEN 'MGS PMT'
+      WHEN LOWER(TRIM(s)) IN ('madina camp 1', 'madina camp 1 pmt', 'tcf-1', 'tcf1') THEN 'Madina Camp 1 PMT'
+      WHEN LOWER(TRIM(s)) IN ('madina camp 1 bq') THEN 'Madina Camp 1 BQ'
+      WHEN LOWER(TRIM(s)) IN ('madina camp 2', 'madina camp 2 bq', 'tcf-2', 'tcf2') THEN 'Madina Camp 2 BQ'
+      WHEN LOWER(TRIM(s)) IN ('madina camp 2 pmt') THEN 'Madina Camp 2 PMT'
+      ELSE TRIM(s)
+    END AS v
+    FROM unnest(COALESCE(sites, ARRAY[]::text[])) AS s
+    WHERE TRIM(COALESCE(s, '')) <> ''
+  ) norm
+)
+WHERE sites IS NOT NULL AND cardinality(sites) > 0;
 
 -- ─── Facility issues ─────────────────────────────────────────────────────────
 

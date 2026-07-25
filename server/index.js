@@ -1,4 +1,6 @@
 import path from 'path';
+import fs from 'fs';
+import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import express from 'express';
 import cors from 'cors';
@@ -44,6 +46,18 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const distDir = path.join(__dirname, '../web/dist');
 const PORT = Number(process.env.PORT) || 8080;
 const JWT_SECRET = process.env.JWT_SECRET;
+
+/** Changes on every frontend rebuild so open tabs can auto-reload. */
+function computeBuildId() {
+  try {
+    const indexPath = path.join(distDir, 'index.html');
+    if (fs.existsSync(indexPath)) {
+      return crypto.createHash('sha1').update(fs.readFileSync(indexPath)).digest('hex').slice(0, 12);
+    }
+  } catch { /* fall through */ }
+  return process.env.BUILD_ID || String(Date.now());
+}
+let BUILD_ID = computeBuildId();
 
 const app = express();
 
@@ -152,12 +166,37 @@ function authenticateToken(req, res, next) {
     return;
   }
   const token = authHeader.slice('Bearer '.length);
-  try {
-    req.user = jwt.verify(token, JWT_SECRET);
-    next();
-  } catch {
-    res.status(403).json({ error: 'Invalid or expired token' });
-  }
+  (async () => {
+    try {
+      const payload = jwt.verify(token, JWT_SECRET);
+      if (payload?.sub) {
+        const db = await getPool();
+        if (db) {
+          const { rows } = await db.query(
+            `SELECT is_active, role, site, sites FROM users WHERE id = $1`,
+            [payload.sub],
+          );
+          const row = rows[0];
+          if (!row?.is_active) {
+            res.status(401).json({ error: 'Account deactivated. Please sign in again.' });
+            return;
+          }
+          // Keep RBAC sites fresh without forcing re-login after staff edits.
+          payload.role = row.role;
+          payload.site = row.site || null;
+          payload.sites = Array.isArray(row.sites) && row.sites.length
+            ? row.sites
+            : (row.site ? [row.site] : []);
+        }
+      }
+      req.user = payload;
+      next();
+    } catch {
+      res.status(403).json({ error: 'Invalid or expired token' });
+    }
+  })().catch(() => {
+    res.status(500).json({ error: 'Auth check failed' });
+  });
 }
 
 // Role hierarchy:
@@ -223,7 +262,54 @@ function requireStaff(req, res, next) {
 
 // Returns the site a user is restricted to, or null for global roles.
 function userSite(user) {
-  return SITE_SCOPED_ROLES.has(user?.role) ? (user?.site || null) : null;
+  const sites = userSitesList(user);
+  if (sites === null) return null;
+  return sites[0] || null;
+}
+
+/** null = all sites (main admin); otherwise list of assigned sites. */
+function userSitesList(user) {
+  if (!SITE_SCOPED_ROLES.has(user?.role)) return null;
+  if (Array.isArray(user?.sites) && user.sites.length) {
+    return user.sites.map((s) => String(s || '').trim()).filter(Boolean);
+  }
+  if (user?.site) return [String(user.site).trim()].filter(Boolean);
+  return [];
+}
+
+function normalizeSitesInput(body) {
+  const fromArray = Array.isArray(body?.sites)
+    ? body.sites
+    : (typeof body?.sites === 'string' && body.sites.trim()
+      ? body.sites.split(/[,|]/).map((s) => s.trim())
+      : []);
+  const list = fromArray
+    .map((s) => String(s || '').trim())
+    .filter(Boolean);
+  if (list.length) return [...new Set(list)];
+  if (typeof body?.site === 'string' && body.site.trim()) return [body.site.trim()];
+  return [];
+}
+
+function userCoversTicketSite(user, ticketSite, ticketCamp) {
+  const sites = userSitesList(user);
+  if (sites === null) return true;
+  if (!sites.length) return false;
+  return sites.some((s) => {
+    const userCamp = siteToCamp(s) || s;
+    return campsMatch(userCamp, ticketCamp)
+      || campsMatch(s, ticketSite)
+      || campsMatch(userCamp, ticketSite)
+      || campsMatch(s, ticketCamp);
+  });
+}
+
+function userCoversRoomSite(user, roomSite) {
+  const sites = userSitesList(user);
+  if (sites === null) return true;
+  if (!sites.length) return false;
+  const ticketCamp = siteToCamp(roomSite) || roomSite;
+  return userCoversTicketSite(user, roomSite, ticketCamp);
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -282,10 +368,10 @@ async function notifyAdminsOfNewTicket(db, roomId, ticketNumber, summary, issue 
     addPhone(user.phone, `${user.name || user.username} / ${user.role}`);
   }
 
-  // 2) Live DB admins/sub-admins only (never facility technicians cross-camp)
+  // 2) Live DB admins / site in-charge / sub-admins (never facility cross-camp)
   try {
     const { rows: dbUsers } = await db.query(
-      `SELECT full_name, username, role, site, phone FROM users
+      `SELECT id, full_name, username, role, site, sites, phone FROM users
        WHERE is_active = true AND phone IS NOT NULL AND phone <> ''
          AND role IN ('admin', 'site_admin', 'sub_admin')`,
     );
@@ -295,8 +381,12 @@ async function notifyAdminsOfNewTicket(db, roomId, ticketNumber, summary, issue 
         addPhone(u.phone, `${u.full_name || u.username} / db-admin`);
         continue;
       }
-      const userCamp = siteToCamp(u.site) || u.site;
-      if (['site_admin', 'sub_admin'].includes(role) && campsMatch(userCamp, ticketCamp)) {
+      const jwtLike = {
+        role,
+        site: u.site,
+        sites: Array.isArray(u.sites) && u.sites.length ? u.sites : (u.site ? [u.site] : []),
+      };
+      if (userCoversTicketSite(jwtLike, site, ticketCamp)) {
         addPhone(u.phone, `${u.full_name || u.username} / db-${role}`);
       }
     }
@@ -334,6 +424,47 @@ async function createNotification(db, {
   );
 }
 
+/** In-app bell for main admins + matching site_admin / sub_admin (camp in-charge). */
+async function notifyManagersInApp(db, roomId, ticketNumber) {
+  await createNotification(db, {
+    role: 'admin',
+    message: `New Ticket created: ${ticketNumber}`,
+    ticketNumber,
+  });
+
+  let site = null;
+  let roomName = '';
+  try {
+    const { rows } = await db.query('SELECT site, name FROM rooms WHERE id = $1', [roomId]);
+    site = rows[0]?.site || null;
+    roomName = rows[0]?.name || '';
+  } catch {
+    return;
+  }
+  const ticketCamp = deriveTicketCamp(site, roomName);
+  try {
+    const { rows } = await db.query(
+      `SELECT id, role, site, sites FROM users
+       WHERE is_active = true AND role IN ('site_admin', 'sub_admin')`,
+    );
+    for (const u of rows) {
+      const jwtLike = {
+        role: u.role,
+        site: u.site,
+        sites: Array.isArray(u.sites) && u.sites.length ? u.sites : (u.site ? [u.site] : []),
+      };
+      if (!userCoversTicketSite(jwtLike, site, ticketCamp)) continue;
+      await createNotification(db, {
+        userId: u.id,
+        message: `New Ticket created: ${ticketNumber}`,
+        ticketNumber,
+      });
+    }
+  } catch (err) {
+    console.error('[notifications] site manager fan-out failed:', err?.message || err);
+  }
+}
+
 function parseIssueFilters(query) {
   return {
     includeDeleted: query.includeDeleted === 'true',
@@ -367,6 +498,12 @@ app.get('/api/health', async (_req, res) => {
   }
 });
 
+/** Open tabs poll this; after deploy buildId changes and clients reload. */
+app.get('/api/version', (_req, res) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+  res.status(200).json({ buildId: BUILD_ID, ts: Date.now() });
+});
+
 app.post('/api/auth/login', loginLimiter, requireDb, async (req, res) => {
   if (!JWT_SECRET) {
     res.status(503).json({ error: 'JWT_SECRET not configured' });
@@ -383,7 +520,7 @@ app.post('/api/auth/login', loginLimiter, requireDb, async (req, res) => {
 
   try {
     const { rows } = await req.db.query(
-      'SELECT id, username, password_hash, role, site, full_name FROM users WHERE LOWER(username) = LOWER($1) AND is_active = true',
+      'SELECT id, username, password_hash, role, site, sites, full_name FROM users WHERE LOWER(username) = LOWER($1) AND is_active = true',
       [username],
     );
     const user = rows[0];
@@ -400,13 +537,28 @@ app.post('/api/auth/login', loginLimiter, requireDb, async (req, res) => {
       return;
     }
 
+    const sites = Array.isArray(user.sites) && user.sites.length
+      ? user.sites
+      : (user.site ? [user.site] : []);
+    const primarySite = sites[0] || user.site || null;
+
     const token = jwt.sign(
-      { sub: user.id, user: user.username, role: user.role, site: user.site || null },
+      {
+        sub: user.id,
+        user: user.username,
+        role: user.role,
+        site: primarySite,
+        sites,
+      },
       JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN || '12h' },
     );
     res.status(200).json({
-      token, role: user.role, site: user.site || null, fullName: user.full_name || '',
+      token,
+      role: user.role,
+      site: primarySite,
+      sites,
+      fullName: user.full_name || '',
     });
   } catch {
     res.status(500).json({ error: 'Login failed' });
@@ -422,7 +574,7 @@ app.get('/api/auth/me', requireDb, authenticateToken, async (req, res) => {
 
   try {
     const { rows } = await req.db.query(
-      `SELECT username, full_name, phone, email, role, site, title
+      `SELECT username, full_name, phone, email, role, site, sites, title
        FROM users WHERE id = $1 AND is_active = true`,
       [userId],
     );
@@ -432,9 +584,13 @@ app.get('/api/auth/me', requireDb, authenticateToken, async (req, res) => {
       return;
     }
 
-    const camp = user.role === 'admin' || !user.site
+    const sites = Array.isArray(user.sites) && user.sites.length
+      ? user.sites
+      : (user.site ? [user.site] : []);
+    const primarySite = sites[0] || user.site || null;
+    const camp = user.role === 'admin' || !primarySite
       ? 'All'
-      : (siteToCamp(user.site) || user.site);
+      : (siteToCamp(primarySite) || primarySite);
 
     res.status(200).json({
       username: user.username,
@@ -442,7 +598,8 @@ app.get('/api/auth/me', requireDb, authenticateToken, async (req, res) => {
       title: user.title || '',
       role: user.role,
       camp,
-      site: user.site || null,
+      site: primarySite,
+      sites,
       phone: user.phone || '',
       email: user.email || '',
     });
@@ -508,9 +665,16 @@ app.get('/api/users', requireDb, authenticateToken, async (req, res) => {
     const canListStaff = req.user?.role === 'admin'
       || req.user?.role === 'site_admin'
       || req.user?.role === 'sub_admin';
-    const mySite = userSite(req.user);
-    const scoped = mySite
-      ? users.filter((u) => !u.site || u.site === mySite || u.role === 'admin')
+    const mySites = userSitesList(req.user);
+    const scoped = mySites
+      ? users.filter((u) => {
+        if (u.role === 'admin') return true;
+        const uSites = Array.isArray(u.sites) && u.sites.length
+          ? u.sites
+          : (u.site ? [u.site] : []);
+        if (!uSites.length) return false;
+        return uSites.some((s) => mySites.some((ms) => campsMatch(siteToCamp(s) || s, siteToCamp(ms) || ms)));
+      })
       : users;
     // sub_admin needs full staff rows to assign technicians (phone/name/site).
     const sanitized = canListStaff
@@ -532,7 +696,7 @@ app.post('/api/users', requireDb, authenticateToken, requireManager, async (req,
   const fullName = typeof req.body?.fullName === 'string' ? req.body.fullName.trim().slice(0, 120) : '';
   const phone = typeof req.body?.phone === 'string' ? req.body.phone.trim().slice(0, 30) : '';
   const email = typeof req.body?.email === 'string' ? req.body.email.trim().slice(0, 254) : '';
-  let site = typeof req.body?.site === 'string' && req.body.site.trim() ? req.body.site.trim() : null;
+  let sites = normalizeSitesInput(req.body);
 
   if (!username || !password) {
     res.status(400).json({ error: 'username and password required' });
@@ -554,29 +718,67 @@ app.post('/api/users', requireDb, authenticateToken, requireManager, async (req,
     return;
   }
 
-  // Site admins may only create sub-admins / facility staff for their own site.
-  const mySite = userSite(req.user);
+  // Site admins may only create sub-admins / facility staff for their own site(s).
+  const mySites = userSitesList(req.user);
   if (req.user?.role === 'site_admin') {
     if (role !== 'sub_admin' && role !== 'facility') {
       res.status(403).json({ error: 'Site admins can only create sub-admins or facility staff' });
       return;
     }
-    site = mySite;
+    if (sites.length) {
+      const allowed = sites.every((s) => (mySites || []).some((ms) => (
+        campsMatch(siteToCamp(s) || s, siteToCamp(ms) || ms)
+      )));
+      if (!allowed) {
+        res.status(403).json({ error: 'Cannot assign sites outside your access' });
+        return;
+      }
+    } else {
+      sites = mySites?.length ? [...mySites] : sites;
+    }
   }
 
-  if ((role === 'site_admin' || role === 'sub_admin') && !site) {
-    res.status(400).json({ error: 'site is required for site admins and sub-admins' });
+  if (role === 'admin') {
+    sites = [];
+  } else if ((role === 'site_admin' || role === 'sub_admin') && !sites.length) {
+    res.status(400).json({ error: 'At least one site is required for site admins and sub-admins' });
     return;
   }
-  if (role === 'admin') site = null;
+
+  const primarySite = sites[0] || null;
 
   try {
     const passwordHash = await bcrypt.hash(password, 12);
+    const existing = await req.db.query(
+      'SELECT id, is_active, role FROM users WHERE LOWER(username) = LOWER($1) LIMIT 1',
+      [username],
+    );
+    if (existing.rows[0]?.is_active) {
+      res.status(409).json({ error: 'Username already exists' });
+      return;
+    }
+    if (existing.rows[0] && !existing.rows[0].is_active) {
+      if (existing.rows[0].role === 'admin' && req.user?.role !== 'admin') {
+        res.status(403).json({ error: 'Cannot reactivate this username' });
+        return;
+      }
+      const { rows } = await req.db.query(
+        `UPDATE users
+         SET password_hash = $2, role = $3, is_active = true,
+             full_name = $4, phone = $5, email = $6, site = $7, sites = $8
+         WHERE id = $1
+         RETURNING id, username, role, full_name, phone, email, site, sites`,
+        [existing.rows[0].id, passwordHash, role, fullName, phone, email, primarySite, sites.length ? sites : null],
+      );
+      res.status(200).json({ ok: true, user: rows[0], reactivated: true });
+      return;
+    }
+
     const { rows } = await req.db.query(
-      `INSERT INTO users (username, password_hash, role, is_active, full_name, phone, email, site)
-       VALUES ($1, $2, $3, true, $4, $5, $6, $7)
-       RETURNING id, username, role, full_name, phone, email, site`,
-      [username, passwordHash, role, fullName, phone, email, site],
+      `INSERT INTO users (username, password_hash, role, is_active, full_name, phone, email, site, sites)
+       VALUES ($1, $2, $3, true, $4, $5, $6, $7, $8)
+       RETURNING id, username, role, full_name, phone, email, site, sites`,
+      [username, passwordHash, role, fullName, phone, email, primarySite, sites.length ? sites : null],
     );
     res.status(201).json({ ok: true, user: rows[0] });
   } catch (err) {
@@ -603,7 +805,7 @@ app.delete('/api/users/:id', requireDb, authenticateToken, requireManager, async
 
   try {
     const { rows: targetRows } = await req.db.query(
-      'SELECT id, username, role, site FROM users WHERE id = $1',
+      'SELECT id, username, role, site, sites FROM users WHERE id = $1 AND is_active = true',
       [userId],
     );
     const target = targetRows[0];
@@ -612,11 +814,15 @@ app.delete('/api/users/:id', requireDb, authenticateToken, requireManager, async
       return;
     }
 
-    // Site admins may only delete sub-admins / facility staff of their own site.
+    // Site admins may only delete sub-admins / facility staff of their own site(s).
     if (req.user?.role === 'site_admin') {
-      const mySite = userSite(req.user);
+      const mySites = userSitesList(req.user) || [];
       const allowedRole = target.role === 'sub_admin' || target.role === 'facility';
-      if (!allowedRole || target.site !== mySite) {
+      const targetSites = Array.isArray(target.sites) && target.sites.length
+        ? target.sites
+        : (target.site ? [target.site] : []);
+      const sameSite = targetSites.some((s) => mySites.some((ms) => campsMatch(siteToCamp(s) || s, siteToCamp(ms) || ms)));
+      if (!allowedRole || !sameSite) {
         res.status(403).json({ error: 'Not allowed to delete this user' });
         return;
       }
@@ -625,29 +831,18 @@ app.delete('/api/users/:id', requireDb, authenticateToken, requireManager, async
       return;
     }
 
-    await withTransaction(req.db, async (client) => {
-      // Clear FK references that block hard delete (no ON DELETE SET NULL in schema).
-      await client.query(
-        'UPDATE issue_status_history SET changed_by = NULL WHERE changed_by = $1',
-        [userId],
-      );
-      const { rowCount } = await client.query(
-        'DELETE FROM users WHERE id = $1',
-        [userId],
-      );
-      if (!rowCount) {
-        const err = new Error('User not found');
-        err.status = 404;
-        throw err;
-      }
-    });
-
-    res.status(200).json({ ok: true });
-  } catch (err) {
-    if (err?.status === 404) {
+    // Soft-delete so history stays intact and user disappears from assign lists.
+    const { rowCount } = await req.db.query(
+      `UPDATE users SET is_active = false WHERE id = $1 AND is_active = true`,
+      [userId],
+    );
+    if (!rowCount) {
       res.status(404).json({ error: 'User not found' });
       return;
     }
+
+    res.status(200).json({ ok: true });
+  } catch (err) {
     console.error('[users] delete failed:', err.message);
     res.status(500).json({ error: err.message || 'Failed to delete user' });
   }
@@ -673,7 +868,7 @@ app.post('/api/users/:id/reset-password', requireDb, authenticateToken, requireM
 
   try {
     const { rows } = await req.db.query(
-      'SELECT id, username, role, site FROM users WHERE id = $1 AND is_active = true',
+      'SELECT id, username, role, site, sites FROM users WHERE id = $1 AND is_active = true',
       [userId],
     );
     const target = rows[0];
@@ -683,9 +878,13 @@ app.post('/api/users/:id/reset-password', requireDb, authenticateToken, requireM
     }
 
     if (req.user?.role === 'site_admin') {
-      const mySite = userSite(req.user);
+      const mySites = userSitesList(req.user) || [];
       const allowedRole = target.role === 'sub_admin' || target.role === 'facility';
-      if (!allowedRole || target.site !== mySite) {
+      const targetSites = Array.isArray(target.sites) && target.sites.length
+        ? target.sites
+        : (target.site ? [target.site] : []);
+      const sameSite = targetSites.some((s) => mySites.some((ms) => campsMatch(siteToCamp(s) || s, siteToCamp(ms) || ms)));
+      if (!allowedRole || !sameSite) {
         res.status(403).json({ error: 'Not allowed to reset this user password' });
         return;
       }
@@ -867,10 +1066,17 @@ app.get('/api/rooms', requireDb, async (req, res) => {
 app.get('/api/rooms/admin', requireDb, authenticateToken, async (req, res) => {
   try {
     let rooms = await fetchAdminRooms(req.db);
-    const mySite = userSite(req.user);
-    if (mySite) {
-      rooms = rooms.filter((r) => !r.site || String(r.site).toLowerCase() === String(mySite).toLowerCase()
-        || siteToCamp(r.site) === siteToCamp(mySite));
+    const mySites = userSitesList(req.user);
+    if (mySites !== null) {
+      if (!mySites.length) {
+        rooms = [];
+      } else {
+        rooms = rooms.filter((r) => r.site && mySites.some((ms) => (
+          String(r.site).toLowerCase() === String(ms).toLowerCase()
+          || siteToCamp(r.site) === siteToCamp(ms)
+          || campsMatch(siteToCamp(r.site) || r.site, siteToCamp(ms) || ms)
+        )));
+      }
     }
     res.status(200).json({ rooms });
   } catch {
@@ -882,9 +1088,21 @@ app.post('/api/rooms', requireDb, authenticateToken, requireManager, async (req,
   const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
   const departmentId = typeof req.body?.departmentId === 'string' ? req.body.departmentId.trim() : '';
   const floor = typeof req.body?.floor === 'string' ? req.body.floor.trim() : null;
-  const mySiteCreate = userSite(req.user);
-  const site = mySiteCreate
-    || (typeof req.body?.site === 'string' && req.body.site.trim() ? req.body.site.trim() : 'Dhahran');
+  const requestedSite = typeof req.body?.site === 'string' && req.body.site.trim()
+    ? req.body.site.trim()
+    : null;
+  const mySites = userSitesList(req.user);
+  let site = requestedSite || 'Dhahran';
+  if (mySites !== null) {
+    if (requestedSite && userCoversRoomSite(req.user, requestedSite)) {
+      site = requestedSite;
+    } else if (!requestedSite && mySites[0]) {
+      site = mySites[0];
+    } else {
+      res.status(403).json({ error: 'Not allowed to create rooms for this site' });
+      return;
+    }
+  }
   const assets = Array.isArray(req.body?.assets)
     ? req.body.assets.map((a) => String(a).trim()).filter(Boolean)
     : [];
@@ -974,14 +1192,17 @@ app.put('/api/rooms/:id', requireDb, authenticateToken, requireManager, async (r
     }
 
     const current = existing.rows[0];
-    const mySiteEdit = userSite(req.user);
-    if (mySiteEdit && current.site !== mySiteEdit) {
+    if (!userCoversRoomSite(req.user, current.site)) {
       res.status(403).json({ error: 'Not allowed to manage rooms of another site' });
       return;
     }
     const newName = name ?? current.name;
     const newFloor = floor !== undefined ? floor : current.floor;
-    const newSite = mySiteEdit || (site !== undefined ? site : current.site);
+    const newSite = site !== undefined ? site : current.site;
+    if (!userCoversRoomSite(req.user, newSite)) {
+      res.status(403).json({ error: 'Not allowed to move rooms to another site' });
+      return;
+    }
 
     const { rows } = await req.db.query(
       `UPDATE rooms SET name = $1, floor = $2, site = $3 WHERE id = $4
@@ -1020,8 +1241,7 @@ app.post('/api/rooms/:id/qr/regenerate', requireDb, authenticateToken, requireMa
       res.status(404).json({ error: 'Room not found' });
       return;
     }
-    const mySiteQr = userSite(req.user);
-    if (mySiteQr && roomCheck.rows[0].site !== mySiteQr) {
+    if (!userCoversRoomSite(req.user, roomCheck.rows[0].site)) {
       res.status(403).json({ error: 'Not allowed to manage rooms of another site' });
       return;
     }
@@ -1058,8 +1278,7 @@ app.delete('/api/rooms/:id', requireDb, authenticateToken, requireManager, async
       res.status(404).json({ error: 'Room not found' });
       return;
     }
-    const mySiteDel = userSite(req.user);
-    if (mySiteDel && roomCheck.rows[0].site !== mySiteDel) {
+    if (!userCoversRoomSite(req.user, roomCheck.rows[0].site)) {
       res.status(403).json({ error: 'Not allowed to manage rooms of another site' });
       return;
     }
@@ -1200,12 +1419,6 @@ app.post('/api/issues', issueSubmitLimiter, requireDb, async (req, res) => {
     } else {
       console.warn('[whatsapp] No reporter phone on ticket — skipping welcome WhatsApp');
     }
-    createNotification(req.db, {
-      role: 'admin',
-      message: `New Ticket created: ${ticketNumber}`,
-      ticketNumber,
-    }).catch((err) => console.error('[notifications] insert failed:', err.message));
-
     const adminSummary = [issue?.roomName || issue?.room_name, assetName, issueType]
       .filter(Boolean).join(' — ');
     // WhatsApp RBAC fan-out (USERS + DB) — fire-and-forget; never blocks HTTP response.
@@ -1217,6 +1430,10 @@ app.post('/api/issues', issueSubmitLimiter, requireDb, async (req, res) => {
         console.error('Error Message:', err?.message || err);
         console.error('---------------------------\n');
       });
+
+    // In-app bell: main admins + matching site_admin / sub_admin (camp in-charge).
+    notifyManagersInApp(req.db, resolvedRoomId, ticketNumber)
+      .catch((err) => console.error('[notifications] manager fan-out failed:', err?.message || err));
 
     res.status(201).json({ ok: true, issue: toPublicIssue(issue) });
   } catch (err) {
@@ -1516,15 +1733,17 @@ app.get('/api/issues', requireDb, authenticateToken, async (req, res) => {
   try {
     const filters = parseIssueFilters(req.query);
     const role = req.user?.role;
-    const mySite = userSite(req.user);
+    const mySites = userSitesList(req.user);
 
     if (role === 'admin') {
       // Main admin: all tickets (optional UI site filter).
     } else if (role === 'site_admin' || role === 'sub_admin') {
-      // Site managers/sub-admins: own site + anything assigned to them (cross-site).
-      if (mySite) {
-        filters.site = mySite;
-        if (req.user?.user) filters.assigneeUsername = req.user.user;
+      // Site managers/sub-admins: assigned sites + anything assigned to them.
+      if (mySites?.length) {
+        filters.sites = mySites;
+        delete filters.site;
+        filters.assigneeAliases = await assigneeAliasesFor(req.db, req.user);
+        delete filters.assigneeUsername;
       } else if (req.user?.user) {
         filters.assigneeOnly = await assigneeAliasesFor(req.db, req.user);
       }
@@ -1537,6 +1756,7 @@ app.get('/api/issues', requireDb, authenticateToken, async (req, res) => {
       }
       filters.assigneeOnly = aliases;
       delete filters.site;
+      delete filters.sites;
       delete filters.assigneeUsername;
     }
 
@@ -1567,14 +1787,10 @@ app.get('/api/issues/:ticketNumber/history', requireDb, authenticateToken, async
     const role = req.user?.role;
     const aliases = await assigneeAliasesFor(req.db, req.user);
     const isAssignee = isAssigneeMatch(row.assignee, aliases);
-    const mySite = userSite(req.user);
     if (role === 'admin') {
       // ok
     } else if (role === 'site_admin' || role === 'sub_admin') {
-      const siteOk = !mySite
-        || String(row.room_site || '').toLowerCase() === String(mySite).toLowerCase()
-        || siteToCamp(row.room_site) === siteToCamp(mySite);
-      if (!siteOk && !isAssignee) {
+      if (!userCoversRoomSite(req.user, row.room_site) && !isAssignee) {
         res.status(403).json({ error: 'Not allowed to view this ticket history' });
         return;
       }
@@ -1615,17 +1831,13 @@ app.put('/api/issues/:ticketNumber', requireDb, authenticateToken, requireStaff,
     const canDelete = role === 'admin' || role === 'site_admin';
     const aliases = await assigneeAliasesFor(req.db, req.user);
     const isAssignee = isAssigneeMatch(current.assignee, aliases);
-    const mySite = userSite(req.user);
 
     if (isMainAdmin) {
       // full access
     } else if (role === 'site_admin' || role === 'sub_admin') {
       const roomSite = await req.db.query('SELECT site FROM rooms WHERE id = $1', [current.room_id]);
       const ticketSite = roomSite.rows[0]?.site || '';
-      const siteOk = !mySite
-        || String(ticketSite).toLowerCase() === String(mySite).toLowerCase()
-        || siteToCamp(ticketSite) === siteToCamp(mySite);
-      if (!siteOk && !isAssignee) {
+      if (!userCoversRoomSite(req.user, ticketSite) && !isAssignee) {
         res.status(403).json({ error: 'Not allowed to manage tickets of another site' });
         return;
       }
@@ -1886,13 +2098,15 @@ app.get('/api/tickets', requireDb, authenticateToken, async (req, res) => {
   try {
     const filters = parseIssueFilters(req.query);
     const role = req.user?.role;
-    const mySite = userSite(req.user);
+    const mySites = userSitesList(req.user);
     if (role === 'admin') {
       // all
     } else if (role === 'site_admin' || role === 'sub_admin') {
-      if (mySite) {
-        filters.site = mySite;
-        if (req.user?.user) filters.assigneeUsername = req.user.user;
+      if (mySites?.length) {
+        filters.sites = mySites;
+        delete filters.site;
+        filters.assigneeAliases = await assigneeAliasesFor(req.db, req.user);
+        delete filters.assigneeUsername;
       } else if (req.user?.user) {
         filters.assigneeOnly = await assigneeAliasesFor(req.db, req.user);
       }
@@ -1904,6 +2118,7 @@ app.get('/api/tickets', requireDb, authenticateToken, async (req, res) => {
       }
       filters.assigneeOnly = aliases;
       delete filters.site;
+      delete filters.sites;
     }
     const issues = await fetchAllIssues(req.db, filters);
     res.status(200).json({ tickets: issues });
@@ -1912,7 +2127,22 @@ app.get('/api/tickets', requireDb, authenticateToken, async (req, res) => {
   }
 });
 
-app.use(express.static(distDir));
+app.use(express.static(distDir, {
+  setHeaders(res, filePath) {
+    const base = path.basename(filePath);
+    if (
+      base === 'index.html'
+      || base === 'sw.js'
+      || base === 'registerSW.js'
+      || base.startsWith('workbox-')
+      || base === 'manifest.webmanifest'
+    ) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    } else if (/\.[a-f0-9]{8,}\./i.test(base)) {
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    }
+  },
+}));
 
 app.get('*', (req, res) => {
   if (req.path.startsWith('/api/')) {
@@ -1932,7 +2162,9 @@ async function start() {
   // database initialization in the background. The '/' healthcheck serves the
   // static frontend and does not depend on the database.
   app.listen(PORT, '0.0.0.0', () => {
+    BUILD_ID = computeBuildId();
     console.log(`Facility Maintenance Center (FMC) → http://0.0.0.0:${PORT}`);
+    console.log(`[deploy] buildId=${BUILD_ID}`);
   });
 
   checkTwilioConfig();

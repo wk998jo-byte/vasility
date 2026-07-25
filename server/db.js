@@ -32,7 +32,17 @@ export async function initDb() {
   const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
   await db.query(schema);
   await seedDb(db);
-  await seedOfficialStaff(db);
+  try {
+    const staffResult = await seedOfficialStaff(db);
+    if (staffResult?.upserted) {
+      console.log(`[seed-staff] Upserted ${staffResult.upserted} official staff`);
+    }
+    if (staffResult?.skippedCreate) {
+      console.warn(`[seed-staff] Skipped ${staffResult.skippedCreate} new user(s) — set STAFF_DEFAULT_PASSWORD / ADMIN_PASS`);
+    }
+  } catch (err) {
+    console.error('[seed-staff] Official staff seed failed (continuing):', err.message);
+  }
   await seedCampUsers(db);
   await seedInventoryRooms(db);
   await seedCampRooms(db);

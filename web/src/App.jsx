@@ -34,10 +34,13 @@ export const ALL_CAMP_LABELS = [
   'Madina Camp 1 PMT',
   'Madina Camp 2 BQ',
   'Madina Camp 2 PMT',
+  'Madina Camp 3',
   'Khurais Camp',
   'Juaymah Camp',
   'Dhahran Camp',
   'Jubail Camp',
+  'Salasil Camp',
+  'Zuluf Camp',
 ];
 
 /** Keeps camp constants in the client bundle (counts also useful for admin diagnostics). */
@@ -57,10 +60,13 @@ function campLabelToSite(camp) {
   if (c === 'Khurais Camp' || /^khurais$/i.test(c)) return 'Khurais';
   if (c === 'Juaymah Camp' || /^juaymah$/i.test(c) || /^juyamah$/i.test(c)) return 'Juaymah';
   if (c === 'Jubail Camp' || /^jubail$/i.test(c)) return 'Jubail';
+  if (c === 'Salasil Camp' || /^salasil$/i.test(c)) return 'Salasil';
+  if (c === 'Zuluf Camp' || /^zuluf$/i.test(c)) return 'Zuluf';
   if (/^madina camp 1\s*bq$/i.test(c)) return 'Madina Camp 1 BQ';
   if (/^madina camp 1\s*pmt$/i.test(c)) return 'Madina Camp 1 PMT';
   if (/^madina camp 2\s*bq$/i.test(c)) return 'Madina Camp 2 BQ';
   if (/^madina camp 2\s*pmt$/i.test(c)) return 'Madina Camp 2 PMT';
+  if (/^madina camp 3$/i.test(c) || /^tcf-?3$/i.test(c)) return 'Madina Camp 3';
   if (c === 'Madina Camp 1' || /^tcf-?1$/i.test(c)) return 'Madina Camp 1 PMT';
   if (c === 'Madina Camp 2' || /^tcf-?2$/i.test(c)) return 'Madina Camp 2 BQ';
   if (/\s(bq|pmt)$/i.test(c)) return c;
@@ -84,6 +90,9 @@ function siteToCampLabel(site) {
   if (/^madina camp 1$/i.test(s) || /^tcf-?1$/i.test(s)) return 'Madina Camp 1 PMT';
   if (/^madina camp 2$/i.test(s) || /^tcf-?2$/i.test(s)) return 'Madina Camp 2 BQ';
   if (/^jubail$/i.test(s)) return 'Jubail Camp';
+  if (/^salasil$/i.test(s)) return 'Salasil Camp';
+  if (/^zuluf$/i.test(s)) return 'Zuluf Camp';
+  if (/^madina camp 3$/i.test(s) || /^tcf-?3$/i.test(s)) return 'Madina Camp 3';
   if (/camp$/i.test(s) || /\s(bq|pmt)$/i.test(s)) return s;
   return `${s} Camp`;
 }
@@ -170,6 +179,22 @@ function campMatchesAdminSite(camp, adminSite) {
   if (campLabelToSite(camp).toLowerCase() === s) return true;
   if (canonicalSite(camp) && canonicalSite(camp).toLowerCase() === canonicalSite(adminSite).toLowerCase()) return true;
   return false;
+}
+
+function campMatchesAnyAdminSite(camp, adminSites, { failClosed = false } = {}) {
+  const list = Array.isArray(adminSites)
+    ? adminSites
+    : (adminSites ? [adminSites] : []);
+  if (!list.length) return !failClosed;
+  return list.some((s) => campMatchesAdminSite(camp, s));
+}
+
+function priorityBadgeClass(priority) {
+  const p = String(priority || '').toLowerCase();
+  if (p === 'high') return 'bg-red-50 text-red-700';
+  if (p === 'medium') return 'bg-amber-50 text-amber-700';
+  if (p === 'low') return 'bg-emerald-50 text-emerald-700';
+  return 'bg-neutral-100 text-neutral-600';
 }
 
 function formatTicketSite(ticket, roomCampByRoomId) {
@@ -394,6 +419,10 @@ const t = {
     deleteStaff: 'Remove', staffRole: 'Role',
     staffFullName: 'Full Name', staffPhone: 'Phone (WhatsApp)', staffEmail: 'Email',
     staffSite: 'Site',
+    staffSites: 'Access locations (select all required)',
+    staffSitesHint: 'Select every camp this user should manage or work on.',
+    costUpdateHint: 'You can add or update cost anytime, including after the ticket is Closed.',
+    priorityCol: 'Priority',
     role_admin: 'Main Admin', role_site_admin: 'Site Admin', role_sub_admin: 'Sub Admin',
     role_facility: 'Facility Staff', role_viewer: 'Viewer',
     saveRoom: 'Save Room', cancel: 'Cancel',
@@ -514,6 +543,10 @@ const t = {
     deleteStaff: 'إزالة', staffRole: 'الدور',
     staffFullName: 'الاسم الكامل', staffPhone: 'رقم الجوال (واتساب)', staffEmail: 'البريد الإلكتروني',
     staffSite: 'الموقع',
+    staffSites: 'صلاحية المواقع (اختر كل المطلوب)',
+    staffSitesHint: 'حدد كل المخيمات التي يديرها أو يعمل عليها هذا المستخدم.',
+    costUpdateHint: 'يمكنك إضافة أو تحديث التكلفة في أي وقت، بما فيها بعد إغلاق التذكرة.',
+    priorityCol: 'الأولوية',
     role_admin: 'مدير رئيسي', role_site_admin: 'مدير موقع', role_sub_admin: 'مدير فرعي',
     role_facility: 'موظف صيانة', role_viewer: 'مشاهد',
     saveRoom: 'حفظ الغرفة', cancel: 'إلغاء',
@@ -619,6 +652,17 @@ export default function App() {
   const [adminToken, setAdminToken] = useState(localStorage.getItem('ssc_admin_token') || '');
   const [adminRole, setAdminRole] = useState(localStorage.getItem('ssc_admin_role') || '');
   const [adminSite, setAdminSite] = useState(localStorage.getItem('ssc_admin_site') || '');
+  const [adminSites, setAdminSites] = useState(() => {
+    try {
+      const raw = localStorage.getItem('ssc_admin_sites');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch { /* ignore */ }
+    const one = localStorage.getItem('ssc_admin_site');
+    return one ? [one] : [];
+  });
   const [focusTicketId, setFocusTicketId] = useState('');
 
   const tokenPayload = adminToken ? decodeJwtPayload(adminToken) : null;
@@ -630,6 +674,41 @@ export default function App() {
   useEffect(() => {
     const tokenParam = new URLSearchParams(window.location.search).get('token');
     if (tokenParam) setView('request');
+  }, []);
+
+  // Auto-reload open tabs when a new deploy is published (buildId changes).
+  useEffect(() => {
+    let currentBuild = null;
+    let cancelled = false;
+    const check = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/version`, { cache: 'no-store' });
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        const next = String(data?.buildId || '');
+        if (!next) return;
+        if (currentBuild && currentBuild !== next) {
+          window.location.reload();
+          return;
+        }
+        currentBuild = next;
+      } catch {
+        /* offline / starting up */
+      }
+    };
+    check();
+    const timer = window.setInterval(check, 45_000);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') check();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onVisible);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onVisible);
+    };
   }, []);
 
   useEffect(() => {
@@ -646,11 +725,13 @@ export default function App() {
     localStorage.removeItem('ssc_admin_token');
     localStorage.removeItem('ssc_admin_role');
     localStorage.removeItem('ssc_admin_site');
+    localStorage.removeItem('ssc_admin_sites');
     localStorage.removeItem('ssc_admin_user');
     localStorage.removeItem('ssc_admin_name');
     setAdminToken('');
     setAdminRole('');
     setAdminSite('');
+    setAdminSites([]);
     setView('request');
   };
 
@@ -718,7 +799,7 @@ export default function App() {
         {view === 'profile' && (
           adminToken
             ? <UserProfile dict={dict} adminToken={adminToken} />
-            : <AdminLogin dict={dict} setToken={setAdminToken} setRole={setAdminRole} setSite={setAdminSite} />
+            : <AdminLogin dict={dict} setToken={setAdminToken} setRole={setAdminRole} setSite={setAdminSite} setSites={setAdminSites} />
         )}
         {view === 'admin' && (
           adminToken
@@ -730,12 +811,16 @@ export default function App() {
                 adminToken={adminToken}
                 adminRole={adminRole}
                 adminSite={adminSite}
+                adminSites={adminSites}
+                setAdminRole={setAdminRole}
+                setAdminSite={setAdminSite}
+                setAdminSites={setAdminSites}
                 adminUser={adminUser}
                 focusTicketId={focusTicketId}
                 onFocusHandled={() => setFocusTicketId('')}
               />
             )
-            : <AdminLogin dict={dict} setToken={setAdminToken} setRole={setAdminRole} setSite={setAdminSite} />
+            : <AdminLogin dict={dict} setToken={setAdminToken} setRole={setAdminRole} setSite={setAdminSite} setSites={setAdminSites} />
         )}
       </main>
     </div>
@@ -1049,7 +1134,7 @@ function NavBtn({ active, onClick, children }) {
   );
 }
 
-function AdminLogin({ setToken, setRole, setSite, dict }) {
+function AdminLogin({ setToken, setRole, setSite, setSites, dict }) {
   const [mode, setMode] = useState('login'); // login | forgot
   const [forgotStep, setForgotStep] = useState('request'); // request | confirm
   const [user, setUser] = useState('');
@@ -1075,14 +1160,19 @@ function AdminLogin({ setToken, setRole, setSite, dict }) {
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.token) {
+        const sites = Array.isArray(data.sites) && data.sites.length
+          ? data.sites
+          : (data.site ? [data.site] : []);
         localStorage.setItem('ssc_admin_token', data.token);
         localStorage.setItem('ssc_admin_role', data.role || 'admin');
-        localStorage.setItem('ssc_admin_site', data.site || '');
+        localStorage.setItem('ssc_admin_site', data.site || sites[0] || '');
+        localStorage.setItem('ssc_admin_sites', JSON.stringify(sites));
         localStorage.setItem('ssc_admin_user', decodeJwtPayload(data.token)?.user || user.trim());
         if (data.fullName) localStorage.setItem('ssc_admin_name', data.fullName);
         setToken(data.token);
         setRole(data.role || 'admin');
-        setSite(data.site || '');
+        setSite(data.site || sites[0] || '');
+        if (typeof setSites === 'function') setSites(sites);
       } else if (res.status === 429) {
         setError(dict.loginRateLimited);
       } else {
@@ -1900,7 +1990,8 @@ function Step({ label, active, done, rejected }) {
 }
 
 function AdminDashboard({
-  dict, tickets, setTickets, adminToken, adminRole, adminSite, adminUser,
+  dict, tickets, setTickets, adminToken, adminRole, adminSite, adminSites: adminSitesProp, adminUser,
+  setAdminRole, setAdminSite, setAdminSites,
   focusTicketId, onFocusHandled,
 }) {
   // Role tiers: 'admin' = main admin (all sites), 'site_admin' = admin of one
@@ -1911,6 +2002,9 @@ function AdminDashboard({
   const canAssign = isMainAdmin || adminRole === 'site_admin' || adminRole === 'sub_admin';
   const isSiteScoped = adminRole === 'site_admin' || adminRole === 'sub_admin';
   const isViewer = adminRole === 'viewer';
+  const adminSites = (Array.isArray(adminSitesProp) && adminSitesProp.length)
+    ? adminSitesProp
+    : (adminSite ? [adminSite] : []);
   const [printReportConfig, setPrintReportConfig] = useState(null);
   const [selectedTicket, setSelectedTicket] = useState(null);
   const selectedTicketIdRef = useRef(null);
@@ -1944,7 +2038,7 @@ function AdminDashboard({
   const [newStaffPhone, setNewStaffPhone] = useState('');
   const [newStaffEmail, setNewStaffEmail] = useState('');
   const [newStaffRole, setNewStaffRole] = useState('facility');
-  const [newStaffSite, setNewStaffSite] = useState('');
+  const [newStaffSites, setNewStaffSites] = useState([]);
   const [adminRooms, setAdminRooms] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [ticketHistory, setTicketHistory] = useState([]);
@@ -1999,17 +2093,38 @@ function AdminDashboard({
     if (!adminToken) return undefined;
     let cancelled = false;
     fetch(`${API_BASE}/auth/me`, { headers: { Authorization: `Bearer ${adminToken}` } })
-      .then((r) => (r.ok ? r.json() : null))
+      .then((r) => {
+        if (r.status === 401) {
+          localStorage.removeItem('ssc_admin_token');
+          localStorage.removeItem('ssc_admin_role');
+          localStorage.removeItem('ssc_admin_site');
+          localStorage.removeItem('ssc_admin_sites');
+          window.location.reload();
+          return null;
+        }
+        return r.ok ? r.json() : null;
+      })
       .then((data) => {
         if (cancelled || !data?.username) return;
         setSessionUser(data.username);
         setSessionName(data.name || '');
         localStorage.setItem('ssc_admin_user', data.username);
         if (data.name) localStorage.setItem('ssc_admin_name', data.name);
+        if (data.role && typeof setAdminRole === 'function') {
+          setAdminRole(data.role);
+          localStorage.setItem('ssc_admin_role', data.role);
+        }
+        const sites = Array.isArray(data.sites) && data.sites.length
+          ? data.sites
+          : (data.site ? [data.site] : []);
+        if (typeof setAdminSites === 'function') setAdminSites(sites);
+        if (typeof setAdminSite === 'function') setAdminSite(data.site || sites[0] || '');
+        localStorage.setItem('ssc_admin_sites', JSON.stringify(sites));
+        localStorage.setItem('ssc_admin_site', data.site || sites[0] || '');
       })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, [adminToken]);
+  }, [adminToken, setAdminRole, setAdminSite, setAdminSites]);
 
   useEffect(() => {
     if (!selectedTicket?.id || !adminToken) {
@@ -2073,33 +2188,31 @@ function AdminDashboard({
   );
 
   const groupedTechnicians = useMemo(() => {
+    // Active DB staff only — deleted/inactive users must not appear in assign list.
     const byUser = new Map();
-    const add = (tech) => {
-      if (!tech?.username) return;
-      byUser.set(normId(tech.username), tech);
-    };
-    for (const user of Object.values(typeof USERS !== 'undefined' ? USERS : {})) {
-      if (user.role === 'admin') continue;
-      add({
-        username: user.username,
-        name: user.name || user.username,
-        title: user.title || user.role,
-        camp: user.camp || 'General',
-      });
-    }
     for (const user of allStaff) {
+      if (!user?.username || user.is_active === false) continue;
       if (!['sub_admin', 'facility', 'site_admin'].includes(user.role)) continue;
-      add({
-        username: user.username,
-        name: user.full_name || user.username,
-        title: user.title || user.role,
-        camp: user.site ? siteToCampLabel(user.site) : 'General',
-      });
+      const camps = (Array.isArray(user.sites) && user.sites.length
+        ? user.sites
+        : (user.site ? [user.site] : ['General']))
+        .map((s) => siteToCampLabel(s) || s || 'General');
+      for (const campName of camps) {
+        const key = `${normId(user.username)}::${campName}`;
+        byUser.set(key, {
+          username: user.username,
+          name: user.full_name || user.username,
+          title: user.title || user.role,
+          camp: campName,
+        });
+      }
     }
     return [...byUser.values()].reduce((acc, user) => {
       const campName = user.camp || 'General';
       if (!acc[campName]) acc[campName] = [];
-      acc[campName].push(user);
+      if (!acc[campName].some((t) => normId(t.username) === normId(user.username))) {
+        acc[campName].push(user);
+      }
       return acc;
     }, {});
   }, [allStaff]);
@@ -2126,10 +2239,10 @@ function AdminDashboard({
   const visibleLocationSections = useMemo(() => {
     if (isMainAdmin || adminRole === 'viewer') return locationSections;
     if (isSiteScoped) {
-      return locationSections.filter((section) => campMatchesAdminSite(section.camp, adminSite));
+      return locationSections.filter((section) => campMatchesAnyAdminSite(section.camp, adminSites, { failClosed: true }));
     }
     return locationSections;
-  }, [locationSections, isMainAdmin, isSiteScoped, adminSite, adminRole]);
+  }, [locationSections, isMainAdmin, isSiteScoped, adminSites, adminRole]);
 
   useEffect(() => {
     const onAfterPrint = () => setPrintReportConfig(null);
@@ -2173,7 +2286,7 @@ function AdminDashboard({
       filtered = filtered.filter((t) => {
         if (isMine(t)) return true;
         const ticketCamp = resolveTicketCamp(t, roomCampByRoomId);
-        return campMatchesAdminSite(ticketCamp, adminSite);
+        return campMatchesAnyAdminSite(ticketCamp, adminSites, { failClosed: true });
       });
     } else {
       // Facility / viewer: assigned only.
@@ -2189,7 +2302,7 @@ function AdminDashboard({
     }
 
     return filtered;
-  }, [tickets, selectedCampFilter, roomCampByRoomId, isMainAdmin, isSiteScoped, adminSite, sessionUser, sessionName, adminUser, allStaff]);
+  }, [tickets, selectedCampFilter, roomCampByRoomId, isMainAdmin, isSiteScoped, adminSites, sessionUser, sessionName, adminUser, allStaff]);
 
   const activeTickets = visibleTickets.filter((t) => !t.isDeleted);
   const trashedTickets = visibleTickets.filter((t) => t.isDeleted);
@@ -2473,7 +2586,13 @@ function AdminDashboard({
     setNewStaffPhone('');
     setNewStaffEmail('');
     setNewStaffRole('facility');
-    setNewStaffSite('');
+    setNewStaffSites([]);
+  };
+
+  const toggleNewStaffSite = (site) => {
+    setNewStaffSites((prev) => (
+      prev.includes(site) ? prev.filter((s) => s !== site) : [...prev, site]
+    ));
   };
 
   const handleCreateStaff = async (e) => {
@@ -2482,7 +2601,13 @@ function AdminDashboard({
     if (!username || !newStaffPass) return;
     const role = newStaffRole || 'facility';
     const needsSite = role === 'site_admin' || role === 'sub_admin' || role === 'facility';
-    const site = isSiteScoped ? adminSite : (needsSite ? (newStaffSite.trim() || 'Dhahran') : undefined);
+    const sites = isSiteScoped
+      ? (adminSites.length ? adminSites : (adminSite ? [adminSite] : []))
+      : (needsSite ? newStaffSites : []);
+    if (needsSite && role !== 'admin' && !sites.length) {
+      alert(dict.staffSitesHint || 'Select at least one site');
+      return;
+    }
     try {
       const res = await fetch(`${API_BASE}/users`, {
         method: 'POST',
@@ -2491,7 +2616,8 @@ function AdminDashboard({
           username,
           password: newStaffPass,
           role,
-          site,
+          site: sites[0] || undefined,
+          sites,
           fullName: newStaffName.trim(),
           phone: newStaffPhone.trim(),
           email: newStaffEmail.trim(),
@@ -2742,6 +2868,7 @@ function AdminDashboard({
               <th className="px-8 py-5 text-[10px] uppercase tracking-widest font-extrabold text-neutral-500">{dict.ticketId}</th>
               <th className="px-8 py-5 text-[10px] uppercase tracking-widest font-extrabold text-neutral-500">{dict.location}</th>
               <th className="px-8 py-5 text-[10px] uppercase tracking-widest font-extrabold text-neutral-500">{dict.issueCol}</th>
+              <th className="px-8 py-5 text-[10px] uppercase tracking-widest font-extrabold text-neutral-500">{dict.priorityCol || dict.priority}</th>
               <th className="px-8 py-5 text-[10px] uppercase tracking-widest font-extrabold text-neutral-500">{dict.statusCol}</th>
               {showTicketTrash && <th className="px-8 py-5 text-[10px] uppercase tracking-widest font-extrabold text-neutral-500">{dict.actions}</th>}
             </tr>
@@ -2761,6 +2888,14 @@ function AdminDashboard({
                   {formatTicketLocation(ticket, roomCampByRoomId)}
                 </td>
                 <td className="px-8 py-5 font-extrabold text-neutral-900">{ticket.issue}</td>
+                <td className="px-8 py-5">
+                  <span className={`px-3 py-1 rounded-xl text-[11px] font-extrabold uppercase tracking-widest ${priorityBadgeClass(ticket.priority)}`}>
+                    {ticket.priority === 'High' ? dict.high
+                      : ticket.priority === 'Medium' ? dict.medium
+                        : ticket.priority === 'Low' ? dict.low
+                          : (ticket.priority || '—')}
+                  </span>
+                </td>
                 <td className="px-8 py-5">
                   <span className={`px-3 py-1 rounded-xl text-[11px] font-extrabold uppercase tracking-widest ${statusBadgeClass(ticket.status)}`}>
                     {statusLabel(dict, ticket.status)}
@@ -2824,6 +2959,15 @@ function AdminDashboard({
                   {selectedTicket.asset && selectedTicket.issue ? <span className="text-neutral-400"> — </span> : null}
                   {selectedTicket.issue}
                 </p>
+                <div className="flex flex-wrap items-center gap-2 mt-3">
+                  <span className="text-[10px] font-extrabold text-neutral-400 uppercase tracking-widest">{dict.priorityCol || dict.priority}</span>
+                  <span className={`px-3 py-1 rounded-xl text-[11px] font-extrabold uppercase tracking-widest ${priorityBadgeClass(selectedTicket.priority)}`}>
+                    {selectedTicket.priority === 'High' ? dict.high
+                      : selectedTicket.priority === 'Medium' ? dict.medium
+                        : selectedTicket.priority === 'Low' ? dict.low
+                          : (selectedTicket.priority || '—')}
+                  </span>
+                </div>
               </div>
               
               <div className="mt-6 bg-neutral-50 border border-neutral-200 rounded-2xl px-5 py-4 shadow-sm">
@@ -2962,18 +3106,24 @@ function AdminDashboard({
               )}
 
               {isAdmin && (
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-4 rounded-[2rem] border border-neutral-200 bg-neutral-50/80 p-5">
+                <p className="col-span-2 text-[10px] font-extrabold text-neutral-400 uppercase tracking-widest">
+                  {dict.cost}
+                </p>
+                <p className="col-span-2 text-xs font-medium text-neutral-500 -mt-2">
+                  {dict.costUpdateHint}
+                </p>
                 <div>
                   <label className="text-[10px] font-extrabold text-neutral-400 block mb-2 uppercase tracking-widest">{dict.unitPrice}</label>
-                  <input type="number" min="0" step="any" value={selectedTicket.unitPrice || ''} onChange={(e) => updateTicket(selectedTicket.id, { unitPrice: e.target.value })} className="w-full border border-neutral-200 rounded-2xl px-5 py-4 bg-neutral-50 backdrop-blur-xl focus:border-red-700 outline-none transition-all shadow-sm font-bold" />
+                  <input type="number" min="0" step="any" value={selectedTicket.unitPrice || ''} onChange={(e) => updateTicket(selectedTicket.id, { unitPrice: e.target.value })} className="w-full border border-neutral-200 rounded-2xl px-5 py-4 bg-white focus:border-red-700 outline-none transition-all shadow-sm font-bold" />
                 </div>
                 <div>
                   <label className="text-[10px] font-extrabold text-neutral-400 block mb-2 uppercase tracking-widest">{dict.units}</label>
-                  <input type="number" min="1" step="1" value={selectedTicket.units || ''} onChange={(e) => updateTicket(selectedTicket.id, { units: e.target.value })} className="w-full border border-neutral-200 rounded-2xl px-5 py-4 bg-neutral-50 backdrop-blur-xl focus:border-red-700 outline-none transition-all shadow-sm font-bold" />
+                  <input type="number" min="1" step="1" value={selectedTicket.units || ''} onChange={(e) => updateTicket(selectedTicket.id, { units: e.target.value })} className="w-full border border-neutral-200 rounded-2xl px-5 py-4 bg-white focus:border-red-700 outline-none transition-all shadow-sm font-bold" />
                 </div>
                 <div className="col-span-2">
                   <label className="text-[10px] font-extrabold text-neutral-400 block mb-2 uppercase tracking-widest">{dict.cost}</label>
-                  <div className="w-full border border-neutral-200 rounded-2xl px-5 py-4 font-extrabold text-lg bg-neutral-50 flex justify-between items-center">
+                  <div className="w-full border border-neutral-200 rounded-2xl px-5 py-4 font-extrabold text-lg bg-white flex justify-between items-center">
                     <span className="text-neutral-500">SAR</span>
                     <span>{((Number(selectedTicket.unitPrice) || 0) * (Number(selectedTicket.units) || 1)).toLocaleString()}</span>
                   </div>
@@ -3200,7 +3350,7 @@ function AdminDashboard({
                 </div>
                 );
               })}
-              {isManager && (isMainAdmin || campMatchesAdminSite(section.camp, adminSite)) && (
+              {isManager && (isMainAdmin || campMatchesAnyAdminSite(section.camp, adminSites)) && (
               <button type="button" onClick={() => setShowAddRoomForm(true)} className="print:hidden border-2 border-dashed border-slate-200 rounded-xl p-6 flex flex-col items-center justify-center text-slate-400 hover:text-red-700 hover:border-red-600 min-h-[180px] transition-colors">
                 <Plus size={32} className="mb-2" />
                 <span className="font-bold text-sm">{dict.addLocation}</span>
@@ -3305,7 +3455,9 @@ function AdminDashboard({
                       </span>
                       {user.site && user.site !== 'all' && (
                         <span className="px-2 py-0.5 rounded-md text-[9px] font-extrabold uppercase tracking-widest bg-red-50 text-red-800">
-                          {user.site}
+                          {(Array.isArray(user.sites) && user.sites.length > 1)
+                            ? user.sites.join(' · ')
+                            : user.site}
                         </span>
                       )}
                     </div>
@@ -3438,10 +3590,23 @@ function AdminDashboard({
                         ))}
                       </select>
                       {isMainAdmin && newStaffRole !== 'admin' && (
-                        <select value={newStaffSite} onChange={(e) => setNewStaffSite(e.target.value)} className="w-full border border-neutral-200 rounded-2xl px-5 py-4 bg-neutral-50 backdrop-blur-xl outline-none focus:border-red-700 focus:ring-4 focus:ring-red-700/10 transition-all font-bold shadow-sm text-neutral-900 appearance-none">
-                          <option value="" className="text-neutral-900">{dict.staffSite}</option>
-                          {siteOptions.map((s) => <option key={s} value={s} className="text-neutral-900">{s}</option>)}
-                        </select>
+                        <div className="md:col-span-2 border border-neutral-200 rounded-2xl px-5 py-4 bg-neutral-50">
+                          <p className="text-sm font-extrabold text-neutral-900 mb-1">{dict.staffSites}</p>
+                          <p className="text-xs font-medium text-neutral-500 mb-3">{dict.staffSitesHint}</p>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto">
+                            {siteOptions.map((s) => (
+                              <label key={s} className="flex items-center gap-2 text-sm font-bold text-neutral-800 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={newStaffSites.includes(s)}
+                                  onChange={() => toggleNewStaffSite(s)}
+                                  className="rounded border-neutral-300 text-red-700 focus:ring-red-700"
+                                />
+                                {s}
+                              </label>
+                            ))}
+                          </div>
+                        </div>
                       )}
                     </div>
                     <div className="flex gap-3 pt-2">

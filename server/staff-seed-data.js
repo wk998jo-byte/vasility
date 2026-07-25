@@ -1,6 +1,9 @@
 /**
  * Official command-center staff (admins + camp sub-admins).
- * Seeded into PostgreSQL on server start; also merged into WhatsApp RBAC routing.
+ * Seeded into PostgreSQL on server start; also mirrored in campUsersData for WhatsApp RBAC.
+ *
+ * Main admins (all sites): Mohammad Irfan, Abdulaziz Bin Quraya only.
+ * Everyone else below is a camp sub-admin for their listed site.
  */
 export const OFFICIAL_STAFF = [
   {
@@ -40,8 +43,8 @@ export const OFFICIAL_STAFF = [
     phone: '+966598512638',
     email: 'shakir.sabir@binquraya.local',
     role: 'sub_admin',
-    site: 'Madina Camp 1 PMT',
-    camp: 'Madina Camp 1 PMT',
+    site: 'Madina Camp 1 BQ',
+    camp: 'Madina Camp 1 BQ',
   },
   {
     username: 'shaik.rahmatullah',
@@ -66,7 +69,7 @@ export const OFFICIAL_STAFF = [
   {
     username: 'jack.dhahran',
     fullName: 'Jack',
-    title: 'Camp Sub-Admin',
+    title: 'Camp Sub-Admin — Dhahran Head Office',
     phone: '+966552650673',
     email: 'jack.dhahran@binquraya.local',
     role: 'sub_admin',
@@ -90,7 +93,77 @@ export const OFFICIAL_STAFF = [
     phone: '+966593327276',
     email: 'saroj.chettri@binquraya.local',
     role: 'sub_admin',
+    site: 'MGS PMT',
+    camp: 'MGS PMT',
+  },
+  {
+    username: 'aftab.ansari',
+    fullName: 'Aftab Shahid Ansari',
+    title: 'Camp Sub-Admin',
+    phone: '+966570273731',
+    email: 'aftab.ansari@binquraya.local',
+    role: 'sub_admin',
+    site: 'Madina Camp 2 PMT',
+    camp: 'Madina Camp 2 PMT',
+  },
+  {
+    username: 'hassan.ahmouda',
+    fullName: 'Hassan S Ahmouda',
+    title: 'Electrical Engineer',
+    phone: '+966502760797',
+    email: 'hassan.ahmouda@binquraya.local',
+    role: 'sub_admin',
     site: 'Dhahran',
     camp: 'Dhahran Camp',
+  },
+  {
+    username: 'jose.mathew',
+    fullName: 'Jose Mathew',
+    title: 'Camp Sub-Admin',
+    phone: '+966551958361',
+    email: 'jose.mathew@binquraya.local',
+    role: 'sub_admin',
+    site: 'Dhahran',
+    camp: 'Dhahran Camp',
+  },
+  {
+    username: 'mohamed.ekramuddin',
+    fullName: 'Mohamed Ekramuddin',
+    title: 'Camp Sub-Admin',
+    phone: '+966510782025',
+    email: 'mohamed.ekramuddin@binquraya.local',
+    role: 'sub_admin',
+    site: 'Madina Camp 3',
+    camp: 'Madina Camp 3',
+  },
+  {
+    username: 'nixon.estanislao',
+    fullName: 'Nixon Agustin Estanislao',
+    title: 'Camp Sub-Admin',
+    phone: '+966570751879',
+    email: 'nixon.estanislao@binquraya.local',
+    role: 'sub_admin',
+    site: 'Jubail',
+    camp: 'Jubail Camp',
+  },
+  {
+    username: 'aylwin.reginald',
+    fullName: 'Aylwin Daniels Reginald',
+    title: 'Camp Sub-Admin',
+    phone: '+966571027629',
+    email: 'aylwin.reginald@binquraya.local',
+    role: 'sub_admin',
+    site: 'Salasil',
+    camp: 'Salasil Camp',
+  },
+  {
+    username: 'muhammad.ansar',
+    fullName: 'Muhammad Ansar',
+    title: 'Camp Sub-Admin',
+    phone: '+966549096396',
+    email: 'muhammad.ansar@binquraya.local',
+    role: 'sub_admin',
+    site: 'Zuluf',
+    camp: 'Zuluf Camp',
   },
 ];

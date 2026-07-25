@@ -34,6 +34,9 @@ export function siteToCamp(site) {
   if (/^madina camp 1$/i.test(s) || /^tcf-?1$/i.test(s)) return 'Madina Camp 1 PMT';
   if (/^madina camp 2$/i.test(s) || /^tcf-?2$/i.test(s)) return 'Madina Camp 2 BQ';
   if (/^jubail$/i.test(s)) return 'Jubail Camp';
+  if (/^salasil$/i.test(s)) return 'Salasil Camp';
+  if (/^zuluf$/i.test(s)) return 'Zuluf Camp';
+  if (/^madina camp 3$/i.test(s) || /^tcf-?3$/i.test(s)) return 'Madina Camp 3';
   if (/camp$/i.test(s) || /\s(bq|pmt)$/i.test(s)) return s;
   return `${s} Camp`;
 }

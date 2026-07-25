@@ -1,7 +1,23 @@
 import React, { Component } from 'react';
 import { createRoot } from 'react-dom/client';
+import { registerSW } from 'virtual:pwa-register';
 import App from './App.jsx';
 import './index.css';
+
+// Auto-apply new deploys: when the service worker finds a new build, reload open tabs.
+registerSW({
+  immediate: true,
+  onNeedRefresh() {
+    window.location.reload();
+  },
+  onRegisteredSW(_swUrl, registration) {
+    if (!registration) return;
+    // Poll for updates while the tab stays open.
+    setInterval(() => {
+      registration.update().catch(() => {});
+    }, 60_000);
+  },
+});
 
 class ErrorBoundary extends Component {
   constructor(props) {

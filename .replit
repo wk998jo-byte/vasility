@@ -40,7 +40,7 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "npm run build && PORT=8080 npm start"
+args = "npm run build:web && PORT=8080 npm start"
 waitForPort = 8080
 
 [workflows.workflow.metadata]
@@ -57,7 +57,7 @@ externalPort = 80
 deploymentTarget = "autoscale"
 # Must match [[ports]].localPort — Replit health checks that port only.
 run = ["sh", "-c", "PORT=8080 npm start"]
-build = ["npm", "run", "build"]
+build = ["npm", "run", "build:web"]
 
 [nix]
 channel = "stable-25_05"
