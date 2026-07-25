@@ -2182,6 +2182,7 @@ app.use((err, _req, res, _next) => {
 });
 
 async function start() {
+  console.log('[server] boot with in-process port-retry');
   // Open the port immediately so deployment health checks pass, then finish
   // database initialization in the background. The '/' healthcheck serves the
   // static frontend and does not depend on the database.
