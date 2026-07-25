@@ -1,4 +1,4 @@
-run = "sh -c 'kill -9 $(lsof -t -i:8080) 2>/dev/null || true; pkill -9 -f \"node server/index.js\" 2>/dev/null || true; npm run build:web && PORT=8080 npm start'"
+run = "sh -c 'if lsof -i:8080 -sTCP:LISTEN >/dev/null 2>&1; then echo \"[run] Already on 8080 — keeping existing server for Preview\"; exec tail -f /dev/null; fi; kill -9 $(lsof -t -i:8080) 2>/dev/null || true; npm run build:web && PORT=8080 npm start'"
 modules = ["nodejs-20", "postgresql-16", "python-3.11"]
 
 [packager]
@@ -40,7 +40,7 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "sh -c 'kill -9 $(lsof -t -i:8080) 2>/dev/null || true; pkill -9 -f \"node server/index.js\" 2>/dev/null || true; npm run build:web && PORT=8080 npm start'"
+args = "sh -c 'if lsof -i:8080 -sTCP:LISTEN >/dev/null 2>&1; then echo \"[run] Already on 8080 — keeping existing server for Preview\"; exec tail -f /dev/null; fi; kill -9 $(lsof -t -i:8080) 2>/dev/null || true; npm run build:web && PORT=8080 npm start'"
 waitForPort = 8080
 
 [workflows.workflow.metadata]
