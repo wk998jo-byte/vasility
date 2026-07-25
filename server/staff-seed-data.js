@@ -167,3 +167,8 @@ export const OFFICIAL_STAFF = [
     camp: 'Zuluf Camp',
   },
 ];
+
+/** Lowercase usernames allowed to stay active (main admins + listed sub-admins). */
+export const OFFICIAL_USERNAMES = OFFICIAL_STAFF
+  .map((s) => String(s.username || '').trim().toLowerCase())
+  .filter(Boolean);

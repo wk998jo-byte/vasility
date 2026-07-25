@@ -29,6 +29,7 @@ export async function getPool() {
 export async function initDb() {
   const db = await getPool();
   if (!db) return false;
+  console.log('[db] initDb start — official staff allowlist enforced');
   const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
   await db.query(schema);
   await seedDb(db);
@@ -36,6 +37,9 @@ export async function initDb() {
     const staffResult = await seedOfficialStaff(db);
     if (staffResult?.upserted) {
       console.log(`[seed-staff] Upserted ${staffResult.upserted} official staff`);
+    }
+    if (staffResult?.deactivated) {
+      console.log(`[seed-staff] Deactivated ${staffResult.deactivated} leftover account(s)`);
     }
     if (staffResult?.skippedCreate) {
       console.warn(`[seed-staff] Skipped ${staffResult.skippedCreate} new user(s) — set STAFF_DEFAULT_PASSWORD / ADMIN_PASS`);
@@ -47,6 +51,7 @@ export async function initDb() {
   await seedInventoryRooms(db);
   await seedCampRooms(db);
   await cleanupOrphanedNotifications(db);
+  console.log('[db] initDb complete');
   return true;
 }
 

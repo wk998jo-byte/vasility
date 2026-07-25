@@ -1,4 +1,4 @@
-import { officialStaffUsernames } from './seed-staff.js';
+import { OFFICIAL_USERNAMES } from './staff-seed-data.js';
 
 /**
  * Excel camp logins are no longer seeded.
@@ -8,7 +8,7 @@ import { officialStaffUsernames } from './seed-staff.js';
 export async function seedCampUsers(db) {
   if (!db) return { created: 0, updated: 0, skipped: true };
 
-  const allow = [...officialStaffUsernames()];
+  const allow = [...OFFICIAL_USERNAMES];
   if (allow.length) {
     const { rowCount } = await db.query(
       `UPDATE users

@@ -39,6 +39,20 @@ export async function seedInventoryRooms(pool) {
   const entries = Object.entries(INVENTORY);
   if (!entries.length) return { created: 0, assets: 0 };
 
+  // Avoid Replit OOM: full inventory rescan every boot is too heavy once DB is populated.
+  try {
+    const { rows } = await pool.query(
+      `SELECT COUNT(*)::int AS count FROM rooms WHERE is_active = true`,
+    );
+    const existingCount = rows[0]?.count || 0;
+    if (existingCount >= Math.min(80, Math.floor(entries.length * 0.5))) {
+      console.log(`[seed-inventory] Skip full rescan (${existingCount} active rooms already present)`);
+      return { created: 0, assetsAdded: 0, tokensAdded: 0, skipped: true };
+    }
+  } catch (err) {
+    console.warn('[seed-inventory] count check failed, continuing seed:', err.message);
+  }
+
   const result = await withTransaction(pool, async (client) => {
     const deptId = await ensureFacDepartment(client);
     let created = 0;

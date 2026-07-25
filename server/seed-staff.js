@@ -1,11 +1,9 @@
 import bcrypt from 'bcrypt';
-import { OFFICIAL_STAFF } from './staff-seed-data.js';
+import { OFFICIAL_STAFF, OFFICIAL_USERNAMES } from './staff-seed-data.js';
 import { passwordForRole } from './passwords.js';
 
 export function officialStaffUsernames() {
-  return new Set(
-    OFFICIAL_STAFF.map((s) => String(s.username || '').trim().toLowerCase()).filter(Boolean),
-  );
+  return new Set(OFFICIAL_USERNAMES);
 }
 
 /**
