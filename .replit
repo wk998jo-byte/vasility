@@ -1,4 +1,4 @@
-run = "bash scripts/replit-run.sh"
+run = "sh -c 'echo [replit-run] clearing :8080; kill -9 $(lsof -t -i:8080 -sTCP:LISTEN) 2>/dev/null || true; pkill -9 -f \"node server/index.js\" 2>/dev/null || true; sleep 1; npm run build:web && PORT=8080 npm start'"
 modules = ["nodejs-20", "postgresql-16", "python-3.11"]
 
 [packager]

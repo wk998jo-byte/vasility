@@ -61,6 +61,10 @@ function freeListenPort(port) {
   }
 }
 
+// Runs as soon as this file loads — proves Preview/Run is on current code.
+console.log('[server] module loaded — port-retry enabled');
+freeListenPort(PORT);
+
 function listenOnPort(port) {
   return new Promise((resolve, reject) => {
     const server = app.listen(port, '0.0.0.0', () => resolve(server));
