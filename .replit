@@ -1,5 +1,4 @@
-# Single start path — do not add parallel workflows that cache old commands.
-run = "sh -c 'if lsof -i:8080 -sTCP:LISTEN >/dev/null 2>&1; then echo \"[run] Already on 8080 — open Preview / Ports 8080\"; exec tail -f /dev/null; fi; npm run build:web && PORT=8080 npm start'"
+run = "sh -c 'npm run build:web && PORT=8080 npm start'"
 modules = ["nodejs-20", "postgresql-16", "python-3.11"]
 
 [packager]
@@ -23,7 +22,6 @@ TWILIO_TEMPLATE_SID = "HXbd1985f4517e39cd2993d3f250fea082"
 TWILIO_SMS_NUMBER = "+15739201367"
 ADMIN_WHATSAPP = "+966530089716"
 
-# App listens on 8080. Map to external :80 for Preview / Publish.
 [[ports]]
 localPort = 8080
 externalPort = 80

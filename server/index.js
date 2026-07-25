@@ -1,6 +1,7 @@
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
+import { execSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import express from 'express';
 import cors from 'cors';
@@ -46,6 +47,29 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const distDir = path.join(__dirname, '../web/dist');
 const PORT = Number(process.env.PORT) || 8080;
 const JWT_SECRET = process.env.JWT_SECRET;
+
+/** Free PORT listeners (Replit Shell leftover vs Run). No-op on Windows. */
+function freeListenPort(port) {
+  if (process.platform === 'win32') return;
+  try {
+    execSync(
+      `bash -lc 'PIDS=$(lsof -t -i:${port} -sTCP:LISTEN 2>/dev/null || true); if [ -n "$PIDS" ]; then echo "[server] Freeing :${port} (pids $PIDS)"; kill -9 $PIDS 2>/dev/null || true; sleep 0.8; fi'`,
+      { stdio: 'inherit' },
+    );
+  } catch {
+    /* ignore */
+  }
+}
+
+function listenOnPort(port) {
+  return new Promise((resolve, reject) => {
+    const server = app.listen(port, '0.0.0.0', () => resolve(server));
+    server.on('error', (err) => {
+      try { server.close(); } catch { /* ignore */ }
+      reject(err);
+    });
+  });
+}
 
 /** Changes on every frontend rebuild so open tabs can auto-reload. */
 function computeBuildId() {
@@ -2161,19 +2185,24 @@ async function start() {
   // Open the port immediately so deployment health checks pass, then finish
   // database initialization in the background. The '/' healthcheck serves the
   // static frontend and does not depend on the database.
-  const server = app.listen(PORT, '0.0.0.0', () => {
-    BUILD_ID = computeBuildId();
-    console.log(`Facility Maintenance Center (FMC) → http://0.0.0.0:${PORT}`);
-    console.log(`[deploy] buildId=${BUILD_ID}`);
-  });
-  server.on('error', (err) => {
-    if (err?.code === 'EADDRINUSE') {
-      console.error(`[server] Port ${PORT} already in use. Kill the other node process, then restart.`);
-      process.exit(1);
+  freeListenPort(PORT);
+  let server;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      server = await listenOnPort(PORT);
+      break;
+    } catch (err) {
+      if (err?.code !== 'EADDRINUSE' || attempt === 3) {
+        console.error(`[server] Listen failed on :${PORT}:`, err?.message || err);
+        process.exit(1);
+      }
+      console.warn(`[server] :${PORT} busy (attempt ${attempt}/3) — freeing and retrying`);
+      freeListenPort(PORT);
     }
-    console.error('[server] Listen error:', err);
-    process.exit(1);
-  });
+  }
+  BUILD_ID = computeBuildId();
+  console.log(`Facility Maintenance Center (FMC) → http://0.0.0.0:${PORT}`);
+  console.log(`[deploy] buildId=${BUILD_ID}`);
 
   checkTwilioConfig();
 

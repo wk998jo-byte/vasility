@@ -7,7 +7,7 @@
     "build:web": "cd web && npm install && npm run build",
     "lint": "npm run lint --prefix web",
     "test": "npm run test --prefix web",
-    "start": "node server/prestart-free-port.js && node server/index.js",
+    "start": "node server/index.js",
     "start:static": "python -m http.server 8080",
     "db:init": "node server/init-db.js"
   },
