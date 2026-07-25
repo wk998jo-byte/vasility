@@ -1,4 +1,5 @@
-run = "sh -c 'if lsof -i:8080 -sTCP:LISTEN >/dev/null 2>&1; then echo \"[run] Already on 8080 — keeping existing server for Preview\"; exec tail -f /dev/null; fi; kill -9 $(lsof -t -i:8080) 2>/dev/null || true; npm run build:web && PORT=8080 npm start'"
+# Single start path — do not add parallel workflows that cache old commands.
+run = "sh -c 'if lsof -i:8080 -sTCP:LISTEN >/dev/null 2>&1; then echo \"[run] Already on 8080 — open Preview / Ports 8080\"; exec tail -f /dev/null; fi; npm run build:web && PORT=8080 npm start'"
 modules = ["nodejs-20", "postgresql-16", "python-3.11"]
 
 [packager]
@@ -22,40 +23,13 @@ TWILIO_TEMPLATE_SID = "HXbd1985f4517e39cd2993d3f250fea082"
 TWILIO_SMS_NUMBER = "+15739201367"
 ADMIN_WHATSAPP = "+966530089716"
 
-[workflows]
-runButton = "Project"
-
-[[workflows.workflow]]
-name = "Project"
-mode = "parallel"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "Start application"
-
-[[workflows.workflow]]
-name = "Start application"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "sh -c 'if lsof -i:8080 -sTCP:LISTEN >/dev/null 2>&1; then echo \"[run] Already on 8080 — keeping existing server for Preview\"; exec tail -f /dev/null; fi; kill -9 $(lsof -t -i:8080) 2>/dev/null || true; npm run build:web && PORT=8080 npm start'"
-waitForPort = 8080
-
-[workflows.workflow.metadata]
-outputType = "webview"
-
-# App listens on 8080 (default in server/index.js). Map it to external :80
-# so Preview / Publish work. Mismatch (e.g. localPort 5000 while app opens
-# 8080) shows: "Port :8080 opened, but has missing configuration."
+# App listens on 8080. Map to external :80 for Preview / Publish.
 [[ports]]
 localPort = 8080
 externalPort = 80
 
 [deployment]
 deploymentTarget = "autoscale"
-# Must match [[ports]].localPort — Replit health checks that port only.
 run = ["sh", "-c", "PORT=8080 npm start"]
 build = ["npm", "run", "build:web"]
 
