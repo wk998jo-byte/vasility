@@ -765,7 +765,7 @@ app.post('/api/users', requireDb, authenticateToken, requireManager, async (req,
       const { rows } = await req.db.query(
         `UPDATE users
          SET password_hash = $2, role = $3, is_active = true,
-             full_name = $4, phone = $5, email = $6, site = $7, sites = $8
+             full_name = $4, phone = $5, email = $6, site = $7, sites = $8, source = 'manual'
          WHERE id = $1
          RETURNING id, username, role, full_name, phone, email, site, sites`,
         [existing.rows[0].id, passwordHash, role, fullName, phone, email, primarySite, sites.length ? sites : null],
@@ -775,8 +775,8 @@ app.post('/api/users', requireDb, authenticateToken, requireManager, async (req,
     }
 
     const { rows } = await req.db.query(
-      `INSERT INTO users (username, password_hash, role, is_active, full_name, phone, email, site, sites)
-       VALUES ($1, $2, $3, true, $4, $5, $6, $7, $8)
+      `INSERT INTO users (username, password_hash, role, is_active, full_name, phone, email, site, sites, source)
+       VALUES ($1, $2, $3, true, $4, $5, $6, $7, $8, 'manual')
        RETURNING id, username, role, full_name, phone, email, site, sites`,
       [username, passwordHash, role, fullName, phone, email, primarySite, sites.length ? sites : null],
     );

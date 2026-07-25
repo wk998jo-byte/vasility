@@ -112,6 +112,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS users_username_lower_idx ON users (LOWER(usern
 
 -- Multi-site access for site_admin / sub_admin / facility (primary site kept in `site`).
 ALTER TABLE users ADD COLUMN IF NOT EXISTS sites TEXT[];
+ALTER TABLE users ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'manual';
 UPDATE users
 SET sites = ARRAY[site]
 WHERE site IS NOT NULL AND TRIM(site) <> ''
