@@ -2161,10 +2161,18 @@ async function start() {
   // Open the port immediately so deployment health checks pass, then finish
   // database initialization in the background. The '/' healthcheck serves the
   // static frontend and does not depend on the database.
-  app.listen(PORT, '0.0.0.0', () => {
+  const server = app.listen(PORT, '0.0.0.0', () => {
     BUILD_ID = computeBuildId();
     console.log(`Facility Maintenance Center (FMC) → http://0.0.0.0:${PORT}`);
     console.log(`[deploy] buildId=${BUILD_ID}`);
+  });
+  server.on('error', (err) => {
+    if (err?.code === 'EADDRINUSE') {
+      console.error(`[server] Port ${PORT} already in use. Kill the other node process, then restart.`);
+      process.exit(1);
+    }
+    console.error('[server] Listen error:', err);
+    process.exit(1);
   });
 
   checkTwilioConfig();

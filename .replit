@@ -1,4 +1,4 @@
-run = "npm run build:web && PORT=8080 npm start"
+run = "sh -c 'kill -9 $(lsof -t -i:8080) 2>/dev/null || true; pkill -9 -f \"node server/index.js\" 2>/dev/null || true; npm run build:web && PORT=8080 npm start'"
 modules = ["nodejs-20", "postgresql-16", "python-3.11"]
 
 [packager]
@@ -40,7 +40,7 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "npm run build:web && PORT=8080 npm start"
+args = "sh -c 'kill -9 $(lsof -t -i:8080) 2>/dev/null || true; pkill -9 -f \"node server/index.js\" 2>/dev/null || true; npm run build:web && PORT=8080 npm start'"
 waitForPort = 8080
 
 [workflows.workflow.metadata]
