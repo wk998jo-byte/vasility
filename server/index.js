@@ -1293,6 +1293,14 @@ app.put('/api/rooms/:id', requireDb, authenticateToken, requireManager, async (r
 });
 
 app.post('/api/rooms/:id/qr/regenerate', requireDb, authenticateToken, requireManager, async (req, res) => {
+  // Printed stickers must stay valid forever — never rotate tokens unless explicitly allowed.
+  if (String(process.env.ALLOW_QR_REGENERATE || '').toLowerCase() !== 'true') {
+    res.status(403).json({
+      error: 'QR regenerate disabled — existing printed stickers must keep the same token',
+    });
+    return;
+  }
+
   const roomId = req.params.id;
 
   try {

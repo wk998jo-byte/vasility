@@ -3376,27 +3376,22 @@ function AdminDashboard({
               {section.locations.map((locationKey) => {
                 const { camp, roomName } = parseLocationKey(locationKey);
                 const dbRoom = dbRoomByLocationKey.get(locationKey);
-                // Only print QRs that resolve in DB — otherwise phone opens dead links.
-                const stickerToken = dbRoom?.token ? String(dbRoom.token).trim() : '';
-                const qrPayload = stickerToken ? buildRoomQrUrl(stickerToken) : '';
+                // Prefer DB token when present so printed stickers stay stable;
+                // fall back to the inventory key (same string used when stickers were printed).
+                const stickerToken = String(dbRoom?.token || locationKey).trim();
+                const qrPayload = buildRoomQrUrl(stickerToken);
                 return (
                 <div
                   key={locationKey}
                   className="bg-white border border-slate-200 rounded-xl p-5 sm:p-6 flex flex-col items-center justify-center text-center print:break-inside-avoid print:shadow-none print:border-gray-400"
                 >
                   <p className="font-bold text-lg text-slate-900 text-center mb-2">{camp}</p>
-                  {qrPayload ? (
-                    <QRCodeSVG
-                      value={qrPayload}
-                      size={100}
-                      level="M"
-                      includeMargin={false}
-                    />
-                  ) : (
-                    <div className="w-[100px] h-[100px] flex items-center justify-center bg-amber-50 border border-amber-200 rounded-lg text-[10px] font-bold text-amber-800 px-2">
-                      {dict.qrNotSynced}
-                    </div>
-                  )}
+                  <QRCodeSVG
+                    value={qrPayload}
+                    size={100}
+                    level="M"
+                    includeMargin={false}
+                  />
                   <p className="text-[10px] sm:text-xs uppercase text-red-700 font-bold tracking-wider text-center mt-2">
                     FACILITY AND MAINTENANCE
                   </p>
