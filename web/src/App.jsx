@@ -389,6 +389,9 @@ const t = {
     trackVerifyHint: 'For your privacy, enter both your Ticket Number and Employee ID to view status.',
     trackNotFound: 'No ticket found. Verify both your Ticket Number and Employee ID.',
     scanQrRequired: 'Please scan a valid Room QR Code to report an issue.',
+    qrResolveFailed: 'This Room QR is not linked in the system. Ask an admin to sync locations, or scan again.',
+    qrResolving: 'Opening room form…',
+    qrNotSynced: 'Not synced — QR unavailable until this room exists in the database.',
     department: 'Department',
     filterStatus: 'Status', filterPriority: 'Priority', filterDepartment: 'Department', filterLocation: 'Location / Room',
     filterDateFrom: 'From', filterDateTo: 'To', applyFilters: 'Apply',
@@ -513,6 +516,9 @@ const t = {
     trackVerifyHint: 'لحماية خصوصيتك، أدخل رقم التذكرة والرقم الوظيفي معاً لعرض الحالة.',
     trackNotFound: 'لم يتم العثور على تذكرة. تحقق من رقم التذكرة والرقم الوظيفي.',
     scanQrRequired: 'يرجى مسح رمز QR صالح للغرفة لتقديم بلاغ.',
+    qrResolveFailed: 'رمز QR لهذه الغرفة غير مربوط في النظام. اطلب من المسؤول مزامنة المواقع أو أعد المسح.',
+    qrResolving: 'جاري فتح نموذج الغرفة…',
+    qrNotSynced: 'غير متزامن — رمز QR غير متاح حتى تُضاف الغرفة في قاعدة البيانات.',
     department: 'القسم',
     filterStatus: 'الحالة', filterPriority: 'الأولوية', filterDepartment: 'القسم', filterLocation: 'الموقع / الغرفة',
     filterDateFrom: 'من', filterDateTo: 'إلى', applyFilters: 'تطبيق',
@@ -1427,6 +1433,8 @@ function RequestForm({ dict, lang }) {
   const [departmentName, setDepartmentName] = useState('');
   const [assets, setAssets] = useState([]);
   const [hasValidToken, setHasValidToken] = useState(false);
+  const [qrResolving, setQrResolving] = useState(false);
+  const [qrResolveError, setQrResolveError] = useState('');
   const [showScanner, setShowScanner] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
@@ -1510,10 +1518,26 @@ function RequestForm({ dict, lang }) {
   useEffect(() => {
     const tokenParam = new URLSearchParams(window.location.search).get('token');
     if (!tokenParam) return;
+    let cancelled = false;
+    setQrResolving(true);
+    setQrResolveError('');
     resolveQrToken(tokenParam)
-      .then((resolved) => { if (resolved) applyResolvedRoom(resolved, tokenParam); })
-      .catch(console.error);
-  }, [lang]);
+      .then((resolved) => {
+        if (cancelled) return;
+        if (resolved) {
+          applyResolvedRoom(resolved, tokenParam);
+        } else {
+          setQrResolveError(dict.qrResolveFailed || dict.scanNotFound);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setQrResolveError(dict.backendError);
+      })
+      .finally(() => {
+        if (!cancelled) setQrResolving(false);
+      });
+    return () => { cancelled = true; };
+  }, [lang, dict.qrResolveFailed, dict.scanNotFound, dict.backendError]);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -1618,10 +1642,19 @@ function RequestForm({ dict, lang }) {
           <div className="w-24 h-24 rounded-3xl bg-red-50/50 flex items-center justify-center mx-auto mb-8 shadow-sm">
             <QrCode size={48} className="text-red-700" />
           </div>
-          <h2 className="text-3xl font-extrabold tracking-tighter mb-4 text-neutral-900">{dict.scanQrRequired}</h2>
-          <button type="button" onClick={() => setShowScanner(true)} className="mt-6 w-full sm:w-auto bg-red-700 text-white px-10 py-5 rounded-2xl font-extrabold text-lg inline-flex items-center justify-center gap-3 transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5">
-            <QrCode size={24} /> {dict.scan}
-          </button>
+          {qrResolving ? (
+            <h2 className="text-2xl font-extrabold tracking-tighter mb-4 text-neutral-900">{dict.qrResolving}</h2>
+          ) : (
+            <>
+              <h2 className="text-3xl font-extrabold tracking-tighter mb-4 text-neutral-900">{dict.scanQrRequired}</h2>
+              {qrResolveError && (
+                <p className="text-red-700 font-bold text-sm mb-6 bg-red-50 border border-red-200 rounded-2xl px-4 py-3">{qrResolveError}</p>
+              )}
+              <button type="button" onClick={() => setShowScanner(true)} className="mt-6 w-full sm:w-auto bg-red-700 text-white px-10 py-5 rounded-2xl font-extrabold text-lg inline-flex items-center justify-center gap-3 transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5">
+                <QrCode size={24} /> {dict.scan}
+              </button>
+            </>
+          )}
         </div>
         {showScanner && <QRScannerModal onClose={() => setShowScanner(false)} onScan={handleScanSuccess} />}
       </div>
@@ -2233,10 +2266,18 @@ function AdminDashboard({
   const dbRoomByLocationKey = useMemo(() => {
     const map = new Map();
     for (const room of adminRooms) {
-      const { qrValue } = getRoomLocationParts(room, roomSite);
+      const { qrValue, roomName } = getRoomLocationParts(room, roomSite);
       map.set(qrValue, room);
-      // Also index by the stored sticker token so legacy payloads stay tied to the room.
       if (room.token) map.set(String(room.token).trim(), room);
+      // Also index by site label variants so Location Manager cards link to DB rooms.
+      const site = roomSite(room);
+      const camp = siteToCampLabel(site);
+      if (camp && roomName) {
+        map.set(`${camp} - ${roomName}`, room);
+      }
+      if (site && roomName) {
+        map.set(`${site} - ${roomName}`, room);
+      }
     }
     return map;
   }, [adminRooms]);
@@ -3335,21 +3376,27 @@ function AdminDashboard({
               {section.locations.map((locationKey) => {
                 const { camp, roomName } = parseLocationKey(locationKey);
                 const dbRoom = dbRoomByLocationKey.get(locationKey);
-                // Same room token as stickers; wrapped in URL so phone camera opens FMC (not Google).
-                const stickerToken = String(dbRoom?.token || locationKey).trim();
-                const qrPayload = buildRoomQrUrl(stickerToken);
+                // Only print QRs that resolve in DB — otherwise phone opens dead links.
+                const stickerToken = dbRoom?.token ? String(dbRoom.token).trim() : '';
+                const qrPayload = stickerToken ? buildRoomQrUrl(stickerToken) : '';
                 return (
                 <div
                   key={locationKey}
                   className="bg-white border border-slate-200 rounded-xl p-5 sm:p-6 flex flex-col items-center justify-center text-center print:break-inside-avoid print:shadow-none print:border-gray-400"
                 >
                   <p className="font-bold text-lg text-slate-900 text-center mb-2">{camp}</p>
-                  <QRCodeSVG
-                    value={qrPayload}
-                    size={100}
-                    level="M"
-                    includeMargin={false}
-                  />
+                  {qrPayload ? (
+                    <QRCodeSVG
+                      value={qrPayload}
+                      size={100}
+                      level="M"
+                      includeMargin={false}
+                    />
+                  ) : (
+                    <div className="w-[100px] h-[100px] flex items-center justify-center bg-amber-50 border border-amber-200 rounded-lg text-[10px] font-bold text-amber-800 px-2">
+                      {dict.qrNotSynced}
+                    </div>
+                  )}
                   <p className="text-[10px] sm:text-xs uppercase text-red-700 font-bold tracking-wider text-center mt-2">
                     FACILITY AND MAINTENANCE
                   </p>

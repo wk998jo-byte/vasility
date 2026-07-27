@@ -9,7 +9,8 @@
     "test": "npm run test --prefix web",
     "start": "node server/index.js",
     "start:static": "python -m http.server 8080",
-    "db:init": "node server/init-db.js"
+    "db:init": "node server/init-db.js",
+    "db:audit-qr": "node server/scripts/audit-qr-tokens.js"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",

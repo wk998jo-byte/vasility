@@ -58,15 +58,35 @@ export function campLabelToSite(camp) {
   return c.replace(/\s+Camp$/i, '').trim() || c;
 }
 
-/** All string forms that should match the same site in filters. */
+/** All string forms that should match the same site in filters / QR resolve. */
 export function siteFilterAliases(site) {
   const raw = String(site || '').trim();
   if (!raw) return [];
   const camp = siteToCampLabel(raw) || raw;
   const db = campLabelToSite(camp) || raw;
   const display = String(camp).replace(/\s+Camp$/i, '').trim();
+  const extras = [];
+  // Legacy MGS stickers used "MGS" / "MGS Camp" before BQ/PMT split.
+  if (/^mgs\s*bq$/i.test(db) || (/^mgs$/i.test(db) && !/pmt/i.test(db))) {
+    extras.push('MGS', 'MGS Camp', 'MGS BQ', 'mgs', 'mgs camp', 'mgs bq');
+  }
+  if (/^mgs\s*pmt$/i.test(db)) {
+    extras.push('MGS PMT', 'mgs pmt');
+  }
+  if (/^madina camp 1\s*pmt$/i.test(db)) {
+    extras.push('Madina Camp 1', 'Madina Camp 1 PMT', 'TCF-1', 'tcf-1', 'madina camp 1', 'madina camp 1 pmt');
+  }
+  if (/^madina camp 1\s*bq$/i.test(db)) {
+    extras.push('Madina Camp 1 BQ', 'madina camp 1 bq');
+  }
+  if (/^madina camp 2\s*bq$/i.test(db)) {
+    extras.push('Madina Camp 2', 'Madina Camp 2 BQ', 'TCF-2', 'tcf-2', 'madina camp 2', 'madina camp 2 bq');
+  }
+  if (/^madina camp 2\s*pmt$/i.test(db)) {
+    extras.push('Madina Camp 2 PMT', 'madina camp 2 pmt');
+  }
   return [...new Set(
-    [raw, camp, db, display]
+    [raw, camp, db, display, ...extras]
       .map((v) => String(v || '').trim())
       .filter(Boolean)
       .flatMap((v) => [v, v.toLowerCase()]),
@@ -516,7 +536,9 @@ export async function resolveRoomByToken(db, token) {
   const { rows } = await db.query(
     `SELECT t.room_id FROM room_qr_tokens t
      JOIN rooms r ON r.id = t.room_id
-     WHERE t.token = $1 AND t.is_active = true AND r.is_active = true`,
+     WHERE t.is_active = true AND r.is_active = true
+       AND (t.token = $1 OR LOWER(TRIM(t.token)) = LOWER(TRIM($1)))
+     LIMIT 1`,
     [trimmed],
   );
   if (rows[0]) return loadRoom(rows[0].room_id);
@@ -524,11 +546,14 @@ export async function resolveRoomByToken(db, token) {
   const parsed = parseQrLocationKey(trimmed);
   if (parsed?.roomName) {
     const site = campLabelToSite(parsed.camp);
+    const aliases = siteFilterAliases(parsed.camp).map((a) => a.toLowerCase());
     const { rows: roomRows } = await db.query(
       `SELECT id FROM rooms
-       WHERE is_active = true AND name = $1 AND COALESCE(site, '') = $2
+       WHERE is_active = true
+         AND name = $1
+         AND LOWER(TRIM(COALESCE(site, ''))) = ANY($2::text[])
        LIMIT 1`,
-      [parsed.roomName, site || ''],
+      [parsed.roomName, aliases.length ? aliases : [String(site || '').toLowerCase()]],
     );
     if (roomRows[0]) return loadRoom(roomRows[0].id);
   }

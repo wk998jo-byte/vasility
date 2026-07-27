@@ -32,6 +32,7 @@ import {
   fetchIssueComments,
   insertIssueComment,
   toPublicIssue,
+  campLabelToSite,
 } from './seed.js';
 
 // Bypass local Windows SSL/Proxy inspection ONLY when explicitly enabled.
@@ -1109,6 +1110,40 @@ app.get('/api/rooms/admin', requireDb, authenticateToken, async (req, res) => {
     res.status(200).json({ rooms });
   } catch {
     res.status(500).json({ error: 'Failed to fetch admin rooms' });
+  }
+});
+
+/** Admin: sample-resolve inventory tokens so we can see which camps fail QR → form. */
+app.get('/api/rooms/qr-audit', requireDb, authenticateToken, requireManager, async (req, res) => {
+  try {
+    const { ROOM_DATA } = await import('../web/src/data/roomsData.js');
+    const { DHAHRAN_OFFICE_ROOMS } = await import('../web/src/data/dhahranOfficeRooms.js');
+    const inventory = { ...ROOM_DATA, ...DHAHRAN_OFFICE_ROOMS };
+    const bySite = {};
+    let ok = 0;
+    let fail = 0;
+    const sampleFails = [];
+
+    for (const key of Object.keys(inventory)) {
+      const splitAt = key.indexOf(' - ');
+      const camp = splitAt === -1 ? 'Other' : key.slice(0, splitAt).trim();
+      const site = campLabelToSite(camp) || camp;
+      if (!bySite[site]) bySite[site] = { ok: 0, fail: 0 };
+      const resolved = await resolveRoomByToken(req.db, key);
+      if (resolved?.room?.id) {
+        ok += 1;
+        bySite[site].ok += 1;
+      } else {
+        fail += 1;
+        bySite[site].fail += 1;
+        if (sampleFails.length < 30) sampleFails.push(key);
+      }
+    }
+
+    res.status(200).json({ ok, fail, total: ok + fail, bySite, sampleFails });
+  } catch (err) {
+    console.error('[qr-audit]', err.message);
+    res.status(500).json({ error: 'QR audit failed' });
   }
 });
 

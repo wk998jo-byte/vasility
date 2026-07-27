@@ -1,6 +1,6 @@
 import { ROOM_DATA } from '../web/src/data/roomsData.js';
 import { DHAHRAN_OFFICE_ROOMS } from '../web/src/data/dhahranOfficeRooms.js';
-import { campLabelToSite } from './seed.js';
+import { campLabelToSite, buildStaticQrToken } from './seed.js';
 import { withTransaction } from './db.js';
 
 const INVENTORY = { ...ROOM_DATA, ...DHAHRAN_OFFICE_ROOMS };
@@ -31,27 +31,80 @@ async function ensureFacDepartment(client) {
   return inserted.rows[0].id;
 }
 
+async function ensureMissingTokens(pool) {
+  const { rows } = await pool.query(
+    `SELECT r.id, r.name, r.site
+     FROM rooms r
+     WHERE r.is_active = true
+       AND NOT EXISTS (
+         SELECT 1 FROM room_qr_tokens t
+         WHERE t.room_id = r.id AND t.is_active = true
+       )`,
+  );
+  let tokensAdded = 0;
+  for (const room of rows) {
+    const token = buildStaticQrToken(room.site, room.name);
+    await pool.query(
+      `INSERT INTO room_qr_tokens (room_id, token, is_active) VALUES ($1, $2, true)`,
+      [room.id, token],
+    );
+    tokensAdded += 1;
+  }
+  return tokensAdded;
+}
+
 /**
- * Seed all ROOM_DATA + Dhahran office locations into PostgreSQL.
- * Uses (department_id, site, name) uniqueness so "A-01" can exist per camp.
+ * Seed ROOM_DATA + Dhahran office into PostgreSQL.
+ * - Full pass when DB is empty / FORCE_SEED_INVENTORY=true
+ * - Otherwise only backfill sites that are missing or under-seeded (avoids Replit OOM)
+ * - Always ensure rooms without QR tokens get one
  */
 export async function seedInventoryRooms(pool) {
   const entries = Object.entries(INVENTORY);
   if (!entries.length) return { created: 0, assets: 0 };
 
-  // Avoid Replit OOM: full inventory rescan every boot is too heavy once DB is populated.
+  const force = String(process.env.FORCE_SEED_INVENTORY || '').toLowerCase() === 'true';
+
+  const bySite = new Map();
+  for (const [key, assets] of entries) {
+    const { camp, roomName } = parseLocationKey(key);
+    if (!roomName) continue;
+    const site = campLabelToSite(camp) || '';
+    if (!bySite.has(site)) bySite.set(site, []);
+    bySite.get(site).push([key, assets, roomName]);
+  }
+
+  let countBySite = new Map();
   try {
     const { rows } = await pool.query(
-      `SELECT COUNT(*)::int AS count FROM rooms WHERE is_active = true`,
+      `SELECT COALESCE(site, '') AS site, COUNT(*)::int AS count
+       FROM rooms WHERE is_active = true
+       GROUP BY 1`,
     );
-    const existingCount = rows[0]?.count || 0;
-    if (existingCount >= Math.min(80, Math.floor(entries.length * 0.5))) {
-      console.log(`[seed-inventory] Skip full rescan (${existingCount} active rooms already present)`);
-      return { created: 0, assetsAdded: 0, tokensAdded: 0, skipped: true };
-    }
+    countBySite = new Map(rows.map((r) => [r.site, r.count]));
   } catch (err) {
-    console.warn('[seed-inventory] count check failed, continuing seed:', err.message);
+    console.warn('[seed-inventory] site count failed, full seed:', err.message);
   }
+
+  const sitesToSeed = [];
+  for (const [site, items] of bySite) {
+    const have = countBySite.get(site) || 0;
+    const need = Math.max(3, Math.floor(items.length * 0.5));
+    if (force || have < need) sitesToSeed.push(site);
+  }
+
+  if (!sitesToSeed.length && !force) {
+    const tokensAdded = await ensureMissingTokens(pool);
+    if (tokensAdded) {
+      console.log(`[seed-inventory] Ensured ${tokensAdded} missing QR token(s)`);
+    } else {
+      console.log('[seed-inventory] Sites already seeded — skip full rescan');
+    }
+    return { created: 0, assetsAdded: 0, tokensAdded, skipped: true };
+  }
+
+  console.log(`[seed-inventory] Backfilling sites: ${sitesToSeed.join(', ') || '(all)'}`);
+  const siteFilter = new Set(sitesToSeed);
 
   const result = await withTransaction(pool, async (client) => {
     const deptId = await ensureFacDepartment(client);
@@ -62,7 +115,8 @@ export async function seedInventoryRooms(pool) {
     for (const [key, assets] of entries) {
       const { camp, roomName } = parseLocationKey(key);
       if (!roomName) continue;
-      const site = campLabelToSite(camp);
+      const site = campLabelToSite(camp) || '';
+      if (siteFilter.size && !siteFilter.has(site)) continue;
 
       const existing = await client.query(
         `SELECT id FROM rooms
@@ -119,6 +173,9 @@ export async function seedInventoryRooms(pool) {
 
     return { created, assetsAdded, tokensAdded };
   });
+
+  const extraTokens = await ensureMissingTokens(pool);
+  result.tokensAdded += extraTokens;
 
   if (result.created > 0 || result.assetsAdded > 0 || result.tokensAdded > 0) {
     console.log(
