@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FMC System Guideline — EN / AR / UR</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Nastaliq+Urdu:wght@400;700&family=Noto+Sans+Arabic:wght@400;600;700&family=Noto+Sans:wght@400;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --brand: #b91c1c;
+      --text: #111;
+      --muted: #444;
+      --line: #e5e7eb;
+      --soft: #f8fafc;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--text);
+      font-family: "Noto Sans", system-ui, sans-serif;
+      line-height: 1.55;
+      background: #fff;
+    }
+    .page { max-width: 920px; margin: 0 auto; padding: 32px 24px 64px; }
+    .cover {
+      text-align: center;
+      padding: 64px 24px;
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      background: linear-gradient(180deg, #fff 0%, #fef2f2 100%);
+      margin-bottom: 40px;
+    }
+    .cover h1 { font-size: 2rem; margin: 0 0 8px; }
+    .cover .brand { color: var(--brand); font-weight: 700; font-size: 1.4rem; }
+    .cover .sub { color: var(--muted); margin-top: 12px; }
+    .lang-bar {
+      display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;
+      margin: 20px 0 8px;
+    }
+    .lang-bar a {
+      text-decoration: none; color: #fff; background: var(--brand);
+      padding: 8px 14px; border-radius: 999px; font-size: 0.9rem; font-weight: 600;
+    }
+    section.lang { margin-top: 48px; page-break-before: always; }
+    section.lang h2 {
+      font-size: 1.6rem; border-bottom: 2px solid var(--brand);
+      padding-bottom: 8px; margin-bottom: 20px;
+    }
+    h3 { font-size: 1.15rem; margin: 28px 0 10px; color: var(--text); }
+    p, li { color: var(--muted); font-size: 0.98rem; }
+    ul { padding-inline-start: 1.2rem; }
+    li { margin: 6px 0; }
+    .shot {
+      margin: 14px 0 22px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      overflow: hidden;
+      background: var(--soft);
+      box-shadow: 0 8px 24px rgba(0,0,0,.06);
+    }
+    .shot img { display: block; width: 100%; height: auto; }
+    .shot figcaption {
+      font-size: 0.82rem; color: var(--muted);
+      padding: 10px 14px; border-top: 1px solid var(--line);
+      background: #fff;
+    }
+    .rtl { direction: rtl; font-family: "Noto Sans Arabic", "Noto Nastaliq Urdu", sans-serif; }
+    .ur { font-family: "Noto Nastaliq Urdu", "Noto Sans Arabic", sans-serif; line-height: 2; }
+    .note {
+      background: #fff7ed; border: 1px solid #fed7aa; border-radius: 12px;
+      padding: 12px 14px; color: #9a3412; font-size: 0.9rem; margin: 16px 0;
+    }
+    @media print {
+      .lang-bar { display: none; }
+      .cover { box-shadow: none; }
+      section.lang { page-break-before: always; }
+      .shot { break-inside: avoid; }
+      a { color: inherit; text-decoration: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="cover">
+      <div class="brand">FMC</div>
+      <h1>Facility Maintenance Center</h1>
+      <p class="sub">System User Guideline</p>
+      <p class="sub rtl" style="font-family:'Noto Sans Arabic',sans-serif;font-size:1.2rem;margin-top:8px;">دليل استخدام النظام</p>
+      <p class="sub ur rtl" style="font-size:1.15rem;">نظام کے استعمال کی ہدایات</p>
+      <p class="sub">English · العربية · اردو</p>
+      <p class="sub">Bin Quraya · Live system: <a href="https://fasility.replit.app/">fasility.replit.app</a></p>
+      <div class="lang-bar">
+        <a href="#en">English</a>
+        <a href="#ar">العربية</a>
+        <a href="#ur">اردو</a>
+      </div>
+      <p class="note">Screenshots below are taken from the live FMC system. Printed QR stickers should not be regenerated.</p>
+    </header>
+
+    <!-- ENGLISH -->
+    <section class="lang" id="en">
+      <h2>1. English — System Guideline</h2>
+
+      <h3>1.1 What is FMC?</h3>
+      <p>Facility Maintenance Center (FMC) is Bin Quraya’s system for reporting and managing facility issues by scanning a room QR code. Ticket numbers use the <strong>FMC-</strong> prefix (example: FMC-2026-0001).</p>
+
+      <h3>1.2 Report an issue (QR → Form)</h3>
+      <ol>
+        <li>Open the site or scan the room QR with your phone camera.</li>
+        <li>The report form opens for a valid room (location is locked).</li>
+        <li>Enter name, employee ID, phone (required for WhatsApp), asset, issue, priority, and notes.</li>
+        <li>Submit and keep your ticket number.</li>
+      </ol>
+      <figure class="shot">
+        <img src="screens/01-request-scan.png" alt="Request scan screen from live FMC" />
+        <figcaption>Live screen — Request / Scan QR gate</figcaption>
+      </figure>
+      <figure class="shot">
+        <img src="screens/02-report-form.png" alt="Report form from live FMC" />
+        <figcaption>Live screen — Report form after a valid room QR (example: MGS BQ / A-01)</figcaption>
+      </figure>
+
+      <h3>1.3 Track a ticket</h3>
+      <p>Open <strong>Track</strong>, enter Ticket Number and Employee ID together, then view status (New → In Progress → Resolved → Closed).</p>
+      <figure class="shot">
+        <img src="screens/03-track.png" alt="Track screen from live FMC" />
+        <figcaption>Live screen — Track ticket</figcaption>
+      </figure>
+
+      <h3>1.4 Admin login (Command Center)</h3>
+      <p>Use <strong>Admin Login</strong> / Command Center with your authorized username and password.</p>
+      <figure class="shot">
+        <img src="screens/04-admin-login.png" alt="Admin login from live FMC" />
+        <figcaption>Live screen — Command Center login</figcaption>
+      </figure>
+
+      <h3>1.5 Dashboard</h3>
+      <ul>
+        <li>See totals, active issues, SLA Breached (New/Pending older than 24 hours), and spend.</li>
+        <li>Filter tickets by status, priority, department, location, and site.</li>
+        <li>Priority is visible in the ticket list.</li>
+        <li>Cost can be updated even after a ticket is Closed.</li>
+      </ul>
+      <figure class="shot">
+        <img src="screens/05-dashboard.png" alt="Dashboard from live FMC" />
+        <figcaption>Live screen — Command Center dashboard</figcaption>
+      </figure>
+      <figure class="shot">
+        <img src="screens/09-tickets-priority.png" alt="Tickets table with priority from live FMC" />
+        <figcaption>Live screen — Tickets list (includes Priority filter/column area)</figcaption>
+      </figure>
+
+      <h3>1.6 Locations and QR codes</h3>
+      <p>Open <strong>Manage Locations</strong> to view room QR stickers by camp. Do not regenerate printed QR tokens.</p>
+      <figure class="shot">
+        <img src="screens/06-locations.png" alt="Location Manager from live FMC" />
+        <figcaption>Live screen — Location Manager with QR stickers</figcaption>
+      </figure>
+
+      <h3>1.7 Staff Manager</h3>
+      <ul>
+        <li>Create users with role and one or more sites.</li>
+        <li>Deleted/inactive users do not appear in Assign Technician.</li>
+        <li>Sub Admin / In-Charge with phone receives new-ticket alerts for their site.</li>
+      </ul>
+      <figure class="shot">
+        <img src="screens/07-staff-manager.png" alt="Staff Manager from live FMC" />
+        <figcaption>Live screen — Staff Manager</figcaption>
+      </figure>
+    </section>
+
+    <!-- ARABIC -->
+    <section class="lang rtl" id="ar">
+      <h2>٢. العربية — دليل استخدام النظام</h2>
+
+      <h3>٢.١ ما هو نظام FMC؟</h3>
+      <p>مركز صيانة المرافق (FMC) هو نظام بن قريا للإبلاغ عن أعطال المرافق وإدارتها عبر مسح رمز QR للغرفة. أرقام التذاكر تبدأ بـ <strong>FMC-</strong> (مثال: FMC-2026-0001).</p>
+
+      <h3>٢.٢ تقديم بلاغ (QR ثم النموذج)</h3>
+      <ol>
+        <li>افتح الموقع أو امسح QR الغرفة بكاميرا الجوال.</li>
+        <li>يفتح نموذج البلاغ للغرفة الصحيحة (الموقع مربوط بتلك الغرفة).</li>
+        <li>أدخل الاسم، الرقم الوظيفي، الجوال (مطلوب للواتساب)، الأصل، نوع العطل، الأولوية، والملاحظات.</li>
+        <li>أرسل الطلب واحفظ رقم التذكرة.</li>
+      </ol>
+      <figure class="shot">
+        <img src="screens/01-request-scan.png" alt="شاشة المسح" />
+        <figcaption>من النظام مباشرة — شاشة الطلب / مسح QR</figcaption>
+      </figure>
+      <figure class="shot">
+        <img src="screens/02-report-form.png" alt="نموذج البلاغ" />
+        <figcaption>من النظام مباشرة — نموذج البلاغ بعد QR صالح</figcaption>
+      </figure>
+
+      <h3>٢.٣ متابعة التذكرة</h3>
+      <p>افتح <strong>Track</strong>، أدخل رقم التذكرة والرقم الوظيفي معاً، ثم شاهد الحالة.</p>
+      <figure class="shot">
+        <img src="screens/03-track.png" alt="التتبع" />
+        <figcaption>من النظام مباشرة — تتبع التذكرة</figcaption>
+      </figure>
+
+      <h3>٢.٤ دخول المسؤول</h3>
+      <p>من <strong>Admin Login</strong> / Command Center باستخدام بيانات مصرّح بها.</p>
+      <figure class="shot">
+        <img src="screens/04-admin-login.png" alt="دخول الأدمن" />
+        <figcaption>من النظام مباشرة — تسجيل دخول لوحة القيادة</figcaption>
+      </figure>
+
+      <h3>٢.٥ لوحة القيادة</h3>
+      <ul>
+        <li>الإحصائيات: إجمالي التذاكر، النشطة، تجاوز الوقت (أكثر من ٢٤ ساعة)، والتكلفة.</li>
+        <li>فلاتر الحالة والأولوية والقسم والموقع.</li>
+        <li>عمود/فلتر الأولوية ظاهر في قائمة التذاكر.</li>
+        <li>يمكن تعديل التكلفة حتى بعد إغلاق التذكرة.</li>
+      </ul>
+      <figure class="shot">
+        <img src="screens/05-dashboard.png" alt="لوحة القيادة" />
+        <figcaption>من النظام مباشرة — لوحة Command Center</figcaption>
+      </figure>
+      <figure class="shot">
+        <img src="screens/09-tickets-priority.png" alt="قائمة التذاكر" />
+        <figcaption>من النظام مباشرة — قائمة التذاكر والأولوية</figcaption>
+      </figure>
+
+      <h3>٢.٦ المواقع ورموز QR</h3>
+      <p>من <strong>Manage Locations</strong> تشاهد ملصقات QR. لا تُعد توليد توكنات الملصقات المطبوعة.</p>
+      <figure class="shot">
+        <img src="screens/06-locations.png" alt="إدارة المواقع" />
+        <figcaption>من النظام مباشرة — مدير المواقع مع QR</figcaption>
+      </figure>
+
+      <h3>٢.٧ إدارة الموظفين</h3>
+      <ul>
+        <li>إنشاء مستخدم مع دور وموقع واحد أو عدة مواقع.</li>
+        <li>المحذوفون لا يظهرون في قائمة التعيين.</li>
+        <li>مسؤول الموقع / Sub Admin يستلم تنبيه التذاكر الجديدة لموقعه عند وجود رقم جوال.</li>
+      </ul>
+      <figure class="shot">
+        <img src="screens/07-staff-manager.png" alt="إدارة الموظفين" />
+        <figcaption>من النظام مباشرة — Staff Manager</figcaption>
+      </figure>
+    </section>
+
+    <!-- URDU -->
+    <section class="lang rtl ur" id="ur">
+      <h2>۳. اردو — سسٹم گائیڈ لائن</h2>
+
+      <h3>۳.۱ FMC کیا ہے؟</h3>
+      <p>Facility Maintenance Center (FMC) بن قریا کا سسٹم ہے جو کمرے کا QR اسکین کر کے سہولت کی خرابی رپورٹ اور مینج کرتا ہے۔ ٹکٹ نمبر <strong>FMC-</strong> سے شروع ہوتے ہیں (مثال: FMC-2026-0001)۔</p>
+
+      <h3>۳.۲ رپورٹ کیسے درج کریں</h3>
+      <ol>
+        <li>سائٹ کھولیں یا فون کیمرے سے کمرے کا QR اسکین کریں۔</li>
+        <li>درست QR پر رپورٹ فارم کھلتا ہے (لوکیشن اس کمرے سے منسلک)۔</li>
+        <li>نام، ایمپلائی آئی ڈی، فون، اثاثہ، مسئلہ، ترجیح اور نوٹس درج کریں۔</li>
+        <li>جمع کروائیں اور ٹکٹ نمبر محفوظ رکھیں۔</li>
+      </ol>
+      <figure class="shot">
+        <img src="screens/01-request-scan.png" alt="اسکین اسکرین" />
+        <figcaption>لائیو سسٹم — Request / QR اسکین</figcaption>
+      </figure>
+      <figure class="shot">
+        <img src="screens/02-report-form.png" alt="رپورٹ فارم" />
+        <figcaption>لائیو سسٹم — رپورٹ فارم</figcaption>
+      </figure>
+
+      <h3>۳.۳ ٹکٹ ٹریک کریں</h3>
+      <p><strong>Track</strong> کھولیں، ٹکٹ نمبر اور ایمپلائی آئی ڈی دونوں درج کریں، پھر اسٹیٹس دیکھیں۔</p>
+      <figure class="shot">
+        <img src="screens/03-track.png" alt="ٹریک" />
+        <figcaption>لائیو سسٹم — Track</figcaption>
+      </figure>
+
+      <h3>۳.۴ ایڈمن لاگ اِن</h3>
+      <p><strong>Admin Login</strong> / Command Center سے لاگ اِن کریں۔</p>
+      <figure class="shot">
+        <img src="screens/04-admin-login.png" alt="لاگ اِن" />
+        <figcaption>لائیو سسٹم — Command Center لاگ اِن</figcaption>
+      </figure>
+
+      <h3>۳.۵ ڈیش بورڈ</h3>
+      <ul>
+        <li>کل ٹکٹس، ایکٹو مسائل، SLA Breached (۲۴ گھنٹے سے زیادہ New/Pending)، اور لاگت۔</li>
+        <li>Status / Priority / Department / Location فلٹرز۔</li>
+        <li>بند ٹکٹ پر بھی لاگت اپڈیٹ ممکن ہے۔</li>
+      </ul>
+      <figure class="shot">
+        <img src="screens/05-dashboard.png" alt="ڈیش بورڈ" />
+        <figcaption>لائیو سسٹم — Command Center ڈیش بورڈ</figcaption>
+      </figure>
+      <figure class="shot">
+        <img src="screens/09-tickets-priority.png" alt="ٹکٹس" />
+        <figcaption>لائیو سسٹم — ٹکٹس اور Priority</figcaption>
+      </figure>
+
+      <h3>۳.۶ مقامات اور QR</h3>
+      <p><strong>Manage Locations</strong> سے QR سٹیکرز دیکھیں۔ پرنٹ شدہ QR ٹوکن دوبارہ نہ بنائیں۔</p>
+      <figure class="shot">
+        <img src="screens/06-locations.png" alt="لوکیشنز" />
+        <figcaption>لائیو سسٹم — Location Manager</figcaption>
+      </figure>
+
+      <h3>۳.۷ سٹاف مینیجر</h3>
+      <ul>
+        <li>نیا یوزر: رول اور ایک یا زیادہ سائٹس۔</li>
+        <li>ڈیلیٹڈ یوزر Assign فہرست میں نہیں آتے۔</li>
+        <li>سب ایڈمن / انچارج کو اپنی سائٹ کی نئی ٹکٹ کی اطلاع ملتی ہے (فون موجود ہو تو)۔</li>
+      </ul>
+      <figure class="shot">
+        <img src="screens/07-staff-manager.png" alt="سٹاف" />
+        <figcaption>لائیو سسٹم — Staff Manager</figcaption>
+      </figure>
+    </section>
+  </div>
+</body>
+</html>
