@@ -64,7 +64,15 @@ function rule() {
 }
 
 function cover() {
-  doc.moveDown(4);
+  const logoPath = path.join(root, 'web', 'public', 'logo.png');
+  if (fs.existsSync(logoPath)) {
+    const logoWidth = 120;
+    const x = (doc.page.width - logoWidth) / 2;
+    doc.image(logoPath, x, 70, { width: logoWidth });
+    doc.y = 70 + 120 + 24;
+  } else {
+    doc.moveDown(4);
+  }
   doc.font('Helvetica-Bold').fontSize(26).fillColor(C.primary)
     .text('Facility Maintenance Center', { align: 'center' });
   doc.moveDown(0.3);
@@ -86,7 +94,11 @@ function cover() {
   doc.font('Helvetica').fontSize(10).fillColor(C.muted)
     .text('Bin Quraya Construction', { align: 'center' });
   doc.moveDown(0.2);
-  doc.text(`Generated: ${new Date().toISOString().slice(0, 10)}`, { align: 'center' });
+  doc.font('Naskh').fontSize(11).fillColor(C.primary)
+    .text(shapeRtl('بن قريعة'), { align: 'center' });
+  doc.moveDown(0.2);
+  doc.font('Helvetica').fontSize(10).fillColor(C.muted)
+    .text(`Generated: ${new Date().toISOString().slice(0, 10)}`, { align: 'center' });
   doc.moveDown(2);
   const y = doc.y;
   doc.roundedRect(90, y, 415, 70, 10).fillAndStroke(C.soft, C.line);

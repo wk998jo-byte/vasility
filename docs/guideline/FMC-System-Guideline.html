@@ -32,8 +32,15 @@
       background: linear-gradient(180deg, #fff 0%, #fef2f2 100%);
       margin-bottom: 40px;
     }
+    .cover .logo {
+      width: 140px;
+      height: auto;
+      margin: 0 auto 20px;
+      display: block;
+      object-fit: contain;
+    }
     .cover h1 { font-size: 2rem; margin: 0 0 8px; }
-    .cover .brand { color: var(--brand); font-weight: 700; font-size: 1.4rem; }
+    .cover .brand { color: var(--brand); font-weight: 700; font-size: 1.4rem; margin: 0; }
     .cover .sub { color: var(--muted); margin-top: 12px; }
     .lang-bar {
       display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;
@@ -84,13 +91,15 @@
 <body>
   <div class="page">
     <header class="cover">
-      <div class="brand">FMC</div>
+      <img class="logo" src="logo.png" alt="Bin Quraya" />
+      <p class="brand">FMC</p>
       <h1>Facility Maintenance Center</h1>
       <p class="sub">System User Guideline</p>
       <p class="sub rtl" style="font-family:'Noto Sans Arabic',sans-serif;font-size:1.2rem;margin-top:8px;">دليل استخدام النظام</p>
       <p class="sub ur rtl" style="font-size:1.15rem;">نظام کے استعمال کی ہدایات</p>
       <p class="sub">English · العربية · اردو</p>
-      <p class="sub">Bin Quraya · Live system: <a href="https://fasility.replit.app/">fasility.replit.app</a></p>
+      <p class="sub">Bin Quraya · بن قريعة</p>
+      <p class="sub">Live system: <a href="https://fasility.replit.app/">fasility.replit.app</a></p>
       <div class="lang-bar">
         <a href="#en">English</a>
         <a href="#ar">العربية</a>
