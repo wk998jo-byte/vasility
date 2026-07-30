@@ -292,7 +292,7 @@ langBanner('اردو', 'العربية', 'ENGLISH');
 sectionTitleRtl('۳. اردو — سسٹم گائیڈ لائن');
 
 h2Rtl('۳.۱ FMC کیا ہے؟');
-pRtl('Facility Maintenance Center (FMC) بن قریا کا سسٹم ہے جو کمرے کے QR کوڈ اسکین کر کے سہولت کی خرابی رپورٹ اور مینج کرتا ہے۔ ٹکٹ نمبر FMC- سے شروع ہوتے ہیں (مثال: FMC-2026-0001)۔');
+pRtl('Facility Maintenance Center (FMC) بن قریعہ کا سسٹم ہے جو کمرے کے QR کوڈ اسکین کر کے سہولت کی خرابی رپورٹ اور مینج کرتا ہے۔ ٹکٹ نمبر FMC- سے شروع ہوتے ہیں (مثال: FMC-2026-0001)۔');
 
 h2Rtl('۳.۲ کون استعمال کرتا ہے؟');
 bulletRtl('رپورٹر (کوئی بھی ملازم): QR اسکین کر کے درخواست جمع کراتا ہے۔');
@@ -353,7 +353,7 @@ pEn('For WhatsApp delivery, user phone numbers and Twilio Content templates must
 doc.moveDown(0.8);
 pRtl('العلامة: مركز صيانة المرافق (FMC) — بن قريعة. لا تُغيّر توكنات QR المطبوعة.');
 doc.moveDown(0.4);
-pRtl('برانڈ: Facility Maintenance Center (FMC) — بن قریا۔ پرنٹ شدہ QR ٹوکن تبدیل نہ کریں۔');
+pRtl('برانڈ: Facility Maintenance Center (FMC) — بن قریعہ۔ پرنٹ شدہ QR ٹوکن تبدیل نہ کریں۔');
 
 doc.end();
 console.log(`Wrote ${outPath}`);
