@@ -10,7 +10,8 @@
     "start": "node server/index.js",
     "start:static": "python -m http.server 8080",
     "db:init": "node server/init-db.js",
-    "db:audit-qr": "node server/scripts/audit-qr-tokens.js"
+    "db:audit-qr": "node server/scripts/audit-qr-tokens.js",
+    "docs:guideline-pdf": "node scripts/generate-system-guideline-pdf.js"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",
@@ -24,5 +25,10 @@
     "nodemailer": "^9.0.3",
     "pg": "^8.13.1",
     "twilio": "^6.0.2"
+  },
+  "devDependencies": {
+    "arabic-persian-reshaper": "^1.0.1",
+    "bidi-js": "^1.0.3",
+    "pdfkit": "^0.19.1"
   }
 }
