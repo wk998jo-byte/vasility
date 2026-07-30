@@ -344,7 +344,7 @@ function normId(value) {
   return String(value || '').trim().toLowerCase();
 }
 
-const BrandLogo = ({ className = 'h-10 w-auto object-contain', alt = 'Bin Qurai\'ah' }) => (
+const BrandLogo = ({ className = 'h-10 w-auto object-contain', alt = 'Bin Quraya' }) => (
   <img src="/logo.png" alt={alt} className={className} />
 );
 
@@ -468,7 +468,7 @@ const t = {
     reportDaily: 'Daily', reportWeekly: 'Weekly', reportMonthly: 'Monthly',
     reportTotal: 'Total Tickets', reportResolved: 'Resolved Tickets', reportCost: 'Total Cost (SAR)',
     reportDateCol: 'Date', reportLocationAsset: 'Location / Asset', reportAssignee: 'Assignee',
-    reportGenerated: 'Generated', reportCompany: 'Facility Maintenance Center — FMC (Bin Qurai\'ah)',
+    reportGenerated: 'Generated', reportCompany: 'Facility Maintenance Center — FMC (Bin Quraya)',
     reportNoTickets: 'No tickets in this period.',
     profile: 'Profile', myProfile: 'My Profile', profileSubtitle: 'Account details and security',
     assignedCamp: 'Assigned Camp', titleLabel: 'Title', phoneLabel: 'Phone',
@@ -751,7 +751,7 @@ export default function App() {
             </div>
             <div className="flex flex-col items-start hidden sm:flex">
               <span className="font-extrabold tracking-tight text-xl leading-none text-neutral-900">FMC</span>
-              <span className="text-[10px] font-bold uppercase tracking-widest text-red-700">Bin Qurai'ah</span>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-red-700">Bin Quraya</span>
             </div>
           </button>
 

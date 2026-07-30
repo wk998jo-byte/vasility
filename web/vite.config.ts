@@ -12,7 +12,7 @@ export default defineConfig({
       manifest: {
         name: 'SSC Building Portal',
         short_name: 'SSC Portal',
-        description: 'Bin Qurai\'ah facility management',
+        description: 'Bin Quraya facility management',
         theme_color: '#0a0a0a',
         background_color: '#fcfcfc',
         display: 'standalone',
