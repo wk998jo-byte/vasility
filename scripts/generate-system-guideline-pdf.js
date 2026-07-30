@@ -27,7 +27,7 @@ const doc = new PDFDocument({
   margins: { top: 50, bottom: 55, left: 50, right: 50 },
   info: {
     Title: 'FMC System Guideline — EN / AR / UR',
-    Author: 'Bin Quraya — Facility Maintenance Center',
+    Author: 'Bin Qurai'ah — Facility Maintenance Center',
     Subject: 'User and admin operating guideline (trilingual)',
   },
 });
@@ -84,7 +84,7 @@ function cover() {
     .text('English  ·  العربية  ·  اردو', { align: 'center' });
   doc.moveDown(0.4);
   doc.font('Helvetica').fontSize(10).fillColor(C.muted)
-    .text('Bin Quraya Construction', { align: 'center' });
+    .text('Bin Qurai'ah Construction', { align: 'center' });
   doc.moveDown(0.2);
   doc.text(`Generated: ${new Date().toISOString().slice(0, 10)}`, { align: 'center' });
   doc.moveDown(2);
@@ -176,7 +176,7 @@ langBanner('ENGLISH', 'العربية', 'اردو');
 sectionTitleEn('1. English — System Guideline');
 
 h2En('1.1 What is FMC?');
-pEn('Facility Maintenance Center (FMC) is Bin Quraya’s system for reporting and managing facility issues by scanning a room QR code. Ticket numbers use the FMC- prefix (example: FMC-2026-0001).');
+pEn('Facility Maintenance Center (FMC) is Bin Qurai'ah’s system for reporting and managing facility issues by scanning a room QR code. Ticket numbers use the FMC- prefix (example: FMC-2026-0001).');
 
 h2En('1.2 Who uses the system?');
 bulletEn('Reporter (any employee): scans QR and submits a maintenance request.');
@@ -234,7 +234,7 @@ langBanner('العربية', 'ENGLISH', 'اردو');
 sectionTitleRtl('٢. العربية — دليل استخدام النظام');
 
 h2Rtl('٢.١ ما هو نظام FMC؟');
-pRtl('مركز صيانة المرافق (FMC) هو نظام بن قريا للإبلاغ عن أعطال المرافق وإدارتها عبر مسح رمز QR للغرفة. أرقام التذاكر تبدأ بـ FMC- (مثال: FMC-2026-0001).');
+pRtl('مركز صيانة المرافق (FMC) هو نظام بن قريعة للإبلاغ عن أعطال المرافق وإدارتها عبر مسح رمز QR للغرفة. أرقام التذاكر تبدأ بـ FMC- (مثال: FMC-2026-0001).');
 
 h2Rtl('٢.٢ من يستخدم النظام؟');
 bulletRtl('مقدّم البلاغ (أي موظف): يمسح QR ويقدّم طلب صيانة.');
@@ -347,11 +347,11 @@ bulletRtl('Priority کالم نظر آئے۔');
 // ─── Footer note ─────────────────────────────────────────────────────────────
 doc.addPage();
 sectionTitleEn('Support & notes');
-pEn('Brand: Facility Maintenance Center (FMC) — Bin Quraya.');
+pEn('Brand: Facility Maintenance Center (FMC) — Bin Qurai'ah.');
 pEn('Do not regenerate or rewrite printed QR tokens; legacy stickers remain supported via in-app Scan and token resolve.');
 pEn('For WhatsApp delivery, user phone numbers and Twilio Content templates must be configured.');
 doc.moveDown(0.8);
-pRtl('العلامة: مركز صيانة المرافق (FMC) — بن قريا. لا تُغيّر توكنات QR المطبوعة.');
+pRtl('العلامة: مركز صيانة المرافق (FMC) — بن قريعة. لا تُغيّر توكنات QR المطبوعة.');
 doc.moveDown(0.4);
 pRtl('برانڈ: Facility Maintenance Center (FMC) — بن قریا۔ پرنٹ شدہ QR ٹوکن تبدیل نہ کریں۔');
 
