@@ -101,13 +101,28 @@ export function buildStaticQrToken(site, roomName) {
 }
 
 export function parseQrLocationKey(token) {
-  const raw = String(token || '').trim();
+  // Normalize en/em dashes so printed stickers with different dash glyphs still parse.
+  const raw = String(token || '')
+    .trim()
+    .replace(/[\u2013\u2014\u2212]/g, '-');
   const splitAt = raw.indexOf(' - ');
   if (splitAt === -1) return null;
   return {
     camp: raw.slice(0, splitAt).trim(),
     roomName: raw.slice(splitAt + 3).trim(),
   };
+}
+
+/** Normalize room names so "SUPPORT#1 (X)" matches "SUPPORT# 1(X)". */
+export function normalizeRoomName(name) {
+  return String(name || '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .replace(/\s*#\s*/g, '#')
+    .replace(/\s*\(\s*/g, '(')
+    .replace(/\s*\)\s*/g, ')')
+    .replace(/\s*\.\s*/g, '.')
+    .trim();
 }
 
 export async function seedUsers(db) {
@@ -533,29 +548,63 @@ export async function resolveRoomByToken(db, token) {
     };
   };
 
+  // Accept URL payloads pasted as full links, and normalize whitespace / encoding.
+  let lookup = trimmed;
+  try {
+    lookup = decodeURIComponent(lookup);
+  } catch { /* keep raw */ }
+  try {
+    if (/^https?:\/\//i.test(lookup)) {
+      const u = new URL(lookup);
+      lookup = (u.searchParams.get('token') || u.searchParams.get('room') || lookup).trim();
+      try {
+        lookup = decodeURIComponent(lookup);
+      } catch { /* keep */ }
+    }
+  } catch { /* keep raw */ }
+  lookup = lookup
+    .replace(/\+/g, ' ')
+    .replace(/[\u2013\u2014\u2212]/g, '-')
+    .replace(/\s+/g, ' ')
+    .trim();
+
   const { rows } = await db.query(
     `SELECT t.room_id FROM room_qr_tokens t
      JOIN rooms r ON r.id = t.room_id
      WHERE t.is_active = true AND r.is_active = true
        AND (t.token = $1 OR LOWER(TRIM(t.token)) = LOWER(TRIM($1)))
      LIMIT 1`,
-    [trimmed],
+    [lookup],
   );
   if (rows[0]) return loadRoom(rows[0].room_id);
 
-  const parsed = parseQrLocationKey(trimmed);
+  const parsed = parseQrLocationKey(lookup);
   if (parsed?.roomName) {
     const site = campLabelToSite(parsed.camp);
     const aliases = siteFilterAliases(parsed.camp).map((a) => a.toLowerCase());
+    const aliasList = aliases.length ? aliases : [String(site || '').toLowerCase()];
+
     const { rows: roomRows } = await db.query(
       `SELECT id FROM rooms
        WHERE is_active = true
          AND name = $1
          AND LOWER(TRIM(COALESCE(site, ''))) = ANY($2::text[])
        LIMIT 1`,
-      [parsed.roomName, aliases.length ? aliases : [String(site || '').toLowerCase()]],
+      [parsed.roomName, aliasList],
     );
     if (roomRows[0]) return loadRoom(roomRows[0].id);
+
+    // Fuzzy name match (spacing around # / parentheses) within site aliases.
+    const { rows: candidates } = await db.query(
+      `SELECT id, name, COALESCE(site, '') AS site
+       FROM rooms
+       WHERE is_active = true
+         AND LOWER(TRIM(COALESCE(site, ''))) = ANY($1::text[])`,
+      [aliasList],
+    );
+    const want = normalizeRoomName(parsed.roomName);
+    const fuzzy = candidates.find((r) => normalizeRoomName(r.name) === want);
+    if (fuzzy) return loadRoom(fuzzy.id);
   }
 
   return null;

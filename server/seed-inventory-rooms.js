@@ -1,6 +1,6 @@
 import { ROOM_DATA } from '../web/src/data/roomsData.js';
 import { DHAHRAN_OFFICE_ROOMS } from '../web/src/data/dhahranOfficeRooms.js';
-import { campLabelToSite, buildStaticQrToken } from './seed.js';
+import { campLabelToSite, buildStaticQrToken, siteFilterAliases, normalizeRoomName } from './seed.js';
 import { withTransaction } from './db.js';
 
 const INVENTORY = { ...ROOM_DATA, ...DHAHRAN_OFFICE_ROOMS };
@@ -44,20 +44,25 @@ async function ensureMissingTokens(pool) {
   let tokensAdded = 0;
   for (const room of rows) {
     const token = buildStaticQrToken(room.site, room.name);
-    await pool.query(
-      `INSERT INTO room_qr_tokens (room_id, token, is_active) VALUES ($1, $2, true)`,
-      [room.id, token],
-    );
-    tokensAdded += 1;
+    try {
+      await pool.query(
+        `INSERT INTO room_qr_tokens (room_id, token, is_active) VALUES ($1, $2, true)
+         ON CONFLICT (token) DO NOTHING`,
+        [room.id, token],
+      );
+      tokensAdded += 1;
+    } catch {
+      /* ignore */
+    }
   }
   return tokensAdded;
 }
 
 /**
- * Ensure every ROOM_DATA / Dhahran office key exists as an active room + QR token.
- * Only inserts missing rooms (cheap) so we never skip Dhahran office rooms just
- * because other Dhahran rows already exist. Full asset refresh only for new rooms
- * unless FORCE_SEED_INVENTORY=true.
+ * Ensure every inventory key resolves:
+ * - Find existing room by site aliases + name (never create duplicates for MGS vs MGS BQ)
+ * - Keep ALL existing tokens (printed stickers stay valid)
+ * - Add inventory key as an extra active token alias when missing
  */
 export async function seedInventoryRooms(pool) {
   const entries = Object.entries(INVENTORY);
@@ -74,23 +79,38 @@ export async function seedInventoryRooms(pool) {
        WHERE department_id = $1 AND is_active = true`,
       [deptId],
     );
-    const bySiteName = new Map();
+
+    /** Map normalized "alias::name" → roomId (covers legacy site labels). */
+    const byAliasName = new Map();
     for (const row of existingRows) {
-      bySiteName.set(`${row.site}::${row.name}`.toLowerCase(), row.id);
+      const nName = normalizeRoomName(row.name);
+      byAliasName.set(`${String(row.site).toLowerCase()}::${nName}`, row.id);
+      for (const alias of siteFilterAliases(row.site)) {
+        byAliasName.set(`${String(alias).toLowerCase()}::${nName}`, row.id);
+      }
     }
 
     let created = 0;
     let assetsAdded = 0;
     let tokensAdded = 0;
+    let aliasesLinked = 0;
 
     for (const [key, assets] of entries) {
       const { camp, roomName } = parseLocationKey(key);
       if (!roomName) continue;
       const site = campLabelToSite(camp) || '';
-      const mapKey = `${site}::${roomName}`.toLowerCase();
-      let roomId = bySiteName.get(mapKey);
-      const isNew = !roomId;
+      const nName = normalizeRoomName(roomName);
 
+      let roomId = null;
+      for (const alias of siteFilterAliases(camp)) {
+        roomId = byAliasName.get(`${String(alias).toLowerCase()}::${nName}`);
+        if (roomId) break;
+      }
+      if (!roomId) {
+        roomId = byAliasName.get(`${String(site).toLowerCase()}::${nName}`);
+      }
+
+      const isNew = !roomId;
       if (!roomId) {
         const inserted = await client.query(
           `INSERT INTO rooms (department_id, name, site, is_active)
@@ -99,28 +119,57 @@ export async function seedInventoryRooms(pool) {
           [deptId, roomName, site],
         );
         roomId = inserted.rows[0].id;
-        bySiteName.set(mapKey, roomId);
         created += 1;
-      } else if (force) {
-        await client.query(
-          `UPDATE rooms SET site = $1, is_active = true WHERE id = $2`,
-          [site, roomId],
-        );
+        byAliasName.set(`${String(site).toLowerCase()}::${nName}`, roomId);
+        for (const alias of siteFilterAliases(site)) {
+          byAliasName.set(`${String(alias).toLowerCase()}::${nName}`, roomId);
+        }
       }
 
-      const { rows: tokenRows } = await client.query(
+      // Never overwrite/deactivate existing tokens — only ADD missing aliases.
+      const { rows: tokenHit } = await client.query(
+        `SELECT id, room_id, is_active FROM room_qr_tokens
+         WHERE LOWER(TRIM(token)) = LOWER(TRIM($1))
+         LIMIT 1`,
+        [key],
+      );
+      if (!tokenHit.length) {
+        try {
+          await client.query(
+            `INSERT INTO room_qr_tokens (room_id, token, is_active) VALUES ($1, $2, true)`,
+            [roomId, key],
+          );
+          tokensAdded += 1;
+          aliasesLinked += 1;
+        } catch {
+          /* unique race — ignore */
+        }
+      } else if (tokenHit[0].room_id === roomId && !tokenHit[0].is_active) {
+        // Same room, token was deactivated — reactivate so printed sticker works again.
+        await client.query(
+          `UPDATE room_qr_tokens SET is_active = true WHERE id = $1`,
+          [tokenHit[0].id],
+        );
+        aliasesLinked += 1;
+      }
+      // If token belongs to a different room, leave it untouched (UNIQUE constraint).
+
+      // Also ensure at least one active token exists for the room.
+      const { rows: anyActive } = await client.query(
         `SELECT id FROM room_qr_tokens WHERE room_id = $1 AND is_active = true LIMIT 1`,
         [roomId],
       );
-      if (!tokenRows.length) {
-        await client.query(
-          `INSERT INTO room_qr_tokens (room_id, token, is_active) VALUES ($1, $2, true)`,
-          [roomId, key],
-        );
-        tokensAdded += 1;
+      if (!anyActive.length) {
+        try {
+          await client.query(
+            `INSERT INTO room_qr_tokens (room_id, token, is_active) VALUES ($1, $2, true)
+             ON CONFLICT (token) DO NOTHING`,
+            [roomId, key],
+          );
+          tokensAdded += 1;
+        } catch { /* ignore */ }
       }
 
-      // Assets: always for new rooms; full refresh only when forced (OOM-safe default).
       if (isNew || force) {
         for (const asset of assets || []) {
           const name = String(asset || '').trim();
@@ -138,7 +187,7 @@ export async function seedInventoryRooms(pool) {
       }
     }
 
-    return { created, assetsAdded, tokensAdded };
+    return { created, assetsAdded, tokensAdded, aliasesLinked };
   });
 
   const extraTokens = await ensureMissingTokens(pool);
@@ -146,10 +195,10 @@ export async function seedInventoryRooms(pool) {
 
   if (result.created > 0 || result.tokensAdded > 0 || result.assetsAdded > 0) {
     console.log(
-      `[seed-inventory] ${result.created} rooms created, ${result.tokensAdded} tokens, ${result.assetsAdded} assets`,
+      `[seed-inventory] ${result.created} rooms created, ${result.tokensAdded} tokens/aliases, ${result.assetsAdded} assets`,
     );
   } else {
-    console.log('[seed-inventory] Inventory rooms already present');
+    console.log('[seed-inventory] Inventory rooms already present (tokens preserved)');
   }
   return result;
 }
