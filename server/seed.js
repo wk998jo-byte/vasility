@@ -125,6 +125,25 @@ export function normalizeRoomName(name) {
     .trim();
 }
 
+/** Common print typos (sticker says GENTS, inventory says GENETS). */
+export function roomNameVariants(name) {
+  const base = normalizeRoomName(name);
+  const out = new Set([base]);
+  if (base.includes('genets')) out.add(base.replace(/genets/g, 'gents'));
+  if (/\bgents\b/.test(base)) out.add(base.replace(/\bgents\b/g, 'genets'));
+  return [...out];
+}
+
+/**
+ * Opaque tokens printed on physical stickers (old random generateQrToken values).
+ * Stickers must keep working forever — map token → inventory location key.
+ * Decoded from photos of stickers that failed resolve after static-key migration.
+ */
+export const LEGACY_STICKER_TOKENS = {
+  'rUdAjiLIGnHlCZl-6fTfe-bpIJZ2oEyh': 'Dhahran Camp - GENETS TOILET ROOM',
+  'Dv_GC-6KD3oWsq2x5riJf6wZoHoCGPvL': 'Dhahran Camp - LADIES TOILET ROOM',
+};
+
 export async function seedUsers(db) {
   const { rows: userCount } = await db.query('SELECT COUNT(*)::int AS count FROM users');
   if (userCount[0].count === 0) {
@@ -568,6 +587,7 @@ export async function resolveRoomByToken(db, token) {
     .replace(/\s+/g, ' ')
     .trim();
 
+  // 1) Active printed token
   const { rows } = await db.query(
     `SELECT t.room_id FROM room_qr_tokens t
      JOIN rooms r ON r.id = t.room_id
@@ -577,6 +597,80 @@ export async function resolveRoomByToken(db, token) {
     [lookup],
   );
   if (rows[0]) return loadRoom(rows[0].room_id);
+
+  // 2) Inactive token (regenerate deactivated stickers) — revive, never change payload
+  const { rows: inactiveRows } = await db.query(
+    `SELECT t.id, t.room_id FROM room_qr_tokens t
+     JOIN rooms r ON r.id = t.room_id
+     WHERE r.is_active = true
+       AND (t.token = $1 OR LOWER(TRIM(t.token)) = LOWER(TRIM($1)))
+     LIMIT 1`,
+    [lookup],
+  );
+  if (inactiveRows[0]) {
+    await db.query(
+      `UPDATE room_qr_tokens SET is_active = true WHERE id = $1`,
+      [inactiveRows[0].id],
+    );
+    return loadRoom(inactiveRows[0].room_id);
+  }
+
+  // 3) Token appeared on past tickets — restore alias so the sticker works again
+  const { rows: historyRows } = await db.query(
+    `SELECT fi.room_id FROM facility_issues fi
+     JOIN rooms r ON r.id = fi.room_id
+     WHERE r.is_active = true
+       AND fi.qr_token_used IS NOT NULL
+       AND (fi.qr_token_used = $1 OR LOWER(TRIM(fi.qr_token_used)) = LOWER(TRIM($1)))
+     ORDER BY fi.created_at DESC NULLS LAST
+     LIMIT 1`,
+    [lookup],
+  );
+  if (historyRows[0]) {
+    try {
+      await db.query(
+        `INSERT INTO room_qr_tokens (room_id, token, is_active) VALUES ($1, $2, true)
+         ON CONFLICT (token) DO UPDATE
+           SET room_id = EXCLUDED.room_id, is_active = true`,
+        [historyRows[0].room_id, lookup],
+      );
+    } catch { /* ignore */ }
+    return loadRoom(historyRows[0].room_id);
+  }
+
+  // 4) Known physical stickers decoded from the field (opaque random tokens)
+  const legacyKey = LEGACY_STICKER_TOKENS[lookup];
+  if (legacyKey) {
+    const legacyParsed = parseQrLocationKey(legacyKey);
+    if (legacyParsed?.roomName) {
+      const site = campLabelToSite(legacyParsed.camp);
+      const aliases = siteFilterAliases(legacyParsed.camp).map((a) => a.toLowerCase());
+      const aliasList = aliases.length ? aliases : [String(site || '').toLowerCase()];
+      const want = normalizeRoomName(legacyParsed.roomName);
+      const { rows: legacyRooms } = await db.query(
+        `SELECT id, name FROM rooms
+         WHERE is_active = true
+           AND LOWER(TRIM(COALESCE(site, ''))) = ANY($1::text[])`,
+        [aliasList],
+      );
+      const hit = legacyRooms.find((r) => (
+        normalizeRoomName(r.name) === want
+        || roomNameVariants(r.name).includes(want)
+        || roomNameVariants(legacyParsed.roomName).includes(normalizeRoomName(r.name))
+      ));
+      if (hit) {
+        try {
+          await db.query(
+            `INSERT INTO room_qr_tokens (room_id, token, is_active) VALUES ($1, $2, true)
+             ON CONFLICT (token) DO UPDATE
+               SET room_id = EXCLUDED.room_id, is_active = true`,
+            [hit.id, lookup],
+          );
+        } catch { /* ignore */ }
+        return loadRoom(hit.id);
+      }
+    }
+  }
 
   const parsed = parseQrLocationKey(lookup);
   if (parsed?.roomName) {
@@ -602,8 +696,10 @@ export async function resolveRoomByToken(db, token) {
          AND LOWER(TRIM(COALESCE(site, ''))) = ANY($1::text[])`,
       [aliasList],
     );
-    const want = normalizeRoomName(parsed.roomName);
-    const fuzzy = candidates.find((r) => normalizeRoomName(r.name) === want);
+    const wantVariants = new Set(roomNameVariants(parsed.roomName));
+    const fuzzy = candidates.find((r) => (
+      roomNameVariants(r.name).some((v) => wantVariants.has(v))
+    ));
     if (fuzzy) return loadRoom(fuzzy.id);
   }
 

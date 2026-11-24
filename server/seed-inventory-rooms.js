@@ -1,6 +1,14 @@
 import { ROOM_DATA } from '../web/src/data/roomsData.js';
 import { DHAHRAN_OFFICE_ROOMS } from '../web/src/data/dhahranOfficeRooms.js';
-import { campLabelToSite, buildStaticQrToken, siteFilterAliases, normalizeRoomName } from './seed.js';
+import {
+  campLabelToSite,
+  buildStaticQrToken,
+  siteFilterAliases,
+  normalizeRoomName,
+  roomNameVariants,
+  LEGACY_STICKER_TOKENS,
+  parseQrLocationKey,
+} from './seed.js';
 import { withTransaction } from './db.js';
 
 const INVENTORY = { ...ROOM_DATA, ...DHAHRAN_OFFICE_ROOMS };
@@ -193,6 +201,9 @@ export async function seedInventoryRooms(pool) {
   const extraTokens = await ensureMissingTokens(pool);
   result.tokensAdded += extraTokens;
 
+  const legacyLinked = await seedLegacyStickerTokens(pool);
+  result.tokensAdded += legacyLinked;
+
   if (result.created > 0 || result.tokensAdded > 0 || result.assetsAdded > 0) {
     console.log(
       `[seed-inventory] ${result.created} rooms created, ${result.tokensAdded} tokens/aliases, ${result.assetsAdded} assets`,
@@ -201,4 +212,45 @@ export async function seedInventoryRooms(pool) {
     console.log('[seed-inventory] Inventory rooms already present (tokens preserved)');
   }
   return result;
+}
+
+/** Link opaque printed sticker tokens to rooms without changing the sticker payload. */
+async function seedLegacyStickerTokens(pool) {
+  const entries = Object.entries(LEGACY_STICKER_TOKENS || {});
+  if (!entries.length) return 0;
+  let linked = 0;
+  for (const [token, locationKey] of entries) {
+    const parsed = parseQrLocationKey(locationKey);
+    if (!parsed?.roomName) continue;
+    const aliases = siteFilterAliases(parsed.camp).map((a) => a.toLowerCase());
+    const aliasList = aliases.length
+      ? aliases
+      : [String(campLabelToSite(parsed.camp) || '').toLowerCase()];
+    const want = new Set(roomNameVariants(parsed.roomName));
+    const { rows } = await pool.query(
+      `SELECT id, name FROM rooms
+       WHERE is_active = true
+         AND LOWER(TRIM(COALESCE(site, ''))) = ANY($1::text[])`,
+      [aliasList],
+    );
+    const room = rows.find((r) => roomNameVariants(r.name).some((v) => want.has(v)));
+    if (!room) continue;
+    try {
+      const { rowCount } = await pool.query(
+        `INSERT INTO room_qr_tokens (room_id, token, is_active) VALUES ($1, $2, true)
+         ON CONFLICT (token) DO UPDATE
+           SET room_id = EXCLUDED.room_id, is_active = true
+         WHERE room_qr_tokens.is_active IS DISTINCT FROM true
+            OR room_qr_tokens.room_id IS DISTINCT FROM EXCLUDED.room_id`,
+        [room.id, token],
+      );
+      linked += rowCount;
+    } catch {
+      /* ignore */
+    }
+  }
+  if (linked > 0) {
+    console.log(`[seed-inventory] Linked ${linked} legacy printed sticker token(s)`);
+  }
+  return linked;
 }
