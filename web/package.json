@@ -48,5 +48,8 @@
     "@testing-library/jest-dom": "^6.6.3",
     "jsdom": "^26.0.0",
     "vite-plugin-pwa": "^0.21.1"
+  },
+  "overrides": {
+    "tinypool": "2.1.2"
   }
 }

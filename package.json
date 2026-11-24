@@ -24,11 +24,15 @@
     "multer": "^1.4.5-lts.1",
     "nodemailer": "^9.0.3",
     "pg": "^8.13.1",
+    "proxy-addr": "2.0.8",
     "twilio": "^6.0.2"
   },
   "devDependencies": {
     "arabic-persian-reshaper": "^1.0.1",
     "bidi-js": "^1.0.3",
     "pdfkit": "^0.19.1"
+  },
+  "overrides": {
+    "proxy-addr": "2.0.8"
   }
 }
